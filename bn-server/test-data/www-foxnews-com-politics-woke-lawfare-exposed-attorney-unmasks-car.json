@@ -1,0 +1,185 @@
+{
+	"inputs": {
+		"url": "https://www.foxnews.com/politics/woke-lawfare-exposed-attorney-unmasks-carbon-tax-intent-behind-massive-oil-litigation"
+	},
+	"outputs": {
+		"pageMetadata": {
+			"url": "https://www.foxnews.com/politics/woke-lawfare-exposed-attorney-unmasks-carbon-tax-intent-behind-massive-oil-litigation",
+			"title": "Climate lawsuit could be 'carbon tax' in disguise, attorney says  | Fox News",
+			"domain": "www.foxnews.com",
+			"author": "Emma Colton",
+			"description": "A climate lawsuit against Suncor Energy and ExxonMobil from Boulder, Colorado, could reach the U.S. Supreme Court after lower courts allowed the case to proceed.",
+			"publishedTime": "2025-11-07"
+		},
+		"analysisResult": {
+			"status": "completed",
+			"results": [{
+				"chunkId": "foxnews-article-2025-11-11",
+				"statements": [
+				  {
+					"type": "claim",
+					"summaryText": "An attorney involved in a climate-lawsuit against oil companies said the case functions as an indirect carbon tax by increasing costs on oil companies which are then passed to consumers.",
+					"analyses": [
+					  {
+						"type": "accuracy",
+						"methodName": "document-quote-check",
+						
+						"problemScore": 0.3,
+						"confidence": 0.8,
+						"flags": [],
+						"explanation": "This is accurately reported as what the attorney (David Bookbinder) said at a forum: “Essentially, the tort liability is an indirect carbon tax… the people who use the products pay for the damage that they cause.” :contentReference[oaicite:1]{index=1} It is a claim about his view, not a proven fact; the article presents it as his interpretation."
+					  },
+					  {
+						"type": "bias",
+						"methodName": "tone-analysis",
+						
+						"problemScore": 0.5,
+						"confidence": 0.9,
+						"flags": ["right-leaning"],
+						"explanation": "The framing (“woke lawfare”, “radical attempt”, etc.) is strongly loaded, presenting the lawsuit in a negative light and aligning with conservative energy-industry viewpoints."
+					  }
+					]
+				  },
+				  {
+					"type": "claim",
+					"summaryText": "Conservative lawmakers warn the lawsuit could bankrupt the American oil industry and undermine U.S. national security and economy.",
+					"analyses": [
+					  {
+						"type": "accuracy",
+						"methodName": "source-attribution",
+						
+						"problemScore": 0.4,
+						"confidence": 0.8,
+						"flags": [],
+						"explanation": "The article states that ‘Dozens of Republican House lawmakers wrote in an amicus brief … arguing it could throttle the American energy industry, “if not bankrupt it altogether.”’ :contentReference[oaicite:2]{index=2} The statement reflects what the lawmakers warn; it is reporting their claim rather than verifying it."
+					  },
+					  {
+						"type": "bias",
+						"methodName": "tone-analysis",
+						
+						"problemScore": 0.45,
+						"confidence": 0.85,
+						"flags": ["alarmist"],
+						"explanation": "The language presents the warning in an urgent and dramatic fashion (“bankrupt it altogether”), which may evoke fear and aligns with an energy-industry-friendly narrative."
+					  }
+					]
+				  },
+				  {
+					"type": "claim",
+					"summaryText": "The legal case originates in Boulder, Colorado, and concerns companies such as ExxonMobil and Suncor Energy, accused of misleading the public about oil and gas risks.",
+					"analyses": [
+					  {
+						"type": "accuracy",
+						"methodName": "fact-check-litigation",
+						
+						"problemScore": 0.2,
+						"confidence": 0.9,
+						"flags": [],
+						"explanation": "The article correctly identifies the case as originating in Colorado and involving ExxonMobil and Suncor after the Colorado Supreme Court allowed the case to proceed under state law. :contentReference[oaicite:5]{index=5} The claim matches publicly known aspects of this litigation."
+					  },
+					  {
+						"type": "bias",
+						"methodName": "selection-analysis",
+						
+						"problemScore": 0.3,
+						"confidence": 0.8,
+						"flags": ["selective"],
+						"explanation": "While the article mentions only one side’s framing of the case (that it’s indirect taxation/lawsuit as carbon tax), it gives less space to the companies’ or climate-advocacy perspective that the case is about accountability for climate harms."
+					  }
+					]
+				  },
+				  {
+					"type": "claim",
+					"summaryText": "The article asserts that the organisation Climate Judiciary Project (CJP) is accused of covert coordination with judges and influencing climate litigation outcomes.",
+					"analyses": [
+					  {
+						"type": "accuracy",
+						"methodName": "source-attribution",
+						
+						"problemScore": 0.5,
+						"confidence": 0.75,
+						"flags": [],
+						"explanation": "The article reports that conservative energy policy groups claim there is evidence of “covert coordination and judicial manipulation” involving CJP via a letter from the American Energy Institute. :contentReference[oaicite:8]{index=8} The article does not establish this claim as proven; it reports the allegation."
+					  },
+					  {
+						"type": "bias",
+						"methodName": "tone-analysis",
+						
+						"problemScore": 0.4,
+						"confidence": 0.85,
+						"flags": ["negative-framing"],
+						"explanation": "Highlighting the accusation without providing equivalent commentary from CJP or independent review gives a tilted impression toward the accusation being credible."
+					  }
+					]
+				  },
+				  {
+					"type": "opinion",
+					"summaryText": "The author implies that climate-related litigation is a strategic tool to shift energy policy rather than purely a legal accountability mechanism.",
+					"analyses": [
+					  {
+						"type": "accuracy",
+						"methodName": "implicit-frame-analysis",
+						
+						"problemScore": 0.6,
+						"confidence": 0.75,
+						"flags": [],
+						"explanation": "This is an interpretative frame rather than a factual claim. The article uses terms like “radical attempt”, “back-door carbon tax”, “woke lawfare” which suggest a viewpoint rather than neutral reporting."
+					  },
+					  {
+						"type": "bias",
+						"methodName": "tone-analysis",
+						
+						"problemScore": 0.7,
+						"confidence": 0.85,
+						"flags": ["ideological-language"],
+						"explanation": "The language is clearly ideologically loaded, invoking culture-war phrasing and partly substituting argument for neutral description. That shows bias in portrayal."
+					  },
+					  {
+						"type": "clickbait",
+						"methodName": "headline-analysis",
+						
+						"problemScore": 0.4,
+						"confidence": 0.8,
+						"flags": ["clickbait"],
+						"explanation": "The headline uses provocative phrasing (“‘Woke lawfare’ exposed”, “massive oil litigation”) designed to attract clicks and emphasise conflict."
+					  }
+					]
+				  }
+				],
+				"summary": {
+				  "summaryText": "The article presents the view that a major climate-lawsuit is functioning as an indirect carbon tax and as part of a broader agenda, using highly charged language and primarily conservative framing. Some factual elements (case origin, parties involved, statements by attorney and lawmakers) are accurately reported but the article gives limited balance by under-representing counter-perspectives and uses loaded terminology and ominous warnings.",
+				  "overallRisk": "medium",
+				  "problemScore": 0.5,
+				  "confidence": 0.85,
+				  "flags": [
+					{
+					  "type": "bias",
+					  "riskRating": "high",
+					  "label": "right-leaning"
+					},
+					{
+					  "type": "clickbait",
+					  "riskRating": "medium",
+					  "label": "clickbait"
+					}
+				  ]
+				}
+			  }
+			  
+							]
+		}
+	},
+	"stages": {
+		"chunking": {
+			"outputs": {
+				"chunks": [
+					{
+						"isPrimary": true
+					}
+				],
+				"chunkCount": 1
+			}
+		}
+	},
+	"timestamp": "2025-11-19T12:04:03.425Z"
+}

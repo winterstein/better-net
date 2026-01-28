@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BetterNet - Page Analysis</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="logo">
+        <img src="icons/icon48.png" alt="BetterNet" class="logo-img">
+        <h1>BetterNet</h1>
+      </div>
+      <button id="settings-btn" class="settings-btn" title="Settings">⚙️</button>
+    </header>
+
+    <div id="loading" class="loading-container">
+      <div class="spinner"></div>
+      <p>Loading analysis...</p>
+    </div>
+
+    <div id="no-tab" class="message-container hidden">
+      <p>No active tab found. Please refresh and try again.</p>
+    </div>
+
+    <div id="analysis-container" class="analysis-container hidden">
+      <div class="url-display">
+        <div class="url-header">
+          <span id="current-url" class="url-text"></span>
+          <button id="exclude-toggle-btn" class="exclude-toggle-btn" title="Toggle site exclusion">
+            <span id="exclude-toggle-icon">🔒</span>
+            <span id="exclude-toggle-text">Exclude</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="progress-section" class="progress-section">
+        <div class="progress-bar-container">
+          <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
+        </div>
+        <div id="current-stage" class="current-stage">Starting analysis...</div>
+      </div>
+
+      <div id="results-section" class="results-section hidden">
+        <div id="summary-card" class="summary-card">
+          <h2>Analysis Summary</h2>
+          <div id="overall-status" class="overall-status"></div>
+          <div id="summary-details" class="summary-details"></div>
+        </div>
+
+        <div id="detailed-results" class="detailed-results">
+          <h3>Detailed Analysis</h3>
+          <div id="results-list" class="results-list"></div>
+        </div>
+
+        <div id="factcheck-results" class="factcheck-results hidden">
+          <h3>Fact-Check Results</h3>
+          <div id="factcheck-list" class="factcheck-list"></div>
+        </div>
+      </div>
+
+      <div id="error-section" class="error-section hidden">
+        <p class="error-message"></p>
+        <button id="retry-btn" class="retry-btn">Retry Analysis</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

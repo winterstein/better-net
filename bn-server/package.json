@@ -1,0 +1,38 @@
+{
+  "name": "bn-server",
+  "version": "1.0.0",
+  "main": "dist/server.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts",
+    "test": "tap test"
+  },
+  "tap": {
+    "files": [
+      "test/**/*.ts",
+      "test/**/*.js",
+      "!test/**/*.d.ts"
+    ]
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "fastify": "^4.24.3",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.268",
+    "@types/node": "^20.10.0",
+    "@types/pg": "^8.10.9",
+    "dotenv": "^17.2.3",
+    "happy-dom": "^20.0.10",
+    "tap": "^20.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}

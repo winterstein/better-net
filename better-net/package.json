@@ -1,0 +1,39 @@
+{
+  "name": "better-net",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Browser extension that analyzes web pages for fake news, scams, toxicity, and misinformation",
+  "main": "src/background/background.js",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "build:chrome": "node scripts/build.js chrome",
+    "build:firefox": "node scripts/build.js firefox",
+    "build:edge": "node scripts/build.js edge",
+    "watch": "node scripts/watch.js",
+    "watch:chrome": "node scripts/watch.js chrome",
+    "watch:firefox": "node scripts/watch.js firefox",
+    "watch:edge": "node scripts/watch.js edge",
+    "test": "node test/chunking.test.js",
+    "run": "npm run build && npm run watch",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "browser-extension",
+    "fake-news",
+    "misinformation",
+    "content-analysis"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/chrome": "^0.0.268",
+    "@types/node": "^20.19.24",
+    "copyfiles": "^2.4.1",
+    "esbuild": "^0.25.12",
+    "google-auth-library": "^10.5.0",
+    "googleapis": "^165.0.0",
+    "happy-dom": "^20.0.10",
+    "jsdom": "^27.1.0",
+    "typescript": "^5.9.3"
+  }
+}

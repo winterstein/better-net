@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BetterNet Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>BetterNet Settings</h1>
+    </header>
+
+    <main class="main-content">
+      <section class="settings-section">
+        <h2>Analysis Settings</h2>
+        
+        <div class="setting-item">
+          <label for="analysis-mode">
+            <strong>Analysis Mode</strong>
+            <span class="setting-description">Choose how pages are analyzed</span>
+          </label>
+          <select id="analysis-mode">
+            <option value="local">Local Model (Fast, Private)</option>
+            <option value="openai">OpenAI API</option>
+            <option value="anthropic">Anthropic API</option>
+          </select>
+        </div>
+
+        <div class="setting-item">
+          <label>
+            <input type="checkbox" id="auto-analyze">
+            <strong>Automatically analyze pages</strong>
+            <span class="setting-description">Start analysis when visiting new pages</span>
+          </label>
+        </div>
+
+        <div class="setting-item">
+          <label>
+            <input type="checkbox" id="show-indicators">
+            <strong>Show analysis indicators</strong>
+            <span class="setting-description">Display on-page analysis progress</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h2>API Configuration</h2>
+        
+        <div class="setting-item">
+          <label for="openai-key">
+            <strong>OpenAI API Key</strong>
+            <span class="setting-description">Optional: For OpenAI analysis mode</span>
+          </label>
+          <input type="password" id="openai-key" placeholder="sk-...">
+        </div>
+
+        <div class="setting-item">
+          <label for="anthropic-key">
+            <strong>Anthropic API Key</strong>
+            <span class="setting-description">Optional: For Anthropic analysis mode</span>
+          </label>
+          <input type="password" id="anthropic-key" placeholder="sk-ant-...">
+        </div>
+
+        <div class="setting-item">
+          <label for="google-factcheck-key">
+            <strong>Google Fact Check API Key</strong>
+            <span class="setting-description">Optional: For real-time fact-checking using Google's Fact Check Tools API. <a href="https://console.cloud.google.com/apis/api/factchecktools.googleapis.com" target="_blank">Get API key</a></span>
+          </label>
+          <input type="password" id="google-factcheck-key" placeholder="AIza...">
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h2>Excluded Sites</h2>
+        
+        <div class="setting-item">
+          <label>
+            <strong>Sites to exclude from analysis</strong>
+            <span class="setting-description">Add domains or URLs to skip analysis. Use domain names (e.g., example.com) or full URLs.</span>
+          </label>
+          <div class="excluded-sites-container">
+            <div class="add-site-input">
+              <input type="text" id="new-excluded-site" placeholder="example.com or https://example.com/page">
+              <button id="add-excluded-site-btn" class="btn btn-small">Add</button>
+            </div>
+            <ul id="excluded-sites-list" class="excluded-sites-list"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h2>Privacy</h2>
+        
+        <div class="setting-item">
+          <label>
+            <input type="checkbox" id="share-anonymous">
+            <strong>Share anonymous analysis data</strong>
+            <span class="setting-description">Help improve BetterNet by sharing anonymous usage data</span>
+          </label>
+        </div>
+      </section>
+
+      <div class="actions">
+        <button id="save-btn" class="btn btn-primary">Save Settings</button>
+        <button id="reset-btn" class="btn btn-secondary">Reset to Defaults</button>
+      </div>
+
+      <div id="status-message" class="status-message"></div>
+    </main>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

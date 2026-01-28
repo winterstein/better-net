@@ -1,0 +1,497 @@
+[
+  {
+    "url": "https://duckduckgo.com/?origin=funnel_home_website&t=h_&q=hello&ia=web",
+    "html": "<article id=\"r1-0\" data-handled-by-react=\"true\" data-testid=\"result\" data-nrn=\"result\" class=\"yQDlj3B5DI5YO8c8Ulio CpkrTDP54mqzpuCSn1Fa SKlplDuh9FjtDprgoMxk Fr1jPX9uTqiYNJFs2Cfb\"><div class=\"OHr0VX9IuNcv6iakvT6A\"><button type=\"button\" class=\"cxQwADb9kt3UnKwcXKat uuIDnYC4qmyFk5dsXOhr YZxymVMEkIDA0nZSt_Pm ffON2NH02oMAcqyoh2UU MQCbz04ET5EljRmK3YpQ hF7w5TROgutbYQwHzEf_ kYheVVecSlvJdWHcWzJs\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><g fill=\"currentColor\"><path d=\"M3.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM9.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM14 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z\"></path></g></svg></button><div class=\"BdZVYXbdg6Rx9Lrm5wzC\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"QmBU788gp3Cjs7Fwyz1G\"><path fill=\"currentColor\" d=\"M13.817 3.067a.625.625 0 1 0-.884-.884L8 7.116 3.067 2.183a.625.625 0 1 0-.884.884L7.116 8l-4.933 4.933a.625.625 0 1 0 .884.884L8 8.884l4.933 4.933a.625.625 0 1 0 .884-.884L8.884 8z\"></path></svg><p class=\"ePXqZzRA466zTvNP6hpa wZ4JdaHxSAhGy1HoNVja d26Geqs1C__RaCO7MUs2\">hellomagazine.com</p><div class=\"oDTE1nbHCw1Kax_TrCHw\"><a class=\"bcz7ZQmpP9fW9gyprTn7\" href=\"?q=hello%20site%3Awww.hellomagazine.com\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><path fill=\"currentColor\" d=\"M10.5 7a3.5 3.5 0 0 1 2.877 5.493l2.462 2.463a.625.625 0 0 1-.883.883l-2.463-2.462A3.5 3.5 0 1 1 10.5 7M12 1a4 4 0 0 1 4 4v2.006c0 .653-.876.868-1.179.29l-.071-.136V5.25H1.25V11A2.75 2.75 0 0 0 4 13.75h2.14l.182.178A.625.625 0 0 1 5.885 15H4a4 4 0 0 1-4-4V5a4 4 0 0 1 4-4zm-1.5 7.25a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5m-6.5-6A2.75 2.75 0 0 0 1.438 4h13.124A2.75 2.75 0 0 0 12 2.25z\"></path></svg><span>Only include results for this site</span></a><a class=\"bcz7ZQmpP9fW9gyprTn7\" href=\"?q=hello%20-site%3Awww.hellomagazine.com\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><path fill=\"currentColor\" d=\"M12.5 9a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7M8.001 2.125c4.607 0 7.212 3.558 7.849 5.696l.06.203-.075.199c-.127.332-.548.415-.85.23a5 5 0 0 0-.498-.267q.052-.107.096-.207c-.63-1.799-2.833-4.604-6.582-4.604-3.725 0-5.93 2.834-6.575 4.588.854 1.759 2.785 4.532 6.326 4.656l.002.055c.022.605-.418 1.196-1.016 1.102C2.93 13.177.956 9.948.183 8.26L.08 8.043l.072-.228C.787 5.76 3.387 2.125 8 2.125Zm2.374 9.75a.5.5 0 0 0-.5.5v.25a.5.5 0 0 0 .5.5h4.25a.5.5 0 0 0 .5-.5v-.25a.5.5 0 0 0-.5-.5zM8.001 5A3 3 0 0 1 11 7.992 4.76 4.76 0 0 0 7.993 11a2.999 2.999 0 0 1 .008-6\"></path></svg><span>Redo search without this site</span></a><a class=\"bcz7ZQmpP9fW9gyprTn7\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><g><path fill=\"currentColor\" d=\"M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0M3.708 13.21a6.75 6.75 0 0 0 9.502-9.502zM8 1.25a6.75 6.75 0 0 0-5.18 11.079l9.51-9.509A6.72 6.72 0 0 0 8 1.25\"></path></g></svg><span>Block this site from all results</span><span class=\"gADc1vgzmPc4cvxu7yBr Ns8WVIfhcxlxIq9e99fE\">NEW</span></a><div class=\"P0qXZSsYM5mY7vngloXE\"></div><div class=\"bcz7ZQmpP9fW9gyprTn7\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><g><path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M0 5a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v4.25a4 4 0 0 1-4 4H9.455c-.347 0-.702.152-.996.426-1.146 1.067-2.39 1.767-3.374 2.206a1.285 1.285 0 0 1-1.535-.34 1.48 1.48 0 0 1-.223-1.518c.11-.269.203-.535.268-.781C1.565 13.121 0 11.433 0 9.386zm4-2.75A2.75 2.75 0 0 0 1.25 5v4.386C1.25 10.838 2.395 12 3.83 12c.288 0 .565.114.765.307a.97.97 0 0 1 .293.878c-.079.44-.236.899-.404 1.312-.045.11-.014.197.02.237q.011.013.018.017l.006.002h.006a.1.1 0 0 0 .041-.012c.896-.4 2.014-1.032 3.032-1.98.484-.45 1.132-.761 1.848-.761H12a2.75 2.75 0 0 0 2.75-2.75V5A2.75 2.75 0 0 0 12 2.25z\" clip-rule=\"evenodd\"></path></g></svg><span>Share feedback about this site</span></div></div></div></div><div class=\"OQ_6vPwNhCeusNiEDcGp\"><div class=\"mwuQiMOjmFJ5vmN6Vcqw CmOawDMavJGKvqBIPeeC NvMwcsUp56q4W2Z_b8E7 SgSTKoqQXa0tEszD2zWF VkOimy54PtIClAT3GMbr LQVY1Jpkk8nyJ6HBWKAk\"><span class=\"DpVR46dTZaePK29PDkz8\"><a href=\"/?q=hello+site:www.hellomagazine.com&amp;t=h_\" rel=\"noopener\" title=\"Search domain hellomagazine.com\" data-testid=\"result-extras-site-search-link\" data-handled-by-react=\"true\"><div class=\"c_ZIRTZwvW2k4q8TtKU0\"><img src=\"//external-content.duckduckgo.com/ip3/www.hellomagazine.com.ico\" height=\"16\" width=\"16\" loading=\"lazy\"></div></a></span><div class=\"pAgARfGNTRe_uaK72TAD\"><p class=\"fOCEb2mA3YZTJXXjpgdS wZ4JdaHxSAhGy1HoNVja yGEuosa_aZeFroGMfpgu\">HELLO!</p><a href=\"https://www.hellomagazine.com/\" rel=\"noopener\" target=\"_self\" data-testid=\"result-extras-url-link\" class=\"Rn_JXVtoPVAFyGkcaXyK VkOimy54PtIClAT3GMbr\" data-handled-by-react=\"true\"><div class=\"xS2NxE06pIznLuh2xjH0\"><p class=\"veU5I0hFkgFGOPhX2RBE wZ4JdaHxSAhGy1HoNVja AlPVsxUsFt3bnuOvg6hI\"><span class=\"Wo6ZAEmESLNUuWBkbMxx\">https://www.hellomagazine.com</span></p></div></a></div></div></div><div class=\"ikg2IXiCD14iVX7AdZo1\"><h2 class=\"LnpumSThxEWMIsDdAT17 CXMyPcQ6nDv47DKFeywM\"><a href=\"https://www.hellomagazine.com/\" rel=\"noopener\" target=\"_self\" class=\"eVNpHGjtxRBq_gLOfGDr LQNqh2U1kzYxREs65IJu\" data-testid=\"result-title-a\" data-handled-by-react=\"true\"><span class=\"EKtkFWMYpwzMKOYr0GYm LQVY1Jpkk8nyJ6HBWKAk\">HELLO! - Daily royal, celebrity, fashion, beauty &amp; lifestyle news</span></a></h2></div><div class=\"E2eLOJr8HctVnDOTM8fs\"><div class=\"OgdwYG6KE2qthn9XQWFC\" data-result=\"snippet\"><div><span class=\"kY2IgmnCmOGjharHErah\" style=\"-webkit-line-clamp: 3;\"><span><b>HELLO</b>! brings you the latest celebrity &amp; royal news from the UK &amp; around the world, magazine exclusives, fashion, beauty, lifestyle news, celeb babies, weddings, pregnancies and more!</span></span></div></div></div><div class=\"FTrf7TqAcfxxEQ_3nfUg\"><div class=\"nYs5EPJFwdhisN0E7MCB AbEGLIJuTmsLLjCjXvCN\"><ul class=\"b269SZlC2oyR13Fcc4Iy\"><li id=\"sl-0\" class=\"gyDT4qronqJu4BgQBq2F\"><a href=\"https://www.hellomagazine.com/royalty/\" rel=\"noopener\" target=\"_self\" class=\"f3uDrYrWF3Exrfp1m3Og\" data-handled-by-react=\"true\"><h3 class=\"EKtkFWMYpwzMKOYr0GYm LQVY1Jpkk8nyJ6HBWKAk\">Royalty</h3><p class=\"KoEJ3YBbjXKVOE1bc2RA\"><span class=\"kY2IgmnCmOGjharHErah\" style=\"-webkit-line-clamp: 2;\">HELLO! is the definitive global authority on all things royal. Whether Prince William and Princess Kate's hectic schedule, Harry and Meghan's family life in the US, King Charles' coronation ...</span></p></a></li><li id=\"sl-1\" class=\"gyDT4qronqJu4BgQBq2F\"><a href=\"https://www.hellomagazine.com/celebrities/\" rel=\"noopener\" target=\"_self\" class=\"f3uDrYrWF3Exrfp1m3Og\" data-handled-by-react=\"true\"><h3 class=\"EKtkFWMYpwzMKOYr0GYm LQVY1Jpkk8nyJ6HBWKAk\">Celebrities</h3><p class=\"KoEJ3YBbjXKVOE1bc2RA\"><span class=\"kY2IgmnCmOGjharHErah\" style=\"-webkit-line-clamp: 2;\">Celebrities: Latest news, pictures, exclusive interviews &amp; features from HELLO! A look at the hottest celebrity relationships, pregnancies &amp; break ups</span></p></a></li><li id=\"sl-2\" class=\"gyDT4qronqJu4BgQBq2F\"><a href=\"https://www.hellomagazine.com/shopping/\" rel=\"noopener\" target=\"_self\" class=\"f3uDrYrWF3Exrfp1m3Og\" data-handled-by-react=\"true\"><h3 class=\"EKtkFWMYpwzMKOYr0GYm LQVY1Jpkk8nyJ6HBWKAk\">Shopping</h3><p class=\"KoEJ3YBbjXKVOE1bc2RA\"><span class=\"kY2IgmnCmOGjharHErah\" style=\"-webkit-line-clamp: 2;\">Our best picks and shopping guides from fashion to home decor, beauty and everything else, we'll help you shop for what you need.</span></p></a></li><li id=\"sl-3\" class=\"gyDT4qronqJu4BgQBq2F\"><a href=\"https://www.hellomagazine.com/fashion/\" rel=\"noopener\" target=\"_self\" class=\"f3uDrYrWF3Exrfp1m3Og\" data-handled-by-react=\"true\"><h3 class=\"EKtkFWMYpwzMKOYr0GYm LQVY1Jpkk8nyJ6HBWKAk\">Fashion</h3><p class=\"KoEJ3YBbjXKVOE1bc2RA\"><span class=\"kY2IgmnCmOGjharHErah\" style=\"-webkit-line-clamp: 2;\">The latest fashion trends and features in HELLO!. Have a look at the high street must-haves, celebrities fashion and all the style secrets from the Royal family.</span></p></a></li><li id=\"sl-4\" class=\"gyDT4qronqJu4BgQBq2F\"><a href=\"https://www.hellomagazine.com/us/\" rel=\"noopener\" target=\"_self\" class=\"f3uDrYrWF3Exrfp1m3Og\" data-handled-by-react=\"true\"><h3 class=\"EKtkFWMYpwzMKOYr0GYm LQVY1Jpkk8nyJ6HBWKAk\">U.S</h3><p class=\"KoEJ3YBbjXKVOE1bc2RA\"><span class=\"kY2IgmnCmOGjharHErah\" style=\"-webkit-line-clamp: 2;\">HELLO! US edition brings you the latest celebrity &amp; royal news from the US &amp; around the world, magazine exclusives, celeb babies, weddings, pregnancies and more</span></p></a></li><li id=\"sl-5\" class=\"gyDT4qronqJu4BgQBq2F\"><a href=\"https://www.hellomagazine.com/hubs/luxe/\" rel=\"noopener\" target=\"_self\" class=\"f3uDrYrWF3Exrfp1m3Og\" data-handled-by-react=\"true\"><h3 class=\"EKtkFWMYpwzMKOYr0GYm LQVY1Jpkk8nyJ6HBWKAk\">LUXE</h3><p class=\"KoEJ3YBbjXKVOE1bc2RA\"><span class=\"kY2IgmnCmOGjharHErah\" style=\"-webkit-line-clamp: 2;\">HELLO!'s essential guide to modern luxury, from travel stories to fashion &amp; beauty, arts, culture and more.</span></p></a></li></ul></div></div></article>",
+    "text": "HELLO!https://www.hellomagazine.com\nOnly include results for this site\nHELLO! - Daily royal, celebrity, fashion, beauty & lifestyle news\nHELLO! brings you the latest celebrity & royal news from the UK & around the world, magazine exclusives, fashion, beauty, lifestyle news, celeb babies, weddings, pregnancies and more!",
+    "images": [
+      {
+        "src": "https://external-content.duckduckgo.com/ip3/www.hellomagazine.com.ico",
+        "alt": "",
+        "title": ""
+      }
+    ],
+    "links": [
+      {
+        "url": "?q=hello%20site%3Awww.hellomagazine.com",
+        "text": "Only include results for this site",
+        "isExternal": false
+      },
+      {
+        "url": "?q=hello%20-site%3Awww.hellomagazine.com",
+        "text": "Redo search without this site",
+        "isExternal": false
+      },
+      {
+        "url": "/?q=hello+site:www.hellomagazine.com&t=h_",
+        "text": "",
+        "isExternal": false
+      },
+      {
+        "url": "https://www.hellomagazine.com/",
+        "text": "https://www.hellomagazine.com",
+        "isExternal": true
+      },
+      {
+        "url": "https://www.hellomagazine.com/",
+        "text": "HELLO! - Daily royal, celebrity, fashion, beauty & lifestyle news",
+        "isExternal": true
+      },
+      {
+        "url": "https://www.hellomagazine.com/royalty/",
+        "text": "RoyaltyHELLO! is the definitive global authority on all things royal. Whether Prince William and Pri",
+        "isExternal": true
+      },
+      {
+        "url": "https://www.hellomagazine.com/celebrities/",
+        "text": "CelebritiesCelebrities: Latest news, pictures, exclusive interviews & features from HELLO! A look at",
+        "isExternal": true
+      },
+      {
+        "url": "https://www.hellomagazine.com/shopping/",
+        "text": "ShoppingOur best picks and shopping guides from fashion to home decor, beauty and everything else, w",
+        "isExternal": true
+      },
+      {
+        "url": "https://www.hellomagazine.com/fashion/",
+        "text": "FashionThe latest fashion trends and features in HELLO!. Have a look at the high street must-haves, ",
+        "isExternal": true
+      },
+      {
+        "url": "https://www.hellomagazine.com/us/",
+        "text": "U.SHELLO! US edition brings you the latest celebrity & royal news from the US & around the world, ma",
+        "isExternal": true
+      }
+    ],
+    "metadata": {
+      "platform": "duckduckgo",
+      "elementType": "li",
+      "classes": [
+        "wLL07_0Xnd1QZpzpfR4W"
+      ]
+    },
+    "xpath": "/html/body/div[2]/div[6]/div[4]/div/div/div/div[2]/section/ol/li[2]"
+  },
+  {
+    "url": "https://duckduckgo.com/?origin=funnel_home_website&t=h_&q=hello&ia=web",
+    "html": "<article id=\"r1-1\" data-handled-by-react=\"true\" data-testid=\"result\" data-nrn=\"result\" class=\"yQDlj3B5DI5YO8c8Ulio CpkrTDP54mqzpuCSn1Fa SKlplDuh9FjtDprgoMxk Fr1jPX9uTqiYNJFs2Cfb\"><div class=\"OHr0VX9IuNcv6iakvT6A\"><button type=\"button\" class=\"cxQwADb9kt3UnKwcXKat uuIDnYC4qmyFk5dsXOhr YZxymVMEkIDA0nZSt_Pm ffON2NH02oMAcqyoh2UU MQCbz04ET5EljRmK3YpQ hF7w5TROgutbYQwHzEf_ kYheVVecSlvJdWHcWzJs\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><g fill=\"currentColor\"><path d=\"M3.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM9.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM14 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z\"></path></g></svg></button><div class=\"BdZVYXbdg6Rx9Lrm5wzC\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"QmBU788gp3Cjs7Fwyz1G\"><path fill=\"currentColor\" d=\"M13.817 3.067a.625.625 0 1 0-.884-.884L8 7.116 3.067 2.183a.625.625 0 1 0-.884.884L7.116 8l-4.933 4.933a.625.625 0 1 0 .884.884L8 8.884l4.933 4.933a.625.625 0 1 0 .884-.884L8.884 8z\"></path></svg><p class=\"ePXqZzRA466zTvNP6hpa wZ4JdaHxSAhGy1HoNVja d26Geqs1C__RaCO7MUs2\">en.wikipedia.org</p><div class=\"oDTE1nbHCw1Kax_TrCHw\"><a class=\"bcz7ZQmpP9fW9gyprTn7\" href=\"?q=hello%20site%3Aen.wikipedia.org\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><path fill=\"currentColor\" d=\"M10.5 7a3.5 3.5 0 0 1 2.877 5.493l2.462 2.463a.625.625 0 0 1-.883.883l-2.463-2.462A3.5 3.5 0 1 1 10.5 7M12 1a4 4 0 0 1 4 4v2.006c0 .653-.876.868-1.179.29l-.071-.136V5.25H1.25V11A2.75 2.75 0 0 0 4 13.75h2.14l.182.178A.625.625 0 0 1 5.885 15H4a4 4 0 0 1-4-4V5a4 4 0 0 1 4-4zm-1.5 7.25a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5m-6.5-6A2.75 2.75 0 0 0 1.438 4h13.124A2.75 2.75 0 0 0 12 2.25z\"></path></svg><span>Only include results for this site</span></a><a class=\"bcz7ZQmpP9fW9gyprTn7\" href=\"?q=hello%20-site%3Aen.wikipedia.org\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><path fill=\"currentColor\" d=\"M12.5 9a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7M8.001 2.125c4.607 0 7.212 3.558 7.849 5.696l.06.203-.075.199c-.127.332-.548.415-.85.23a5 5 0 0 0-.498-.267q.052-.107.096-.207c-.63-1.799-2.833-4.604-6.582-4.604-3.725 0-5.93 2.834-6.575 4.588.854 1.759 2.785 4.532 6.326 4.656l.002.055c.022.605-.418 1.196-1.016 1.102C2.93 13.177.956 9.948.183 8.26L.08 8.043l.072-.228C.787 5.76 3.387 2.125 8 2.125Zm2.374 9.75a.5.5 0 0 0-.5.5v.25a.5.5 0 0 0 .5.5h4.25a.5.5 0 0 0 .5-.5v-.25a.5.5 0 0 0-.5-.5zM8.001 5A3 3 0 0 1 11 7.992 4.76 4.76 0 0 0 7.993 11a2.999 2.999 0 0 1 .008-6\"></path></svg><span>Redo search without this site</span></a><a class=\"bcz7ZQmpP9fW9gyprTn7\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><g><path fill=\"currentColor\" d=\"M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0M3.708 13.21a6.75 6.75 0 0 0 9.502-9.502zM8 1.25a6.75 6.75 0 0 0-5.18 11.079l9.51-9.509A6.72 6.72 0 0 0 8 1.25\"></path></g></svg><span>Block this site from all results</span><span class=\"gADc1vgzmPc4cvxu7yBr Ns8WVIfhcxlxIq9e99fE\">NEW</span></a><div class=\"P0qXZSsYM5mY7vngloXE\"></div><div class=\"bcz7ZQmpP9fW9gyprTn7\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><g><path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M0 5a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v4.25a4 4 0 0 1-4 4H9.455c-.347 0-.702.152-.996.426-1.146 1.067-2.39 1.767-3.374 2.206a1.285 1.285 0 0 1-1.535-.34 1.48 1.48 0 0 1-.223-1.518c.11-.269.203-.535.268-.781C1.565 13.121 0 11.433 0 9.386zm4-2.75A2.75 2.75 0 0 0 1.25 5v4.386C1.25 10.838 2.395 12 3.83 12c.288 0 .565.114.765.307a.97.97 0 0 1 .293.878c-.079.44-.236.899-.404 1.312-.045.11-.014.197.02.237q.011.013.018.017l.006.002h.006a.1.1 0 0 0 .041-.012c.896-.4 2.014-1.032 3.032-1.98.484-.45 1.132-.761 1.848-.761H12a2.75 2.75 0 0 0 2.75-2.75V5A2.75 2.75 0 0 0 12 2.25z\" clip-rule=\"evenodd\"></path></g></svg><span>Share feedback about this site</span></div></div></div></div><div class=\"OQ_6vPwNhCeusNiEDcGp\"><div class=\"mwuQiMOjmFJ5vmN6Vcqw CmOawDMavJGKvqBIPeeC NvMwcsUp56q4W2Z_b8E7 hAeZQDlu0XXeGwL7U722 SgSTKoqQXa0tEszD2zWF VkOimy54PtIClAT3GMbr LQVY1Jpkk8nyJ6HBWKAk\"><span class=\"DpVR46dTZaePK29PDkz8\"><a href=\"/?q=hello+site:en.wikipedia.org&amp;t=h_\" rel=\"noopener\" title=\"Search domain en.wikipedia.org\" data-testid=\"result-extras-site-search-link\" data-handled-by-react=\"true\"><div class=\"c_ZIRTZwvW2k4q8TtKU0\"><img src=\"/assets/icons/favicons/wikipedia.png\" height=\"16\" width=\"16\" loading=\"lazy\"></div></a></span><div class=\"pAgARfGNTRe_uaK72TAD\"><p class=\"fOCEb2mA3YZTJXXjpgdS wZ4JdaHxSAhGy1HoNVja yGEuosa_aZeFroGMfpgu\">Wikipedia</p><a href=\"https://en.wikipedia.org/wiki/Hello\" rel=\"noopener\" target=\"_self\" data-testid=\"result-extras-url-link\" class=\"Rn_JXVtoPVAFyGkcaXyK VkOimy54PtIClAT3GMbr\" data-handled-by-react=\"true\"><div class=\"xS2NxE06pIznLuh2xjH0\"><p class=\"veU5I0hFkgFGOPhX2RBE wZ4JdaHxSAhGy1HoNVja AlPVsxUsFt3bnuOvg6hI\"><span class=\"Wo6ZAEmESLNUuWBkbMxx\">https://en.wikipedia.org</span><span class=\"oaxCunrdbQs3WQDCq3Ls\">&nbsp;›&nbsp;wiki › Hello</span></p></div></a></div></div></div><div class=\"ikg2IXiCD14iVX7AdZo1\"><h2 class=\"LnpumSThxEWMIsDdAT17 CXMyPcQ6nDv47DKFeywM\"><a href=\"https://en.wikipedia.org/wiki/Hello\" rel=\"noopener\" target=\"_self\" class=\"eVNpHGjtxRBq_gLOfGDr LQNqh2U1kzYxREs65IJu\" data-testid=\"result-title-a\" data-handled-by-react=\"true\"><span class=\"EKtkFWMYpwzMKOYr0GYm LQVY1Jpkk8nyJ6HBWKAk\">Hello - Wikipedia</span></a></h2></div><div class=\"E2eLOJr8HctVnDOTM8fs\"><div class=\"OgdwYG6KE2qthn9XQWFC\" data-result=\"snippet\"><div><span class=\"kY2IgmnCmOGjharHErah\" style=\"-webkit-line-clamp: 3;\"><span>Learn about the history and etymology of <b>hello</b>, a salutation or greeting in the English language. Find out how <b>hello</b> is related to telephone, hullo, hallo, hollo and other words, and how it is used in computer programming.</span></span></div></div></div></article>",
+    "text": "Wikipediahttps://en.wikipedia.org › wiki › Hello\nOnly include results for this site\nHello - Wikipedia\nLearn about the history and etymology of hello, a salutation or greeting in the English language. Find out how hello is related to telephone, hullo, hallo, hollo and other words, and how it is used in computer programming.",
+    "images": [
+      {
+        "src": "https://duckduckgo.com/assets/icons/favicons/wikipedia.png",
+        "alt": "",
+        "title": ""
+      }
+    ],
+    "links": [
+      {
+        "url": "?q=hello%20site%3Aen.wikipedia.org",
+        "text": "Only include results for this site",
+        "isExternal": false
+      },
+      {
+        "url": "?q=hello%20-site%3Aen.wikipedia.org",
+        "text": "Redo search without this site",
+        "isExternal": false
+      },
+      {
+        "url": "/?q=hello+site:en.wikipedia.org&t=h_",
+        "text": "",
+        "isExternal": false
+      },
+      {
+        "url": "https://en.wikipedia.org/wiki/Hello",
+        "text": "https://en.wikipedia.org › wiki › Hello",
+        "isExternal": true
+      },
+      {
+        "url": "https://en.wikipedia.org/wiki/Hello",
+        "text": "Hello - Wikipedia",
+        "isExternal": true
+      }
+    ],
+    "metadata": {
+      "platform": "duckduckgo",
+      "elementType": "li",
+      "classes": [
+        "wLL07_0Xnd1QZpzpfR4W"
+      ]
+    },
+    "xpath": "/html/body/div[2]/div[6]/div[4]/div/div/div/div[2]/section/ol/li[3]"
+  },
+  {
+    "url": "https://duckduckgo.com/?origin=funnel_home_website&t=h_&q=hello&ia=web",
+    "html": "<article id=\"r1-2\" data-handled-by-react=\"true\" data-testid=\"result\" data-nrn=\"result\" class=\"yQDlj3B5DI5YO8c8Ulio CpkrTDP54mqzpuCSn1Fa SKlplDuh9FjtDprgoMxk Fr1jPX9uTqiYNJFs2Cfb\"><div class=\"OHr0VX9IuNcv6iakvT6A\"><button type=\"button\" class=\"cxQwADb9kt3UnKwcXKat uuIDnYC4qmyFk5dsXOhr YZxymVMEkIDA0nZSt_Pm ffON2NH02oMAcqyoh2UU MQCbz04ET5EljRmK3YpQ hF7w5TROgutbYQwHzEf_ kYheVVecSlvJdWHcWzJs\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><g fill=\"currentColor\"><path d=\"M3.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM9.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM14 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z\"></path></g></svg></button><div class=\"BdZVYXbdg6Rx9Lrm5wzC\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"QmBU788gp3Cjs7Fwyz1G\"><path fill=\"currentColor\" d=\"M13.817 3.067a.625.625 0 1 0-.884-.884L8 7.116 3.067 2.183a.625.625 0 1 0-.884.884L7.116 8l-4.933 4.933a.625.625 0 1 0 .884.884L8 8.884l4.933 4.933a.625.625 0 1 0 .884-.884L8.884 8z\"></path></svg><p class=\"ePXqZzRA466zTvNP6hpa wZ4JdaHxSAhGy1HoNVja d26Geqs1C__RaCO7MUs2\">merriam-webster.com</p><div class=\"oDTE1nbHCw1Kax_TrCHw\"><a class=\"bcz7ZQmpP9fW9gyprTn7\" href=\"?q=hello%20site%3Awww.merriam-webster.com\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><path fill=\"currentColor\" d=\"M10.5 7a3.5 3.5 0 0 1 2.877 5.493l2.462 2.463a.625.625 0 0 1-.883.883l-2.463-2.462A3.5 3.5 0 1 1 10.5 7M12 1a4 4 0 0 1 4 4v2.006c0 .653-.876.868-1.179.29l-.071-.136V5.25H1.25V11A2.75 2.75 0 0 0 4 13.75h2.14l.182.178A.625.625 0 0 1 5.885 15H4a4 4 0 0 1-4-4V5a4 4 0 0 1 4-4zm-1.5 7.25a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5m-6.5-6A2.75 2.75 0 0 0 1.438 4h13.124A2.75 2.75 0 0 0 12 2.25z\"></path></svg><span>Only include results for this site</span></a><a class=\"bcz7ZQmpP9fW9gyprTn7\" href=\"?q=hello%20-site%3Awww.merriam-webster.com\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><path fill=\"currentColor\" d=\"M12.5 9a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7M8.001 2.125c4.607 0 7.212 3.558 7.849 5.696l.06.203-.075.199c-.127.332-.548.415-.85.23a5 5 0 0 0-.498-.267q.052-.107.096-.207c-.63-1.799-2.833-4.604-6.582-4.604-3.725 0-5.93 2.834-6.575 4.588.854 1.759 2.785 4.532 6.326 4.656l.002.055c.022.605-.418 1.196-1.016 1.102C2.93 13.177.956 9.948.183 8.26L.08 8.043l.072-.228C.787 5.76 3.387 2.125 8 2.125Zm2.374 9.75a.5.5 0 0 0-.5.5v.25a.5.5 0 0 0 .5.5h4.25a.5.5 0 0 0 .5-.5v-.25a.5.5 0 0 0-.5-.5zM8.001 5A3 3 0 0 1 11 7.992 4.76 4.76 0 0 0 7.993 11a2.999 2.999 0 0 1 .008-6\"></path></svg><span>Redo search without this site</span></a><a class=\"bcz7ZQmpP9fW9gyprTn7\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><g><path fill=\"currentColor\" d=\"M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0M3.708 13.21a6.75 6.75 0 0 0 9.502-9.502zM8 1.25a6.75 6.75 0 0 0-5.18 11.079l9.51-9.509A6.72 6.72 0 0 0 8 1.25\"></path></g></svg><span>Block this site from all results</span><span class=\"gADc1vgzmPc4cvxu7yBr Ns8WVIfhcxlxIq9e99fE\">NEW</span></a><div class=\"P0qXZSsYM5mY7vngloXE\"></div><div class=\"bcz7ZQmpP9fW9gyprTn7\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><g><path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M0 5a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v4.25a4 4 0 0 1-4 4H9.455c-.347 0-.702.152-.996.426-1.146 1.067-2.39 1.767-3.374 2.206a1.285 1.285 0 0 1-1.535-.34 1.48 1.48 0 0 1-.223-1.518c.11-.269.203-.535.268-.781C1.565 13.121 0 11.433 0 9.386zm4-2.75A2.75 2.75 0 0 0 1.25 5v4.386C1.25 10.838 2.395 12 3.83 12c.288 0 .565.114.765.307a.97.97 0 0 1 .293.878c-.079.44-.236.899-.404 1.312-.045.11-.014.197.02.237q.011.013.018.017l.006.002h.006a.1.1 0 0 0 .041-.012c.896-.4 2.014-1.032 3.032-1.98.484-.45 1.132-.761 1.848-.761H12a2.75 2.75 0 0 0 2.75-2.75V5A2.75 2.75 0 0 0 12 2.25z\" clip-rule=\"evenodd\"></path></g></svg><span>Share feedback about this site</span></div></div></div></div><div class=\"OQ_6vPwNhCeusNiEDcGp\"><div class=\"mwuQiMOjmFJ5vmN6Vcqw CmOawDMavJGKvqBIPeeC NvMwcsUp56q4W2Z_b8E7 hAeZQDlu0XXeGwL7U722 SgSTKoqQXa0tEszD2zWF VkOimy54PtIClAT3GMbr LQVY1Jpkk8nyJ6HBWKAk\"><span class=\"DpVR46dTZaePK29PDkz8\"><a href=\"/?q=hello+site:www.merriam-webster.com&amp;t=h_\" rel=\"noopener\" title=\"Search domain merriam-webster.com\" data-testid=\"result-extras-site-search-link\" data-handled-by-react=\"true\"><div class=\"c_ZIRTZwvW2k4q8TtKU0\"><img src=\"//external-content.duckduckgo.com/ip3/www.merriam-webster.com.ico\" height=\"16\" width=\"16\" loading=\"lazy\"></div></a></span><div class=\"pAgARfGNTRe_uaK72TAD\"><p class=\"fOCEb2mA3YZTJXXjpgdS wZ4JdaHxSAhGy1HoNVja yGEuosa_aZeFroGMfpgu\">Merriam Webster</p><a href=\"https://www.merriam-webster.com/dictionary/hello\" rel=\"noopener\" target=\"_self\" data-testid=\"result-extras-url-link\" class=\"Rn_JXVtoPVAFyGkcaXyK VkOimy54PtIClAT3GMbr\" data-handled-by-react=\"true\"><div class=\"xS2NxE06pIznLuh2xjH0\"><p class=\"veU5I0hFkgFGOPhX2RBE wZ4JdaHxSAhGy1HoNVja AlPVsxUsFt3bnuOvg6hI\"><span class=\"Wo6ZAEmESLNUuWBkbMxx\">https://www.merriam-webster.com</span><span class=\"oaxCunrdbQs3WQDCq3Ls\">&nbsp;›&nbsp;dictionary › hello</span></p></div></a></div></div></div><div class=\"ikg2IXiCD14iVX7AdZo1\"><h2 class=\"LnpumSThxEWMIsDdAT17 CXMyPcQ6nDv47DKFeywM\"><a href=\"https://www.merriam-webster.com/dictionary/hello\" rel=\"noopener\" target=\"_self\" class=\"eVNpHGjtxRBq_gLOfGDr LQNqh2U1kzYxREs65IJu\" data-testid=\"result-title-a\" data-handled-by-react=\"true\"><span class=\"EKtkFWMYpwzMKOYr0GYm LQVY1Jpkk8nyJ6HBWKAk\">HELLO Definition &amp; Meaning - Merriam-Webster</span></a></h2></div><div class=\"E2eLOJr8HctVnDOTM8fs\"><div class=\"OgdwYG6KE2qthn9XQWFC\" data-result=\"snippet\"><div><span class=\"kY2IgmnCmOGjharHErah\" style=\"-webkit-line-clamp: 3;\"><span>The meaning of <b>HELLO</b> is an expression or gesture of greeting —used interjectionally in greeting, in answering the telephone, or to express surprise. How to use <b>hello</b> in a sentence.</span></span></div></div></div></article>",
+    "text": "Merriam Websterhttps://www.merriam-webster.com › dictionary › hello\nOnly include results for this site\nHELLO Definition & Meaning - Merriam-Webster\nThe meaning of HELLO is an expression or gesture of greeting —used interjectionally in greeting, in answering the telephone, or to express surprise. How to use hello in a sentence.",
+    "images": [
+      {
+        "src": "https://external-content.duckduckgo.com/ip3/www.merriam-webster.com.ico",
+        "alt": "",
+        "title": ""
+      }
+    ],
+    "links": [
+      {
+        "url": "?q=hello%20site%3Awww.merriam-webster.com",
+        "text": "Only include results for this site",
+        "isExternal": false
+      },
+      {
+        "url": "?q=hello%20-site%3Awww.merriam-webster.com",
+        "text": "Redo search without this site",
+        "isExternal": false
+      },
+      {
+        "url": "/?q=hello+site:www.merriam-webster.com&t=h_",
+        "text": "",
+        "isExternal": false
+      },
+      {
+        "url": "https://www.merriam-webster.com/dictionary/hello",
+        "text": "https://www.merriam-webster.com › dictionary › hello",
+        "isExternal": true
+      },
+      {
+        "url": "https://www.merriam-webster.com/dictionary/hello",
+        "text": "HELLO Definition & Meaning - Merriam-Webster",
+        "isExternal": true
+      }
+    ],
+    "metadata": {
+      "platform": "duckduckgo",
+      "elementType": "li",
+      "classes": [
+        "wLL07_0Xnd1QZpzpfR4W"
+      ]
+    },
+    "xpath": "/html/body/div[2]/div[6]/div[4]/div/div/div/div[2]/section/ol/li[4]"
+  },
+  {
+    "url": "https://duckduckgo.com/?origin=funnel_home_website&t=h_&q=hello&ia=web",
+    "html": "<article id=\"r1-3\" data-handled-by-react=\"true\" data-testid=\"result\" data-nrn=\"result\" class=\"yQDlj3B5DI5YO8c8Ulio CpkrTDP54mqzpuCSn1Fa SKlplDuh9FjtDprgoMxk Fr1jPX9uTqiYNJFs2Cfb\"><div class=\"OHr0VX9IuNcv6iakvT6A\"><button type=\"button\" class=\"cxQwADb9kt3UnKwcXKat uuIDnYC4qmyFk5dsXOhr YZxymVMEkIDA0nZSt_Pm ffON2NH02oMAcqyoh2UU MQCbz04ET5EljRmK3YpQ hF7w5TROgutbYQwHzEf_ kYheVVecSlvJdWHcWzJs\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><g fill=\"currentColor\"><path d=\"M3.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM9.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM14 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z\"></path></g></svg></button><div class=\"BdZVYXbdg6Rx9Lrm5wzC\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"QmBU788gp3Cjs7Fwyz1G\"><path fill=\"currentColor\" d=\"M13.817 3.067a.625.625 0 1 0-.884-.884L8 7.116 3.067 2.183a.625.625 0 1 0-.884.884L7.116 8l-4.933 4.933a.625.625 0 1 0 .884.884L8 8.884l4.933 4.933a.625.625 0 1 0 .884-.884L8.884 8z\"></path></svg><p class=\"ePXqZzRA466zTvNP6hpa wZ4JdaHxSAhGy1HoNVja d26Geqs1C__RaCO7MUs2\">dictionary.cambridge.org</p><div class=\"oDTE1nbHCw1Kax_TrCHw\"><a class=\"bcz7ZQmpP9fW9gyprTn7\" href=\"?q=hello%20site%3Adictionary.cambridge.org\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><path fill=\"currentColor\" d=\"M10.5 7a3.5 3.5 0 0 1 2.877 5.493l2.462 2.463a.625.625 0 0 1-.883.883l-2.463-2.462A3.5 3.5 0 1 1 10.5 7M12 1a4 4 0 0 1 4 4v2.006c0 .653-.876.868-1.179.29l-.071-.136V5.25H1.25V11A2.75 2.75 0 0 0 4 13.75h2.14l.182.178A.625.625 0 0 1 5.885 15H4a4 4 0 0 1-4-4V5a4 4 0 0 1 4-4zm-1.5 7.25a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5m-6.5-6A2.75 2.75 0 0 0 1.438 4h13.124A2.75 2.75 0 0 0 12 2.25z\"></path></svg><span>Only include results for this site</span></a><a class=\"bcz7ZQmpP9fW9gyprTn7\" href=\"?q=hello%20-site%3Adictionary.cambridge.org\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><path fill=\"currentColor\" d=\"M12.5 9a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7M8.001 2.125c4.607 0 7.212 3.558 7.849 5.696l.06.203-.075.199c-.127.332-.548.415-.85.23a5 5 0 0 0-.498-.267q.052-.107.096-.207c-.63-1.799-2.833-4.604-6.582-4.604-3.725 0-5.93 2.834-6.575 4.588.854 1.759 2.785 4.532 6.326 4.656l.002.055c.022.605-.418 1.196-1.016 1.102C2.93 13.177.956 9.948.183 8.26L.08 8.043l.072-.228C.787 5.76 3.387 2.125 8 2.125Zm2.374 9.75a.5.5 0 0 0-.5.5v.25a.5.5 0 0 0 .5.5h4.25a.5.5 0 0 0 .5-.5v-.25a.5.5 0 0 0-.5-.5zM8.001 5A3 3 0 0 1 11 7.992 4.76 4.76 0 0 0 7.993 11a2.999 2.999 0 0 1 .008-6\"></path></svg><span>Redo search without this site</span></a><a class=\"bcz7ZQmpP9fW9gyprTn7\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><g><path fill=\"currentColor\" d=\"M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0M3.708 13.21a6.75 6.75 0 0 0 9.502-9.502zM8 1.25a6.75 6.75 0 0 0-5.18 11.079l9.51-9.509A6.72 6.72 0 0 0 8 1.25\"></path></g></svg><span>Block this site from all results</span><span class=\"gADc1vgzmPc4cvxu7yBr Ns8WVIfhcxlxIq9e99fE\">NEW</span></a><div class=\"P0qXZSsYM5mY7vngloXE\"></div><div class=\"bcz7ZQmpP9fW9gyprTn7\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><g><path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M0 5a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v4.25a4 4 0 0 1-4 4H9.455c-.347 0-.702.152-.996.426-1.146 1.067-2.39 1.767-3.374 2.206a1.285 1.285 0 0 1-1.535-.34 1.48 1.48 0 0 1-.223-1.518c.11-.269.203-.535.268-.781C1.565 13.121 0 11.433 0 9.386zm4-2.75A2.75 2.75 0 0 0 1.25 5v4.386C1.25 10.838 2.395 12 3.83 12c.288 0 .565.114.765.307a.97.97 0 0 1 .293.878c-.079.44-.236.899-.404 1.312-.045.11-.014.197.02.237q.011.013.018.017l.006.002h.006a.1.1 0 0 0 .041-.012c.896-.4 2.014-1.032 3.032-1.98.484-.45 1.132-.761 1.848-.761H12a2.75 2.75 0 0 0 2.75-2.75V5A2.75 2.75 0 0 0 12 2.25z\" clip-rule=\"evenodd\"></path></g></svg><span>Share feedback about this site</span></div></div></div></div><div class=\"OQ_6vPwNhCeusNiEDcGp\"><div class=\"mwuQiMOjmFJ5vmN6Vcqw CmOawDMavJGKvqBIPeeC NvMwcsUp56q4W2Z_b8E7 hAeZQDlu0XXeGwL7U722 SgSTKoqQXa0tEszD2zWF VkOimy54PtIClAT3GMbr LQVY1Jpkk8nyJ6HBWKAk\"><span class=\"DpVR46dTZaePK29PDkz8\"><a href=\"/?q=hello+site:dictionary.cambridge.org&amp;t=h_\" rel=\"noopener\" title=\"Search domain dictionary.cambridge.org\" data-testid=\"result-extras-site-search-link\" data-handled-by-react=\"true\"><div class=\"c_ZIRTZwvW2k4q8TtKU0\"><img src=\"//external-content.duckduckgo.com/ip3/dictionary.cambridge.org.ico\" height=\"16\" width=\"16\" loading=\"lazy\"></div></a></span><div class=\"pAgARfGNTRe_uaK72TAD\"><p class=\"fOCEb2mA3YZTJXXjpgdS wZ4JdaHxSAhGy1HoNVja yGEuosa_aZeFroGMfpgu\">Cambridge Dictionary</p><a href=\"https://dictionary.cambridge.org/us/dictionary/english/hello\" rel=\"noopener\" target=\"_self\" data-testid=\"result-extras-url-link\" class=\"Rn_JXVtoPVAFyGkcaXyK VkOimy54PtIClAT3GMbr\" data-handled-by-react=\"true\"><div class=\"xS2NxE06pIznLuh2xjH0\"><p class=\"veU5I0hFkgFGOPhX2RBE wZ4JdaHxSAhGy1HoNVja AlPVsxUsFt3bnuOvg6hI\"><span class=\"Wo6ZAEmESLNUuWBkbMxx\">https://dictionary.cambridge.org</span><span class=\"oaxCunrdbQs3WQDCq3Ls\">&nbsp;›&nbsp;us › dictionary › english › hello</span></p></div></a></div></div></div><div class=\"ikg2IXiCD14iVX7AdZo1\"><h2 class=\"LnpumSThxEWMIsDdAT17 CXMyPcQ6nDv47DKFeywM\"><a href=\"https://dictionary.cambridge.org/us/dictionary/english/hello\" rel=\"noopener\" target=\"_self\" class=\"eVNpHGjtxRBq_gLOfGDr LQNqh2U1kzYxREs65IJu\" data-testid=\"result-title-a\" data-handled-by-react=\"true\"><span class=\"EKtkFWMYpwzMKOYr0GYm LQVY1Jpkk8nyJ6HBWKAk\">HELLO | definition in the Cambridge English Dictionary</span></a></h2></div><div class=\"E2eLOJr8HctVnDOTM8fs\"><div class=\"OgdwYG6KE2qthn9XQWFC\" data-result=\"snippet\"><div><span class=\"kY2IgmnCmOGjharHErah\" style=\"-webkit-line-clamp: 3;\"><span>Learn the meaning, pronunciation and usage of <b>hello</b>, a common greeting and phone opening in English. Find out how to say <b>hello</b> in different situations and languages with examples and translations.</span></span></div></div></div></article>",
+    "text": "Cambridge Dictionaryhttps://dictionary.cambridge.org › us › dictionary › english › hello\nOnly include results for this site\nHELLO | definition in the Cambridge English Dictionary\nLearn the meaning, pronunciation and usage of hello, a common greeting and phone opening in English. Find out how to say hello in different situations and languages with examples and translations.",
+    "images": [
+      {
+        "src": "https://external-content.duckduckgo.com/ip3/dictionary.cambridge.org.ico",
+        "alt": "",
+        "title": ""
+      }
+    ],
+    "links": [
+      {
+        "url": "?q=hello%20site%3Adictionary.cambridge.org",
+        "text": "Only include results for this site",
+        "isExternal": false
+      },
+      {
+        "url": "?q=hello%20-site%3Adictionary.cambridge.org",
+        "text": "Redo search without this site",
+        "isExternal": false
+      },
+      {
+        "url": "/?q=hello+site:dictionary.cambridge.org&t=h_",
+        "text": "",
+        "isExternal": false
+      },
+      {
+        "url": "https://dictionary.cambridge.org/us/dictionary/english/hello",
+        "text": "https://dictionary.cambridge.org › us › dictionary › english › hello",
+        "isExternal": true
+      },
+      {
+        "url": "https://dictionary.cambridge.org/us/dictionary/english/hello",
+        "text": "HELLO | definition in the Cambridge English Dictionary",
+        "isExternal": true
+      }
+    ],
+    "metadata": {
+      "platform": "duckduckgo",
+      "elementType": "li",
+      "classes": [
+        "wLL07_0Xnd1QZpzpfR4W"
+      ]
+    },
+    "xpath": "/html/body/div[2]/div[6]/div[4]/div/div/div/div[2]/section/ol/li[5]"
+  },
+  {
+    "url": "https://duckduckgo.com/?origin=funnel_home_website&t=h_&q=hello&ia=web",
+    "html": "<article id=\"r1-4\" data-handled-by-react=\"true\" data-testid=\"result\" data-nrn=\"result\" class=\"yQDlj3B5DI5YO8c8Ulio CpkrTDP54mqzpuCSn1Fa SKlplDuh9FjtDprgoMxk Fr1jPX9uTqiYNJFs2Cfb\"><div class=\"OHr0VX9IuNcv6iakvT6A\"><button type=\"button\" class=\"cxQwADb9kt3UnKwcXKat uuIDnYC4qmyFk5dsXOhr YZxymVMEkIDA0nZSt_Pm ffON2NH02oMAcqyoh2UU MQCbz04ET5EljRmK3YpQ hF7w5TROgutbYQwHzEf_ kYheVVecSlvJdWHcWzJs\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><g fill=\"currentColor\"><path d=\"M3.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM9.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM14 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z\"></path></g></svg></button><div class=\"BdZVYXbdg6Rx9Lrm5wzC\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"QmBU788gp3Cjs7Fwyz1G\"><path fill=\"currentColor\" d=\"M13.817 3.067a.625.625 0 1 0-.884-.884L8 7.116 3.067 2.183a.625.625 0 1 0-.884.884L7.116 8l-4.933 4.933a.625.625 0 1 0 .884.884L8 8.884l4.933 4.933a.625.625 0 1 0 .884-.884L8.884 8z\"></path></svg><p class=\"ePXqZzRA466zTvNP6hpa wZ4JdaHxSAhGy1HoNVja d26Geqs1C__RaCO7MUs2\">collinsdictionary.com</p><div class=\"oDTE1nbHCw1Kax_TrCHw\"><a class=\"bcz7ZQmpP9fW9gyprTn7\" href=\"?q=hello%20site%3Awww.collinsdictionary.com\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><path fill=\"currentColor\" d=\"M10.5 7a3.5 3.5 0 0 1 2.877 5.493l2.462 2.463a.625.625 0 0 1-.883.883l-2.463-2.462A3.5 3.5 0 1 1 10.5 7M12 1a4 4 0 0 1 4 4v2.006c0 .653-.876.868-1.179.29l-.071-.136V5.25H1.25V11A2.75 2.75 0 0 0 4 13.75h2.14l.182.178A.625.625 0 0 1 5.885 15H4a4 4 0 0 1-4-4V5a4 4 0 0 1 4-4zm-1.5 7.25a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5m-6.5-6A2.75 2.75 0 0 0 1.438 4h13.124A2.75 2.75 0 0 0 12 2.25z\"></path></svg><span>Only include results for this site</span></a><a class=\"bcz7ZQmpP9fW9gyprTn7\" href=\"?q=hello%20-site%3Awww.collinsdictionary.com\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><path fill=\"currentColor\" d=\"M12.5 9a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7M8.001 2.125c4.607 0 7.212 3.558 7.849 5.696l.06.203-.075.199c-.127.332-.548.415-.85.23a5 5 0 0 0-.498-.267q.052-.107.096-.207c-.63-1.799-2.833-4.604-6.582-4.604-3.725 0-5.93 2.834-6.575 4.588.854 1.759 2.785 4.532 6.326 4.656l.002.055c.022.605-.418 1.196-1.016 1.102C2.93 13.177.956 9.948.183 8.26L.08 8.043l.072-.228C.787 5.76 3.387 2.125 8 2.125Zm2.374 9.75a.5.5 0 0 0-.5.5v.25a.5.5 0 0 0 .5.5h4.25a.5.5 0 0 0 .5-.5v-.25a.5.5 0 0 0-.5-.5zM8.001 5A3 3 0 0 1 11 7.992 4.76 4.76 0 0 0 7.993 11a2.999 2.999 0 0 1 .008-6\"></path></svg><span>Redo search without this site</span></a><a class=\"bcz7ZQmpP9fW9gyprTn7\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><g><path fill=\"currentColor\" d=\"M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0M3.708 13.21a6.75 6.75 0 0 0 9.502-9.502zM8 1.25a6.75 6.75 0 0 0-5.18 11.079l9.51-9.509A6.72 6.72 0 0 0 8 1.25\"></path></g></svg><span>Block this site from all results</span><span class=\"gADc1vgzmPc4cvxu7yBr Ns8WVIfhcxlxIq9e99fE\">NEW</span></a><div class=\"P0qXZSsYM5mY7vngloXE\"></div><div class=\"bcz7ZQmpP9fW9gyprTn7\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><g><path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M0 5a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v4.25a4 4 0 0 1-4 4H9.455c-.347 0-.702.152-.996.426-1.146 1.067-2.39 1.767-3.374 2.206a1.285 1.285 0 0 1-1.535-.34 1.48 1.48 0 0 1-.223-1.518c.11-.269.203-.535.268-.781C1.565 13.121 0 11.433 0 9.386zm4-2.75A2.75 2.75 0 0 0 1.25 5v4.386C1.25 10.838 2.395 12 3.83 12c.288 0 .565.114.765.307a.97.97 0 0 1 .293.878c-.079.44-.236.899-.404 1.312-.045.11-.014.197.02.237q.011.013.018.017l.006.002h.006a.1.1 0 0 0 .041-.012c.896-.4 2.014-1.032 3.032-1.98.484-.45 1.132-.761 1.848-.761H12a2.75 2.75 0 0 0 2.75-2.75V5A2.75 2.75 0 0 0 12 2.25z\" clip-rule=\"evenodd\"></path></g></svg><span>Share feedback about this site</span></div></div></div></div><div class=\"OQ_6vPwNhCeusNiEDcGp\"><div class=\"mwuQiMOjmFJ5vmN6Vcqw CmOawDMavJGKvqBIPeeC NvMwcsUp56q4W2Z_b8E7 hAeZQDlu0XXeGwL7U722 SgSTKoqQXa0tEszD2zWF VkOimy54PtIClAT3GMbr LQVY1Jpkk8nyJ6HBWKAk\"><span class=\"DpVR46dTZaePK29PDkz8\"><a href=\"/?q=hello+site:www.collinsdictionary.com&amp;t=h_\" rel=\"noopener\" title=\"Search domain collinsdictionary.com\" data-testid=\"result-extras-site-search-link\" data-handled-by-react=\"true\"><div class=\"c_ZIRTZwvW2k4q8TtKU0\"><img src=\"//external-content.duckduckgo.com/ip3/www.collinsdictionary.com.ico\" height=\"16\" width=\"16\" loading=\"lazy\"></div></a></span><div class=\"pAgARfGNTRe_uaK72TAD\"><p class=\"fOCEb2mA3YZTJXXjpgdS wZ4JdaHxSAhGy1HoNVja yGEuosa_aZeFroGMfpgu\">Collins Dictionary</p><a href=\"https://www.collinsdictionary.com/dictionary/english/hello\" rel=\"noopener\" target=\"_self\" data-testid=\"result-extras-url-link\" class=\"Rn_JXVtoPVAFyGkcaXyK VkOimy54PtIClAT3GMbr\" data-handled-by-react=\"true\"><div class=\"xS2NxE06pIznLuh2xjH0\"><p class=\"veU5I0hFkgFGOPhX2RBE wZ4JdaHxSAhGy1HoNVja AlPVsxUsFt3bnuOvg6hI\"><span class=\"Wo6ZAEmESLNUuWBkbMxx\">https://www.collinsdictionary.com</span><span class=\"oaxCunrdbQs3WQDCq3Ls\">&nbsp;›&nbsp;dictionary › english › hello</span></p></div></a></div></div></div><div class=\"ikg2IXiCD14iVX7AdZo1\"><h2 class=\"LnpumSThxEWMIsDdAT17 CXMyPcQ6nDv47DKFeywM\"><a href=\"https://www.collinsdictionary.com/dictionary/english/hello\" rel=\"noopener\" target=\"_self\" class=\"eVNpHGjtxRBq_gLOfGDr LQNqh2U1kzYxREs65IJu\" data-testid=\"result-title-a\" data-handled-by-react=\"true\"><span class=\"EKtkFWMYpwzMKOYr0GYm LQVY1Jpkk8nyJ6HBWKAk\">HELLO definition and meaning | Collins English Dictionary</span></a></h2></div><div class=\"E2eLOJr8HctVnDOTM8fs\"><div class=\"OgdwYG6KE2qthn9XQWFC\" data-result=\"snippet\"><div><span class=\"kY2IgmnCmOGjharHErah\" style=\"-webkit-line-clamp: 3;\"><span>Learn the meaning, usage and origin of the word <b>hello</b>, a common greeting or response in English. Find out how to say <b>hello</b> in different languages and contexts, and explore synonyms and related words.</span></span></div></div></div></article>",
+    "text": "Collins Dictionaryhttps://www.collinsdictionary.com › dictionary › english › hello\nOnly include results for this site\nHELLO definition and meaning | Collins English Dictionary\nLearn the meaning, usage and origin of the word hello, a common greeting or response in English. Find out how to say hello in different languages and contexts, and explore synonyms and related words.",
+    "images": [
+      {
+        "src": "https://external-content.duckduckgo.com/ip3/www.collinsdictionary.com.ico",
+        "alt": "",
+        "title": ""
+      }
+    ],
+    "links": [
+      {
+        "url": "?q=hello%20site%3Awww.collinsdictionary.com",
+        "text": "Only include results for this site",
+        "isExternal": false
+      },
+      {
+        "url": "?q=hello%20-site%3Awww.collinsdictionary.com",
+        "text": "Redo search without this site",
+        "isExternal": false
+      },
+      {
+        "url": "/?q=hello+site:www.collinsdictionary.com&t=h_",
+        "text": "",
+        "isExternal": false
+      },
+      {
+        "url": "https://www.collinsdictionary.com/dictionary/english/hello",
+        "text": "https://www.collinsdictionary.com › dictionary › english › hello",
+        "isExternal": true
+      },
+      {
+        "url": "https://www.collinsdictionary.com/dictionary/english/hello",
+        "text": "HELLO definition and meaning | Collins English Dictionary",
+        "isExternal": true
+      }
+    ],
+    "metadata": {
+      "platform": "duckduckgo",
+      "elementType": "li",
+      "classes": [
+        "wLL07_0Xnd1QZpzpfR4W"
+      ]
+    },
+    "xpath": "/html/body/div[2]/div[6]/div[4]/div/div/div/div[2]/section/ol/li[6]"
+  },
+  {
+    "url": "https://duckduckgo.com/?origin=funnel_home_website&t=h_&q=hello&ia=web",
+    "html": "<article id=\"r1-5\" data-handled-by-react=\"true\" data-testid=\"result\" data-nrn=\"result\" class=\"yQDlj3B5DI5YO8c8Ulio CpkrTDP54mqzpuCSn1Fa SKlplDuh9FjtDprgoMxk Fr1jPX9uTqiYNJFs2Cfb\"><div class=\"OHr0VX9IuNcv6iakvT6A\"><button type=\"button\" class=\"cxQwADb9kt3UnKwcXKat uuIDnYC4qmyFk5dsXOhr YZxymVMEkIDA0nZSt_Pm ffON2NH02oMAcqyoh2UU MQCbz04ET5EljRmK3YpQ hF7w5TROgutbYQwHzEf_ kYheVVecSlvJdWHcWzJs\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><g fill=\"currentColor\"><path d=\"M3.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM9.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM14 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z\"></path></g></svg></button><div class=\"BdZVYXbdg6Rx9Lrm5wzC\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"QmBU788gp3Cjs7Fwyz1G\"><path fill=\"currentColor\" d=\"M13.817 3.067a.625.625 0 1 0-.884-.884L8 7.116 3.067 2.183a.625.625 0 1 0-.884.884L7.116 8l-4.933 4.933a.625.625 0 1 0 .884.884L8 8.884l4.933 4.933a.625.625 0 1 0 .884-.884L8.884 8z\"></path></svg><p class=\"ePXqZzRA466zTvNP6hpa wZ4JdaHxSAhGy1HoNVja d26Geqs1C__RaCO7MUs2\">en.wiktionary.org</p><div class=\"oDTE1nbHCw1Kax_TrCHw\"><a class=\"bcz7ZQmpP9fW9gyprTn7\" href=\"?q=hello%20site%3Aen.wiktionary.org\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><path fill=\"currentColor\" d=\"M10.5 7a3.5 3.5 0 0 1 2.877 5.493l2.462 2.463a.625.625 0 0 1-.883.883l-2.463-2.462A3.5 3.5 0 1 1 10.5 7M12 1a4 4 0 0 1 4 4v2.006c0 .653-.876.868-1.179.29l-.071-.136V5.25H1.25V11A2.75 2.75 0 0 0 4 13.75h2.14l.182.178A.625.625 0 0 1 5.885 15H4a4 4 0 0 1-4-4V5a4 4 0 0 1 4-4zm-1.5 7.25a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5m-6.5-6A2.75 2.75 0 0 0 1.438 4h13.124A2.75 2.75 0 0 0 12 2.25z\"></path></svg><span>Only include results for this site</span></a><a class=\"bcz7ZQmpP9fW9gyprTn7\" href=\"?q=hello%20-site%3Aen.wiktionary.org\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><path fill=\"currentColor\" d=\"M12.5 9a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7M8.001 2.125c4.607 0 7.212 3.558 7.849 5.696l.06.203-.075.199c-.127.332-.548.415-.85.23a5 5 0 0 0-.498-.267q.052-.107.096-.207c-.63-1.799-2.833-4.604-6.582-4.604-3.725 0-5.93 2.834-6.575 4.588.854 1.759 2.785 4.532 6.326 4.656l.002.055c.022.605-.418 1.196-1.016 1.102C2.93 13.177.956 9.948.183 8.26L.08 8.043l.072-.228C.787 5.76 3.387 2.125 8 2.125Zm2.374 9.75a.5.5 0 0 0-.5.5v.25a.5.5 0 0 0 .5.5h4.25a.5.5 0 0 0 .5-.5v-.25a.5.5 0 0 0-.5-.5zM8.001 5A3 3 0 0 1 11 7.992 4.76 4.76 0 0 0 7.993 11a2.999 2.999 0 0 1 .008-6\"></path></svg><span>Redo search without this site</span></a><a class=\"bcz7ZQmpP9fW9gyprTn7\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><g><path fill=\"currentColor\" d=\"M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0M3.708 13.21a6.75 6.75 0 0 0 9.502-9.502zM8 1.25a6.75 6.75 0 0 0-5.18 11.079l9.51-9.509A6.72 6.72 0 0 0 8 1.25\"></path></g></svg><span>Block this site from all results</span><span class=\"gADc1vgzmPc4cvxu7yBr Ns8WVIfhcxlxIq9e99fE\">NEW</span></a><div class=\"P0qXZSsYM5mY7vngloXE\"></div><div class=\"bcz7ZQmpP9fW9gyprTn7\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><g><path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M0 5a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v4.25a4 4 0 0 1-4 4H9.455c-.347 0-.702.152-.996.426-1.146 1.067-2.39 1.767-3.374 2.206a1.285 1.285 0 0 1-1.535-.34 1.48 1.48 0 0 1-.223-1.518c.11-.269.203-.535.268-.781C1.565 13.121 0 11.433 0 9.386zm4-2.75A2.75 2.75 0 0 0 1.25 5v4.386C1.25 10.838 2.395 12 3.83 12c.288 0 .565.114.765.307a.97.97 0 0 1 .293.878c-.079.44-.236.899-.404 1.312-.045.11-.014.197.02.237q.011.013.018.017l.006.002h.006a.1.1 0 0 0 .041-.012c.896-.4 2.014-1.032 3.032-1.98.484-.45 1.132-.761 1.848-.761H12a2.75 2.75 0 0 0 2.75-2.75V5A2.75 2.75 0 0 0 12 2.25z\" clip-rule=\"evenodd\"></path></g></svg><span>Share feedback about this site</span></div></div></div></div><div class=\"OQ_6vPwNhCeusNiEDcGp\"><div class=\"mwuQiMOjmFJ5vmN6Vcqw CmOawDMavJGKvqBIPeeC NvMwcsUp56q4W2Z_b8E7 hAeZQDlu0XXeGwL7U722 SgSTKoqQXa0tEszD2zWF VkOimy54PtIClAT3GMbr LQVY1Jpkk8nyJ6HBWKAk\"><span class=\"DpVR46dTZaePK29PDkz8\"><a href=\"/?q=hello+site:en.wiktionary.org&amp;t=h_\" rel=\"noopener\" title=\"Search domain en.wiktionary.org\" data-testid=\"result-extras-site-search-link\" data-handled-by-react=\"true\"><div class=\"c_ZIRTZwvW2k4q8TtKU0\"><img src=\"//external-content.duckduckgo.com/ip3/en.wiktionary.org.ico\" height=\"16\" width=\"16\" loading=\"lazy\"></div></a></span><div class=\"pAgARfGNTRe_uaK72TAD\"><p class=\"fOCEb2mA3YZTJXXjpgdS wZ4JdaHxSAhGy1HoNVja yGEuosa_aZeFroGMfpgu\">Wiktionary</p><a href=\"https://en.wiktionary.org/wiki/hello\" rel=\"noopener\" target=\"_self\" data-testid=\"result-extras-url-link\" class=\"Rn_JXVtoPVAFyGkcaXyK VkOimy54PtIClAT3GMbr\" data-handled-by-react=\"true\"><div class=\"xS2NxE06pIznLuh2xjH0\"><p class=\"veU5I0hFkgFGOPhX2RBE wZ4JdaHxSAhGy1HoNVja AlPVsxUsFt3bnuOvg6hI\"><span class=\"Wo6ZAEmESLNUuWBkbMxx\">https://en.wiktionary.org</span><span class=\"oaxCunrdbQs3WQDCq3Ls\">&nbsp;›&nbsp;wiki › hello</span></p></div></a></div></div></div><div class=\"ikg2IXiCD14iVX7AdZo1\"><h2 class=\"LnpumSThxEWMIsDdAT17 CXMyPcQ6nDv47DKFeywM\"><a href=\"https://en.wiktionary.org/wiki/hello\" rel=\"noopener\" target=\"_self\" class=\"eVNpHGjtxRBq_gLOfGDr LQNqh2U1kzYxREs65IJu\" data-testid=\"result-title-a\" data-handled-by-react=\"true\"><span class=\"EKtkFWMYpwzMKOYr0GYm LQVY1Jpkk8nyJ6HBWKAk\">hello - Wiktionary, the free dictionary</span></a></h2></div><div class=\"E2eLOJr8HctVnDOTM8fs\"><div class=\"OgdwYG6KE2qthn9XQWFC\" data-result=\"snippet\"><div><span class=\"kY2IgmnCmOGjharHErah\" style=\"-webkit-line-clamp: 3;\"><span class=\"MILR5XIVy9h75WrLvKiq\">7 days ago</span><span>Learn the definition, etymology, pronunciation, and usage of the word <b>hello</b>, a common greeting in English. Find synonyms, antonyms, derived terms, and translations of <b>hello</b> in other languages.</span></span></div></div></div></article>",
+    "text": "Wiktionaryhttps://en.wiktionary.org › wiki › hello\nOnly include results for this site\nhello - Wiktionary, the free dictionary\n7 days agoLearn the definition, etymology, pronunciation, and usage of the word hello, a common greeting in English. Find synonyms, antonyms, derived terms, and translations of hello in other languages.",
+    "images": [
+      {
+        "src": "https://external-content.duckduckgo.com/ip3/en.wiktionary.org.ico",
+        "alt": "",
+        "title": ""
+      }
+    ],
+    "links": [
+      {
+        "url": "?q=hello%20site%3Aen.wiktionary.org",
+        "text": "Only include results for this site",
+        "isExternal": false
+      },
+      {
+        "url": "?q=hello%20-site%3Aen.wiktionary.org",
+        "text": "Redo search without this site",
+        "isExternal": false
+      },
+      {
+        "url": "/?q=hello+site:en.wiktionary.org&t=h_",
+        "text": "",
+        "isExternal": false
+      },
+      {
+        "url": "https://en.wiktionary.org/wiki/hello",
+        "text": "https://en.wiktionary.org › wiki › hello",
+        "isExternal": true
+      },
+      {
+        "url": "https://en.wiktionary.org/wiki/hello",
+        "text": "hello - Wiktionary, the free dictionary",
+        "isExternal": true
+      }
+    ],
+    "metadata": {
+      "platform": "duckduckgo",
+      "elementType": "li",
+      "classes": [
+        "wLL07_0Xnd1QZpzpfR4W"
+      ]
+    },
+    "xpath": "/html/body/div[2]/div[6]/div[4]/div/div/div/div[2]/section/ol/li[7]"
+  },
+  {
+    "url": "https://duckduckgo.com/?origin=funnel_home_website&t=h_&q=hello&ia=web",
+    "html": "<article id=\"r1-6\" data-handled-by-react=\"true\" data-testid=\"result\" data-nrn=\"result\" class=\"yQDlj3B5DI5YO8c8Ulio CpkrTDP54mqzpuCSn1Fa SKlplDuh9FjtDprgoMxk Fr1jPX9uTqiYNJFs2Cfb\"><div class=\"OHr0VX9IuNcv6iakvT6A\"><button type=\"button\" class=\"cxQwADb9kt3UnKwcXKat uuIDnYC4qmyFk5dsXOhr YZxymVMEkIDA0nZSt_Pm ffON2NH02oMAcqyoh2UU MQCbz04ET5EljRmK3YpQ hF7w5TROgutbYQwHzEf_ kYheVVecSlvJdWHcWzJs\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><g fill=\"currentColor\"><path d=\"M3.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM9.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM14 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z\"></path></g></svg></button><div class=\"BdZVYXbdg6Rx9Lrm5wzC\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"QmBU788gp3Cjs7Fwyz1G\"><path fill=\"currentColor\" d=\"M13.817 3.067a.625.625 0 1 0-.884-.884L8 7.116 3.067 2.183a.625.625 0 1 0-.884.884L7.116 8l-4.933 4.933a.625.625 0 1 0 .884.884L8 8.884l4.933 4.933a.625.625 0 1 0 .884-.884L8.884 8z\"></path></svg><p class=\"ePXqZzRA466zTvNP6hpa wZ4JdaHxSAhGy1HoNVja d26Geqs1C__RaCO7MUs2\">bbc.co.uk</p><div class=\"oDTE1nbHCw1Kax_TrCHw\"><a class=\"bcz7ZQmpP9fW9gyprTn7\" href=\"?q=hello%20site%3Awww.bbc.co.uk\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><path fill=\"currentColor\" d=\"M10.5 7a3.5 3.5 0 0 1 2.877 5.493l2.462 2.463a.625.625 0 0 1-.883.883l-2.463-2.462A3.5 3.5 0 1 1 10.5 7M12 1a4 4 0 0 1 4 4v2.006c0 .653-.876.868-1.179.29l-.071-.136V5.25H1.25V11A2.75 2.75 0 0 0 4 13.75h2.14l.182.178A.625.625 0 0 1 5.885 15H4a4 4 0 0 1-4-4V5a4 4 0 0 1 4-4zm-1.5 7.25a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5m-6.5-6A2.75 2.75 0 0 0 1.438 4h13.124A2.75 2.75 0 0 0 12 2.25z\"></path></svg><span>Only include results for this site</span></a><a class=\"bcz7ZQmpP9fW9gyprTn7\" href=\"?q=hello%20-site%3Awww.bbc.co.uk\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><path fill=\"currentColor\" d=\"M12.5 9a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7M8.001 2.125c4.607 0 7.212 3.558 7.849 5.696l.06.203-.075.199c-.127.332-.548.415-.85.23a5 5 0 0 0-.498-.267q.052-.107.096-.207c-.63-1.799-2.833-4.604-6.582-4.604-3.725 0-5.93 2.834-6.575 4.588.854 1.759 2.785 4.532 6.326 4.656l.002.055c.022.605-.418 1.196-1.016 1.102C2.93 13.177.956 9.948.183 8.26L.08 8.043l.072-.228C.787 5.76 3.387 2.125 8 2.125Zm2.374 9.75a.5.5 0 0 0-.5.5v.25a.5.5 0 0 0 .5.5h4.25a.5.5 0 0 0 .5-.5v-.25a.5.5 0 0 0-.5-.5zM8.001 5A3 3 0 0 1 11 7.992 4.76 4.76 0 0 0 7.993 11a2.999 2.999 0 0 1 .008-6\"></path></svg><span>Redo search without this site</span></a><a class=\"bcz7ZQmpP9fW9gyprTn7\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><g><path fill=\"currentColor\" d=\"M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0M3.708 13.21a6.75 6.75 0 0 0 9.502-9.502zM8 1.25a6.75 6.75 0 0 0-5.18 11.079l9.51-9.509A6.72 6.72 0 0 0 8 1.25\"></path></g></svg><span>Block this site from all results</span><span class=\"gADc1vgzmPc4cvxu7yBr Ns8WVIfhcxlxIq9e99fE\">NEW</span></a><div class=\"P0qXZSsYM5mY7vngloXE\"></div><div class=\"bcz7ZQmpP9fW9gyprTn7\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><g><path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M0 5a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v4.25a4 4 0 0 1-4 4H9.455c-.347 0-.702.152-.996.426-1.146 1.067-2.39 1.767-3.374 2.206a1.285 1.285 0 0 1-1.535-.34 1.48 1.48 0 0 1-.223-1.518c.11-.269.203-.535.268-.781C1.565 13.121 0 11.433 0 9.386zm4-2.75A2.75 2.75 0 0 0 1.25 5v4.386C1.25 10.838 2.395 12 3.83 12c.288 0 .565.114.765.307a.97.97 0 0 1 .293.878c-.079.44-.236.899-.404 1.312-.045.11-.014.197.02.237q.011.013.018.017l.006.002h.006a.1.1 0 0 0 .041-.012c.896-.4 2.014-1.032 3.032-1.98.484-.45 1.132-.761 1.848-.761H12a2.75 2.75 0 0 0 2.75-2.75V5A2.75 2.75 0 0 0 12 2.25z\" clip-rule=\"evenodd\"></path></g></svg><span>Share feedback about this site</span></div></div></div></div><div class=\"OQ_6vPwNhCeusNiEDcGp\"><div class=\"mwuQiMOjmFJ5vmN6Vcqw CmOawDMavJGKvqBIPeeC NvMwcsUp56q4W2Z_b8E7 hAeZQDlu0XXeGwL7U722 SgSTKoqQXa0tEszD2zWF VkOimy54PtIClAT3GMbr LQVY1Jpkk8nyJ6HBWKAk\"><span class=\"DpVR46dTZaePK29PDkz8\"><a href=\"/?q=hello+site:www.bbc.co.uk&amp;t=h_\" rel=\"noopener\" title=\"Search domain bbc.co.uk\" data-testid=\"result-extras-site-search-link\" data-handled-by-react=\"true\"><div class=\"c_ZIRTZwvW2k4q8TtKU0\"><img src=\"//external-content.duckduckgo.com/ip3/www.bbc.co.uk.ico\" height=\"16\" width=\"16\" loading=\"lazy\"></div></a></span><div class=\"pAgARfGNTRe_uaK72TAD\"><p class=\"fOCEb2mA3YZTJXXjpgdS wZ4JdaHxSAhGy1HoNVja yGEuosa_aZeFroGMfpgu\">BBC</p><a href=\"https://www.bbc.co.uk/learningenglish/english/features/6-minute-english/ep-180301\" rel=\"noopener\" target=\"_self\" data-testid=\"result-extras-url-link\" class=\"Rn_JXVtoPVAFyGkcaXyK VkOimy54PtIClAT3GMbr\" data-handled-by-react=\"true\"><div class=\"xS2NxE06pIznLuh2xjH0\"><p class=\"veU5I0hFkgFGOPhX2RBE wZ4JdaHxSAhGy1HoNVja AlPVsxUsFt3bnuOvg6hI\"><span class=\"Wo6ZAEmESLNUuWBkbMxx\">https://www.bbc.co.uk</span><span class=\"oaxCunrdbQs3WQDCq3Ls\">&nbsp;›&nbsp;learningenglish › english › features › 6-minute-english › ep-180301</span></p></div></a></div></div></div><div class=\"ikg2IXiCD14iVX7AdZo1\"><h2 class=\"LnpumSThxEWMIsDdAT17 CXMyPcQ6nDv47DKFeywM\"><a href=\"https://www.bbc.co.uk/learningenglish/english/features/6-minute-english/ep-180301\" rel=\"noopener\" target=\"_self\" class=\"eVNpHGjtxRBq_gLOfGDr LQNqh2U1kzYxREs65IJu\" data-testid=\"result-title-a\" data-handled-by-react=\"true\"><span class=\"EKtkFWMYpwzMKOYr0GYm LQVY1Jpkk8nyJ6HBWKAk\">BBC Learning English - 6 Minute English / Hello, hello</span></a></h2></div><div class=\"E2eLOJr8HctVnDOTM8fs\"><div class=\"OgdwYG6KE2qthn9XQWFC\" data-result=\"snippet\"><div><span class=\"kY2IgmnCmOGjharHErah\" style=\"-webkit-line-clamp: 3;\"><span class=\"MILR5XIVy9h75WrLvKiq\">2 days ago</span><span>The history of the humble 'hello'It's usually the first word you say to people, but the word <b>'hello'</b> has an unusual history. And just why are greetings so important? Join Rob and Catherine in ...</span></span></div></div></div></article>",
+    "text": "BBChttps://www.bbc.co.uk › learningenglish › english › features › 6-minute-english › ep-180301\nOnly include results for this site\nBBC Learning English - 6 Minute English / Hello, hello\n2 days agoThe history of the humble 'hello'It's usually the first word you say to people, but the word 'hello' has an unusual history. And just why are greetings so important? Join Rob and Catherine in ...",
+    "images": [
+      {
+        "src": "https://external-content.duckduckgo.com/ip3/www.bbc.co.uk.ico",
+        "alt": "",
+        "title": ""
+      }
+    ],
+    "links": [
+      {
+        "url": "?q=hello%20site%3Awww.bbc.co.uk",
+        "text": "Only include results for this site",
+        "isExternal": false
+      },
+      {
+        "url": "?q=hello%20-site%3Awww.bbc.co.uk",
+        "text": "Redo search without this site",
+        "isExternal": false
+      },
+      {
+        "url": "/?q=hello+site:www.bbc.co.uk&t=h_",
+        "text": "",
+        "isExternal": false
+      },
+      {
+        "url": "https://www.bbc.co.uk/learningenglish/english/features/6-minute-english/ep-180301",
+        "text": "https://www.bbc.co.uk › learningenglish › english › features › 6-minute-english › ep-180301",
+        "isExternal": true
+      },
+      {
+        "url": "https://www.bbc.co.uk/learningenglish/english/features/6-minute-english/ep-180301",
+        "text": "BBC Learning English - 6 Minute English / Hello, hello",
+        "isExternal": true
+      }
+    ],
+    "metadata": {
+      "platform": "duckduckgo",
+      "elementType": "li",
+      "classes": [
+        "wLL07_0Xnd1QZpzpfR4W"
+      ]
+    },
+    "xpath": "/html/body/div[2]/div[6]/div[4]/div/div/div/div[2]/section/ol/li[8]"
+  },
+  {
+    "url": "https://duckduckgo.com/?origin=funnel_home_website&t=h_&q=hello&ia=web",
+    "html": "<article id=\"r1-7\" data-handled-by-react=\"true\" data-testid=\"result\" data-nrn=\"result\" class=\"yQDlj3B5DI5YO8c8Ulio CpkrTDP54mqzpuCSn1Fa SKlplDuh9FjtDprgoMxk Fr1jPX9uTqiYNJFs2Cfb\"><div class=\"OHr0VX9IuNcv6iakvT6A\"><button type=\"button\" class=\"cxQwADb9kt3UnKwcXKat uuIDnYC4qmyFk5dsXOhr YZxymVMEkIDA0nZSt_Pm ffON2NH02oMAcqyoh2UU MQCbz04ET5EljRmK3YpQ hF7w5TROgutbYQwHzEf_ kYheVVecSlvJdWHcWzJs\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><g fill=\"currentColor\"><path d=\"M3.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM9.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM14 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z\"></path></g></svg></button><div class=\"BdZVYXbdg6Rx9Lrm5wzC\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"QmBU788gp3Cjs7Fwyz1G\"><path fill=\"currentColor\" d=\"M13.817 3.067a.625.625 0 1 0-.884-.884L8 7.116 3.067 2.183a.625.625 0 1 0-.884.884L7.116 8l-4.933 4.933a.625.625 0 1 0 .884.884L8 8.884l4.933 4.933a.625.625 0 1 0 .884-.884L8.884 8z\"></path></svg><p class=\"ePXqZzRA466zTvNP6hpa wZ4JdaHxSAhGy1HoNVja d26Geqs1C__RaCO7MUs2\">youtube.com</p><div class=\"oDTE1nbHCw1Kax_TrCHw\"><a class=\"bcz7ZQmpP9fW9gyprTn7\" href=\"?q=hello%20site%3Awww.youtube.com\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><path fill=\"currentColor\" d=\"M10.5 7a3.5 3.5 0 0 1 2.877 5.493l2.462 2.463a.625.625 0 0 1-.883.883l-2.463-2.462A3.5 3.5 0 1 1 10.5 7M12 1a4 4 0 0 1 4 4v2.006c0 .653-.876.868-1.179.29l-.071-.136V5.25H1.25V11A2.75 2.75 0 0 0 4 13.75h2.14l.182.178A.625.625 0 0 1 5.885 15H4a4 4 0 0 1-4-4V5a4 4 0 0 1 4-4zm-1.5 7.25a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5m-6.5-6A2.75 2.75 0 0 0 1.438 4h13.124A2.75 2.75 0 0 0 12 2.25z\"></path></svg><span>Only include results for this site</span></a><a class=\"bcz7ZQmpP9fW9gyprTn7\" href=\"?q=hello%20-site%3Awww.youtube.com\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><path fill=\"currentColor\" d=\"M12.5 9a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7M8.001 2.125c4.607 0 7.212 3.558 7.849 5.696l.06.203-.075.199c-.127.332-.548.415-.85.23a5 5 0 0 0-.498-.267q.052-.107.096-.207c-.63-1.799-2.833-4.604-6.582-4.604-3.725 0-5.93 2.834-6.575 4.588.854 1.759 2.785 4.532 6.326 4.656l.002.055c.022.605-.418 1.196-1.016 1.102C2.93 13.177.956 9.948.183 8.26L.08 8.043l.072-.228C.787 5.76 3.387 2.125 8 2.125Zm2.374 9.75a.5.5 0 0 0-.5.5v.25a.5.5 0 0 0 .5.5h4.25a.5.5 0 0 0 .5-.5v-.25a.5.5 0 0 0-.5-.5zM8.001 5A3 3 0 0 1 11 7.992 4.76 4.76 0 0 0 7.993 11a2.999 2.999 0 0 1 .008-6\"></path></svg><span>Redo search without this site</span></a><a class=\"bcz7ZQmpP9fW9gyprTn7\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><g><path fill=\"currentColor\" d=\"M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0M3.708 13.21a6.75 6.75 0 0 0 9.502-9.502zM8 1.25a6.75 6.75 0 0 0-5.18 11.079l9.51-9.509A6.72 6.72 0 0 0 8 1.25\"></path></g></svg><span>Block this site from all results</span><span class=\"gADc1vgzmPc4cvxu7yBr Ns8WVIfhcxlxIq9e99fE\">NEW</span></a><div class=\"P0qXZSsYM5mY7vngloXE\"></div><div class=\"bcz7ZQmpP9fW9gyprTn7\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><g><path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M0 5a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v4.25a4 4 0 0 1-4 4H9.455c-.347 0-.702.152-.996.426-1.146 1.067-2.39 1.767-3.374 2.206a1.285 1.285 0 0 1-1.535-.34 1.48 1.48 0 0 1-.223-1.518c.11-.269.203-.535.268-.781C1.565 13.121 0 11.433 0 9.386zm4-2.75A2.75 2.75 0 0 0 1.25 5v4.386C1.25 10.838 2.395 12 3.83 12c.288 0 .565.114.765.307a.97.97 0 0 1 .293.878c-.079.44-.236.899-.404 1.312-.045.11-.014.197.02.237q.011.013.018.017l.006.002h.006a.1.1 0 0 0 .041-.012c.896-.4 2.014-1.032 3.032-1.98.484-.45 1.132-.761 1.848-.761H12a2.75 2.75 0 0 0 2.75-2.75V5A2.75 2.75 0 0 0 12 2.25z\" clip-rule=\"evenodd\"></path></g></svg><span>Share feedback about this site</span></div></div></div></div><div class=\"OQ_6vPwNhCeusNiEDcGp\"><div class=\"mwuQiMOjmFJ5vmN6Vcqw CmOawDMavJGKvqBIPeeC NvMwcsUp56q4W2Z_b8E7 hAeZQDlu0XXeGwL7U722 SgSTKoqQXa0tEszD2zWF VkOimy54PtIClAT3GMbr LQVY1Jpkk8nyJ6HBWKAk\"><span class=\"DpVR46dTZaePK29PDkz8\"><a href=\"/?q=hello+site:www.youtube.com&amp;t=h_\" rel=\"noopener\" title=\"Search domain youtube.com\" data-testid=\"result-extras-site-search-link\" data-handled-by-react=\"true\"><div class=\"c_ZIRTZwvW2k4q8TtKU0\"><img src=\"/assets/icons/favicons/youtube.png\" height=\"16\" width=\"16\" loading=\"lazy\"></div></a></span><div class=\"pAgARfGNTRe_uaK72TAD\"><p class=\"fOCEb2mA3YZTJXXjpgdS wZ4JdaHxSAhGy1HoNVja yGEuosa_aZeFroGMfpgu\">YouTube</p><a href=\"https://www.youtube.com/watch?v=tVlcKp3bWH8\" rel=\"noopener\" target=\"_self\" data-testid=\"result-extras-url-link\" class=\"Rn_JXVtoPVAFyGkcaXyK VkOimy54PtIClAT3GMbr\" data-handled-by-react=\"true\"><div class=\"xS2NxE06pIznLuh2xjH0\"><p class=\"veU5I0hFkgFGOPhX2RBE wZ4JdaHxSAhGy1HoNVja AlPVsxUsFt3bnuOvg6hI\"><span class=\"Wo6ZAEmESLNUuWBkbMxx\">https://www.youtube.com</span><span class=\"oaxCunrdbQs3WQDCq3Ls\">&nbsp;›&nbsp;watch?v=tVlcKp3bWH8</span></p></div></a></div></div></div><div class=\"ikg2IXiCD14iVX7AdZo1\"><h2 class=\"LnpumSThxEWMIsDdAT17 CXMyPcQ6nDv47DKFeywM\"><a href=\"https://www.youtube.com/watch?v=tVlcKp3bWH8\" rel=\"noopener\" target=\"_self\" class=\"eVNpHGjtxRBq_gLOfGDr LQNqh2U1kzYxREs65IJu\" data-testid=\"result-title-a\" data-handled-by-react=\"true\"><span class=\"EKtkFWMYpwzMKOYr0GYm LQVY1Jpkk8nyJ6HBWKAk\">Hello! | Kids Greeting Song and Feelings Song | Super Simple Songs</span></a></h2></div><div class=\"E2eLOJr8HctVnDOTM8fs\"><div class=\"OgdwYG6KE2qthn9XQWFC\" data-result=\"snippet\"><div><span class=\"kY2IgmnCmOGjharHErah\" style=\"-webkit-line-clamp: 3;\"><span>Get the Super Simple App! http://bit.ly/TheSuperSimpleApp Start off your lesson with \"<b>Hello</b>!\", a fun and energetic song to talk about how you feel as you g...</span></span></div></div></div><div class=\"dxX8MoSEf9ja3nCPB3bG\"><span data-test-id=\"rich-fact\" class=\"pfCaKkO7IawhqaRvIoHF\"><svg width=\"16\" height=\"17\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"nsNVmPa4N_p8ieXtdLkR\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M11 6.297a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm-1.5 0a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z\" fill=\"currentColor\"></path><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M16 8.297c0 2.13-.832 4.065-2.19 5.499A7.963 7.963 0 0 1 8 16.297a8 8 0 1 1 8-8Zm-8 6.5c1.54 0 2.953-.535 4.067-1.43a4.5 4.5 0 0 0-8.134 0A6.472 6.472 0 0 0 8 14.798Zm0-5.5a5.997 5.997 0 0 1 5.166 2.946 6.5 6.5 0 1 0-10.331 0A5.997 5.997 0 0 1 8 9.297Z\" fill=\"currentColor\"></path></svg><span class=\"ugwZuBUpsXWGVoGJ96CA wZ4JdaHxSAhGy1HoNVja cPy9QU4brI7VQXFNPEvF\">Created by:</span><span class=\"t1JXMTjrx5iGN67Q7Gv4 wZ4JdaHxSAhGy1HoNVja cPy9QU4brI7VQXFNPEvF\">Super Simple Songs - Kids Songs</span></span><span data-test-id=\"rich-fact\" class=\"pfCaKkO7IawhqaRvIoHF\"><svg width=\"16\" height=\"17\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"nsNVmPa4N_p8ieXtdLkR\"><path d=\"M8 11.297a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z\" fill=\"currentColor\"></path><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M8 2.297C3.35 2.297.72 5.93.05 8.024a.867.867 0 0 0 .039.63C.962 10.541 3.315 14.297 8 14.297c4.676 0 7.202-3.808 7.934-5.69a.866.866 0 0 0 .021-.57c-.668-2.175-3.306-5.74-7.955-5.74Zm0 10.5c-3.593 0-5.56-2.754-6.441-4.545C2.217 6.524 4.38 3.797 8 3.797c3.648 0 5.81 2.705 6.451 4.472-.73 1.682-2.841 4.528-6.45 4.528Z\" fill=\"currentColor\"></path></svg><span class=\"ugwZuBUpsXWGVoGJ96CA wZ4JdaHxSAhGy1HoNVja cPy9QU4brI7VQXFNPEvF\">197M views</span></span><span data-test-id=\"rich-fact\" class=\"pfCaKkO7IawhqaRvIoHF\"><svg fill=\"none\" viewBox=\"0 0 16 16\" xmlns=\"http://www.w3.org/2000/svg\" class=\"nsNVmPa4N_p8ieXtdLkR\"><path fill=\"currentColor\" d=\"M10.453 8.622a.75.75 0 0 0 0-1.244L7.169 5.164A.75.75 0 0 0 6 5.785v4.43c0 .6.671.957 1.17.621z\"></path><path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M3.25 2A3.25 3.25 0 0 0 0 5.25v5.5A3.25 3.25 0 0 0 3.25 14h9.5A3.25 3.25 0 0 0 16 10.75v-5.5A3.25 3.25 0 0 0 12.75 2zM1.5 5.25c0-.966.784-1.75 1.75-1.75h9.5c.966 0 1.75.784 1.75 1.75v5.5a1.75 1.75 0 0 1-1.75 1.75h-9.5a1.75 1.75 0 0 1-1.75-1.75z\" clip-rule=\"evenodd\"></path></svg><span class=\"ugwZuBUpsXWGVoGJ96CA wZ4JdaHxSAhGy1HoNVja cPy9QU4brI7VQXFNPEvF\">1 min</span></span></div></article>",
+    "text": "YouTubehttps://www.youtube.com › watch?v=tVlcKp3bWH8\nOnly include results for this site\nHello! | Kids Greeting Song and Feelings Song | Super Simple Songs\nGet the Super Simple App! http://bit.ly/TheSuperSimpleApp Start off your lesson with \"Hello!\", a fun and energetic song to talk about how you feel as you g...",
+    "images": [
+      {
+        "src": "https://duckduckgo.com/assets/icons/favicons/youtube.png",
+        "alt": "",
+        "title": ""
+      }
+    ],
+    "links": [
+      {
+        "url": "?q=hello%20site%3Awww.youtube.com",
+        "text": "Only include results for this site",
+        "isExternal": false
+      },
+      {
+        "url": "?q=hello%20-site%3Awww.youtube.com",
+        "text": "Redo search without this site",
+        "isExternal": false
+      },
+      {
+        "url": "/?q=hello+site:www.youtube.com&t=h_",
+        "text": "",
+        "isExternal": false
+      },
+      {
+        "url": "https://www.youtube.com/watch?v=tVlcKp3bWH8",
+        "text": "https://www.youtube.com › watch?v=tVlcKp3bWH8",
+        "isExternal": true
+      },
+      {
+        "url": "https://www.youtube.com/watch?v=tVlcKp3bWH8",
+        "text": "Hello! | Kids Greeting Song and Feelings Song | Super Simple Songs",
+        "isExternal": true
+      }
+    ],
+    "metadata": {
+      "platform": "duckduckgo",
+      "elementType": "li",
+      "classes": [
+        "wLL07_0Xnd1QZpzpfR4W"
+      ]
+    },
+    "xpath": "/html/body/div[2]/div[6]/div[4]/div/div/div/div[2]/section/ol/li[9]"
+  },
+  {
+    "url": "https://duckduckgo.com/?origin=funnel_home_website&t=h_&q=hello&ia=web",
+    "html": "<article id=\"r1-8\" data-handled-by-react=\"true\" data-testid=\"result\" data-nrn=\"result\" class=\"yQDlj3B5DI5YO8c8Ulio CpkrTDP54mqzpuCSn1Fa SKlplDuh9FjtDprgoMxk Fr1jPX9uTqiYNJFs2Cfb\"><div class=\"OHr0VX9IuNcv6iakvT6A\"><button type=\"button\" class=\"cxQwADb9kt3UnKwcXKat uuIDnYC4qmyFk5dsXOhr YZxymVMEkIDA0nZSt_Pm ffON2NH02oMAcqyoh2UU MQCbz04ET5EljRmK3YpQ hF7w5TROgutbYQwHzEf_ kYheVVecSlvJdWHcWzJs\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><g fill=\"currentColor\"><path d=\"M3.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM9.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM14 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z\"></path></g></svg></button><div class=\"BdZVYXbdg6Rx9Lrm5wzC\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"QmBU788gp3Cjs7Fwyz1G\"><path fill=\"currentColor\" d=\"M13.817 3.067a.625.625 0 1 0-.884-.884L8 7.116 3.067 2.183a.625.625 0 1 0-.884.884L7.116 8l-4.933 4.933a.625.625 0 1 0 .884.884L8 8.884l4.933 4.933a.625.625 0 1 0 .884-.884L8.884 8z\"></path></svg><p class=\"ePXqZzRA466zTvNP6hpa wZ4JdaHxSAhGy1HoNVja d26Geqs1C__RaCO7MUs2\">britannica.com</p><div class=\"oDTE1nbHCw1Kax_TrCHw\"><a class=\"bcz7ZQmpP9fW9gyprTn7\" href=\"?q=hello%20site%3Awww.britannica.com\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><path fill=\"currentColor\" d=\"M10.5 7a3.5 3.5 0 0 1 2.877 5.493l2.462 2.463a.625.625 0 0 1-.883.883l-2.463-2.462A3.5 3.5 0 1 1 10.5 7M12 1a4 4 0 0 1 4 4v2.006c0 .653-.876.868-1.179.29l-.071-.136V5.25H1.25V11A2.75 2.75 0 0 0 4 13.75h2.14l.182.178A.625.625 0 0 1 5.885 15H4a4 4 0 0 1-4-4V5a4 4 0 0 1 4-4zm-1.5 7.25a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5m-6.5-6A2.75 2.75 0 0 0 1.438 4h13.124A2.75 2.75 0 0 0 12 2.25z\"></path></svg><span>Only include results for this site</span></a><a class=\"bcz7ZQmpP9fW9gyprTn7\" href=\"?q=hello%20-site%3Awww.britannica.com\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><path fill=\"currentColor\" d=\"M12.5 9a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7M8.001 2.125c4.607 0 7.212 3.558 7.849 5.696l.06.203-.075.199c-.127.332-.548.415-.85.23a5 5 0 0 0-.498-.267q.052-.107.096-.207c-.63-1.799-2.833-4.604-6.582-4.604-3.725 0-5.93 2.834-6.575 4.588.854 1.759 2.785 4.532 6.326 4.656l.002.055c.022.605-.418 1.196-1.016 1.102C2.93 13.177.956 9.948.183 8.26L.08 8.043l.072-.228C.787 5.76 3.387 2.125 8 2.125Zm2.374 9.75a.5.5 0 0 0-.5.5v.25a.5.5 0 0 0 .5.5h4.25a.5.5 0 0 0 .5-.5v-.25a.5.5 0 0 0-.5-.5zM8.001 5A3 3 0 0 1 11 7.992 4.76 4.76 0 0 0 7.993 11a2.999 2.999 0 0 1 .008-6\"></path></svg><span>Redo search without this site</span></a><a class=\"bcz7ZQmpP9fW9gyprTn7\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><g><path fill=\"currentColor\" d=\"M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0M3.708 13.21a6.75 6.75 0 0 0 9.502-9.502zM8 1.25a6.75 6.75 0 0 0-5.18 11.079l9.51-9.509A6.72 6.72 0 0 0 8 1.25\"></path></g></svg><span>Block this site from all results</span><span class=\"gADc1vgzmPc4cvxu7yBr Ns8WVIfhcxlxIq9e99fE\">NEW</span></a><div class=\"P0qXZSsYM5mY7vngloXE\"></div><div class=\"bcz7ZQmpP9fW9gyprTn7\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><g><path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M0 5a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v4.25a4 4 0 0 1-4 4H9.455c-.347 0-.702.152-.996.426-1.146 1.067-2.39 1.767-3.374 2.206a1.285 1.285 0 0 1-1.535-.34 1.48 1.48 0 0 1-.223-1.518c.11-.269.203-.535.268-.781C1.565 13.121 0 11.433 0 9.386zm4-2.75A2.75 2.75 0 0 0 1.25 5v4.386C1.25 10.838 2.395 12 3.83 12c.288 0 .565.114.765.307a.97.97 0 0 1 .293.878c-.079.44-.236.899-.404 1.312-.045.11-.014.197.02.237q.011.013.018.017l.006.002h.006a.1.1 0 0 0 .041-.012c.896-.4 2.014-1.032 3.032-1.98.484-.45 1.132-.761 1.848-.761H12a2.75 2.75 0 0 0 2.75-2.75V5A2.75 2.75 0 0 0 12 2.25z\" clip-rule=\"evenodd\"></path></g></svg><span>Share feedback about this site</span></div></div></div></div><div class=\"OQ_6vPwNhCeusNiEDcGp\"><div class=\"mwuQiMOjmFJ5vmN6Vcqw CmOawDMavJGKvqBIPeeC NvMwcsUp56q4W2Z_b8E7 hAeZQDlu0XXeGwL7U722 SgSTKoqQXa0tEszD2zWF VkOimy54PtIClAT3GMbr LQVY1Jpkk8nyJ6HBWKAk\"><span class=\"DpVR46dTZaePK29PDkz8\"><a href=\"/?q=hello+site:www.britannica.com&amp;t=h_\" rel=\"noopener\" title=\"Search domain britannica.com\" data-testid=\"result-extras-site-search-link\" data-handled-by-react=\"true\"><div class=\"c_ZIRTZwvW2k4q8TtKU0\"><img src=\"//external-content.duckduckgo.com/ip3/www.britannica.com.ico\" height=\"16\" width=\"16\" loading=\"lazy\"></div></a></span><div class=\"pAgARfGNTRe_uaK72TAD\"><p class=\"fOCEb2mA3YZTJXXjpgdS wZ4JdaHxSAhGy1HoNVja yGEuosa_aZeFroGMfpgu\">Britannica</p><a href=\"https://www.britannica.com/dictionary/hello\" rel=\"noopener\" target=\"_self\" data-testid=\"result-extras-url-link\" class=\"Rn_JXVtoPVAFyGkcaXyK VkOimy54PtIClAT3GMbr\" data-handled-by-react=\"true\"><div class=\"xS2NxE06pIznLuh2xjH0\"><p class=\"veU5I0hFkgFGOPhX2RBE wZ4JdaHxSAhGy1HoNVja AlPVsxUsFt3bnuOvg6hI\"><span class=\"Wo6ZAEmESLNUuWBkbMxx\">https://www.britannica.com</span><span class=\"oaxCunrdbQs3WQDCq3Ls\">&nbsp;›&nbsp;dictionary › hello</span></p></div></a></div></div></div><div class=\"ikg2IXiCD14iVX7AdZo1\"><h2 class=\"LnpumSThxEWMIsDdAT17 CXMyPcQ6nDv47DKFeywM\"><a href=\"https://www.britannica.com/dictionary/hello\" rel=\"noopener\" target=\"_self\" class=\"eVNpHGjtxRBq_gLOfGDr LQNqh2U1kzYxREs65IJu\" data-testid=\"result-title-a\" data-handled-by-react=\"true\"><span class=\"EKtkFWMYpwzMKOYr0GYm LQVY1Jpkk8nyJ6HBWKAk\">Hello Definition &amp; Meaning | Britannica Dictionary</span></a></h2></div><div class=\"E2eLOJr8HctVnDOTM8fs\"><div class=\"OgdwYG6KE2qthn9XQWFC\" data-result=\"snippet\"><div><span class=\"kY2IgmnCmOGjharHErah\" style=\"-webkit-line-clamp: 3;\"><span><b>HELLO</b> meaning: 1 : used as a greeting; 2 : the act of saying the word <b>hello</b> to someone as a greeting</span></span></div></div></div></article>",
+    "text": "Britannicahttps://www.britannica.com › dictionary › hello\nOnly include results for this site\nHello Definition & Meaning | Britannica Dictionary\nHELLO meaning: 1 : used as a greeting; 2 : the act of saying the word hello to someone as a greeting",
+    "images": [
+      {
+        "src": "https://external-content.duckduckgo.com/ip3/www.britannica.com.ico",
+        "alt": "",
+        "title": ""
+      }
+    ],
+    "links": [
+      {
+        "url": "?q=hello%20site%3Awww.britannica.com",
+        "text": "Only include results for this site",
+        "isExternal": false
+      },
+      {
+        "url": "?q=hello%20-site%3Awww.britannica.com",
+        "text": "Redo search without this site",
+        "isExternal": false
+      },
+      {
+        "url": "/?q=hello+site:www.britannica.com&t=h_",
+        "text": "",
+        "isExternal": false
+      },
+      {
+        "url": "https://www.britannica.com/dictionary/hello",
+        "text": "https://www.britannica.com › dictionary › hello",
+        "isExternal": true
+      },
+      {
+        "url": "https://www.britannica.com/dictionary/hello",
+        "text": "Hello Definition & Meaning | Britannica Dictionary",
+        "isExternal": true
+      }
+    ],
+    "metadata": {
+      "platform": "duckduckgo",
+      "elementType": "li",
+      "classes": [
+        "wLL07_0Xnd1QZpzpfR4W"
+      ]
+    },
+    "xpath": "/html/body/div[2]/div[6]/div[4]/div/div/div/div[2]/section/ol/li[10]"
+  },
+  {
+    "url": "https://duckduckgo.com/?origin=funnel_home_website&t=h_&q=hello&ia=web",
+    "html": "<article id=\"r1-9\" data-handled-by-react=\"true\" data-testid=\"result\" data-nrn=\"result\" class=\"yQDlj3B5DI5YO8c8Ulio CpkrTDP54mqzpuCSn1Fa SKlplDuh9FjtDprgoMxk Fr1jPX9uTqiYNJFs2Cfb\"><div class=\"OHr0VX9IuNcv6iakvT6A\"><button type=\"button\" class=\"cxQwADb9kt3UnKwcXKat uuIDnYC4qmyFk5dsXOhr YZxymVMEkIDA0nZSt_Pm ffON2NH02oMAcqyoh2UU MQCbz04ET5EljRmK3YpQ hF7w5TROgutbYQwHzEf_ kYheVVecSlvJdWHcWzJs\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><g fill=\"currentColor\"><path d=\"M3.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM9.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM14 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z\"></path></g></svg></button><div class=\"BdZVYXbdg6Rx9Lrm5wzC\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"QmBU788gp3Cjs7Fwyz1G\"><path fill=\"currentColor\" d=\"M13.817 3.067a.625.625 0 1 0-.884-.884L8 7.116 3.067 2.183a.625.625 0 1 0-.884.884L7.116 8l-4.933 4.933a.625.625 0 1 0 .884.884L8 8.884l4.933 4.933a.625.625 0 1 0 .884-.884L8.884 8z\"></path></svg><p class=\"ePXqZzRA466zTvNP6hpa wZ4JdaHxSAhGy1HoNVja d26Geqs1C__RaCO7MUs2\">thefreedictionary.com</p><div class=\"oDTE1nbHCw1Kax_TrCHw\"><a class=\"bcz7ZQmpP9fW9gyprTn7\" href=\"?q=hello%20site%3Awww.thefreedictionary.com\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><path fill=\"currentColor\" d=\"M10.5 7a3.5 3.5 0 0 1 2.877 5.493l2.462 2.463a.625.625 0 0 1-.883.883l-2.463-2.462A3.5 3.5 0 1 1 10.5 7M12 1a4 4 0 0 1 4 4v2.006c0 .653-.876.868-1.179.29l-.071-.136V5.25H1.25V11A2.75 2.75 0 0 0 4 13.75h2.14l.182.178A.625.625 0 0 1 5.885 15H4a4 4 0 0 1-4-4V5a4 4 0 0 1 4-4zm-1.5 7.25a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5m-6.5-6A2.75 2.75 0 0 0 1.438 4h13.124A2.75 2.75 0 0 0 12 2.25z\"></path></svg><span>Only include results for this site</span></a><a class=\"bcz7ZQmpP9fW9gyprTn7\" href=\"?q=hello%20-site%3Awww.thefreedictionary.com\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><path fill=\"currentColor\" d=\"M12.5 9a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7M8.001 2.125c4.607 0 7.212 3.558 7.849 5.696l.06.203-.075.199c-.127.332-.548.415-.85.23a5 5 0 0 0-.498-.267q.052-.107.096-.207c-.63-1.799-2.833-4.604-6.582-4.604-3.725 0-5.93 2.834-6.575 4.588.854 1.759 2.785 4.532 6.326 4.656l.002.055c.022.605-.418 1.196-1.016 1.102C2.93 13.177.956 9.948.183 8.26L.08 8.043l.072-.228C.787 5.76 3.387 2.125 8 2.125Zm2.374 9.75a.5.5 0 0 0-.5.5v.25a.5.5 0 0 0 .5.5h4.25a.5.5 0 0 0 .5-.5v-.25a.5.5 0 0 0-.5-.5zM8.001 5A3 3 0 0 1 11 7.992 4.76 4.76 0 0 0 7.993 11a2.999 2.999 0 0 1 .008-6\"></path></svg><span>Redo search without this site</span></a><a class=\"bcz7ZQmpP9fW9gyprTn7\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><g><path fill=\"currentColor\" d=\"M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0M3.708 13.21a6.75 6.75 0 0 0 9.502-9.502zM8 1.25a6.75 6.75 0 0 0-5.18 11.079l9.51-9.509A6.72 6.72 0 0 0 8 1.25\"></path></g></svg><span>Block this site from all results</span><span class=\"gADc1vgzmPc4cvxu7yBr Ns8WVIfhcxlxIq9e99fE\">NEW</span></a><div class=\"P0qXZSsYM5mY7vngloXE\"></div><div class=\"bcz7ZQmpP9fW9gyprTn7\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" color=\"currentColor\" class=\"sOgzQOS4liCVE5xXVnJT\"><g><path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M0 5a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v4.25a4 4 0 0 1-4 4H9.455c-.347 0-.702.152-.996.426-1.146 1.067-2.39 1.767-3.374 2.206a1.285 1.285 0 0 1-1.535-.34 1.48 1.48 0 0 1-.223-1.518c.11-.269.203-.535.268-.781C1.565 13.121 0 11.433 0 9.386zm4-2.75A2.75 2.75 0 0 0 1.25 5v4.386C1.25 10.838 2.395 12 3.83 12c.288 0 .565.114.765.307a.97.97 0 0 1 .293.878c-.079.44-.236.899-.404 1.312-.045.11-.014.197.02.237q.011.013.018.017l.006.002h.006a.1.1 0 0 0 .041-.012c.896-.4 2.014-1.032 3.032-1.98.484-.45 1.132-.761 1.848-.761H12a2.75 2.75 0 0 0 2.75-2.75V5A2.75 2.75 0 0 0 12 2.25z\" clip-rule=\"evenodd\"></path></g></svg><span>Share feedback about this site</span></div></div></div></div><div class=\"OQ_6vPwNhCeusNiEDcGp\"><div class=\"mwuQiMOjmFJ5vmN6Vcqw CmOawDMavJGKvqBIPeeC NvMwcsUp56q4W2Z_b8E7 hAeZQDlu0XXeGwL7U722 SgSTKoqQXa0tEszD2zWF VkOimy54PtIClAT3GMbr LQVY1Jpkk8nyJ6HBWKAk\"><span class=\"DpVR46dTZaePK29PDkz8\"><a href=\"/?q=hello+site:www.thefreedictionary.com&amp;t=h_\" rel=\"noopener\" title=\"Search domain thefreedictionary.com\" data-testid=\"result-extras-site-search-link\" data-handled-by-react=\"true\"><div class=\"c_ZIRTZwvW2k4q8TtKU0\"><img src=\"//external-content.duckduckgo.com/ip3/www.thefreedictionary.com.ico\" height=\"16\" width=\"16\" loading=\"lazy\"></div></a></span><div class=\"pAgARfGNTRe_uaK72TAD\"><p class=\"fOCEb2mA3YZTJXXjpgdS wZ4JdaHxSAhGy1HoNVja yGEuosa_aZeFroGMfpgu\">The Free Dictionary</p><a href=\"https://www.thefreedictionary.com/Hello\" rel=\"noopener\" target=\"_self\" data-testid=\"result-extras-url-link\" class=\"Rn_JXVtoPVAFyGkcaXyK VkOimy54PtIClAT3GMbr\" data-handled-by-react=\"true\"><div class=\"xS2NxE06pIznLuh2xjH0\"><p class=\"veU5I0hFkgFGOPhX2RBE wZ4JdaHxSAhGy1HoNVja AlPVsxUsFt3bnuOvg6hI\"><span class=\"Wo6ZAEmESLNUuWBkbMxx\">https://www.thefreedictionary.com</span><span class=\"oaxCunrdbQs3WQDCq3Ls\">&nbsp;›&nbsp;Hello</span></p></div></a></div></div></div><div class=\"ikg2IXiCD14iVX7AdZo1\"><h2 class=\"LnpumSThxEWMIsDdAT17 CXMyPcQ6nDv47DKFeywM\"><a href=\"https://www.thefreedictionary.com/Hello\" rel=\"noopener\" target=\"_self\" class=\"eVNpHGjtxRBq_gLOfGDr LQNqh2U1kzYxREs65IJu\" data-testid=\"result-title-a\" data-handled-by-react=\"true\"><span class=\"EKtkFWMYpwzMKOYr0GYm LQVY1Jpkk8nyJ6HBWKAk\">Hello - definition of hello by The Free Dictionary</span></a></h2></div><div class=\"E2eLOJr8HctVnDOTM8fs\"><div class=\"OgdwYG6KE2qthn9XQWFC\" data-result=\"snippet\"><div><span class=\"kY2IgmnCmOGjharHErah\" style=\"-webkit-line-clamp: 3;\"><span>Learn the meaning, usage, and origin of the word <b>hello</b>, as well as how to say it in different languages. Find synonyms, antonyms, and related words for <b>hello</b> in the thesaurus.</span></span></div></div></div></article>",
+    "text": "The Free Dictionaryhttps://www.thefreedictionary.com › Hello\nOnly include results for this site\nHello - definition of hello by The Free Dictionary\nLearn the meaning, usage, and origin of the word hello, as well as how to say it in different languages. Find synonyms, antonyms, and related words for hello in the thesaurus.",
+    "images": [
+      {
+        "src": "https://external-content.duckduckgo.com/ip3/www.thefreedictionary.com.ico",
+        "alt": "",
+        "title": ""
+      }
+    ],
+    "links": [
+      {
+        "url": "?q=hello%20site%3Awww.thefreedictionary.com",
+        "text": "Only include results for this site",
+        "isExternal": false
+      },
+      {
+        "url": "?q=hello%20-site%3Awww.thefreedictionary.com",
+        "text": "Redo search without this site",
+        "isExternal": false
+      },
+      {
+        "url": "/?q=hello+site:www.thefreedictionary.com&t=h_",
+        "text": "",
+        "isExternal": false
+      },
+      {
+        "url": "https://www.thefreedictionary.com/Hello",
+        "text": "https://www.thefreedictionary.com › Hello",
+        "isExternal": true
+      },
+      {
+        "url": "https://www.thefreedictionary.com/Hello",
+        "text": "Hello - definition of hello by The Free Dictionary",
+        "isExternal": true
+      }
+    ],
+    "metadata": {
+      "platform": "duckduckgo",
+      "elementType": "li",
+      "classes": [
+        "wLL07_0Xnd1QZpzpfR4W"
+      ]
+    },
+    "xpath": "/html/body/div[2]/div[6]/div[4]/div/div/div/div[2]/section/ol/li[11]"
+  }
+]
