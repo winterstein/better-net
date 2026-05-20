@@ -6,8 +6,8 @@
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { extractClaims } from '../src/factcheck/extract-claims.js';
-import { searchFactChecks, factCheckContent } from '../src/factcheck/factcheck-google.js';
+import { extractClaims } from '../src/features/fact-checker/extract-claims.js';
+import { searchFactChecks, factCheckContent } from '../src/features/fact-checker/factcheck-google.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

@@ -225,7 +225,7 @@ function extractGoogleChunk(element, linkRegex, pageUrl, options = {}) {
 function isLikelyAd(chunk) {
   const text = (chunk.text || '').toLowerCase();
   const adKeywords = ['advertisement', 'sponsored', 'promoted', 'ad'];
-  return adKeywords.some(keyword => text.includes(keyword));
+  return adKeywords.some(keyword => new RegExp(`\\b${keyword}\\b`, 'i').test(text));
 }
 
 /**

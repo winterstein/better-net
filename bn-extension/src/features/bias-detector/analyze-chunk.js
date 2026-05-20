@@ -4,6 +4,13 @@
  * Browser-agnostic module
  */
 
+import { analyzeWithLocalLLM } from '../../ai/analyze-local.js';
+
+const ZERO_SHOT_LABELS = [
+  'biased political or ideological slant',
+  'balanced objective content',
+];
+
 /**
  * Analyze content for bias indicators
  * @param {Object} chunk - Content chunk with text and metadata
@@ -11,7 +18,7 @@
  * @param {Object} options - Analysis options
  * @returns {Promise<Object>} Analysis results
  */
-export async function analyzeBias(chunk, pageMetadata = {}, options = {}) {
+export async function analyzeChunk(chunk, pageMetadata = {}, options = {}) {
   const {
     mode = 'local',
     config = {}
@@ -39,7 +46,14 @@ export async function analyzeBias(chunk, pageMetadata = {}, options = {}) {
 }
 
 async function analyzeWithLocalModel(context, config) {
-  return analyzeWithHeuristics(context);
+  return analyzeWithLocalLLM({
+    modelId: config.localModelId,
+    systemPrompt: getSystemPrompt(),
+    context,
+    candidateLabels: ZERO_SHOT_LABELS,
+    parseResponse: parseAIResponse,
+    fallback: () => analyzeWithHeuristics(context),
+  });
 }
 
 async function analyzeWithOpenAI(context, config) {

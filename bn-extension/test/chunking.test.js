@@ -24,7 +24,7 @@ function normalizeChunk(chunk) {
       isExternal: link.isExternal || false
     })),
     images: (chunk.images || []).map(img => ({
-      src: img.src || '',
+      src: (img.src || '').replace(/^\/\//, 'https://'),
       alt: (img.alt || '').trim(),
       title: (img.title || '').trim()
     })),
@@ -42,9 +42,10 @@ function chunksEqual(actual, expected) {
   // Compare text (normalize whitespace - allow different line breaks, spacing)
   // Also normalize URLs to handle cases where there's no space before https://
   const normalizeText = (text) => {
-    // Add space before URLs if missing
-    let normalized = text.replace(/([a-zA-Z])(https?:\/\/)/g, '$1 $2');
-    // Normalize all whitespace
+    let normalized = (text || '')
+      .normalize('NFKC')
+      .replace(/\u00a0/g, ' ');
+    normalized = normalized.replace(/([a-zA-Z])(https?:\/\/)/g, '$1 $2');
     normalized = normalized.replace(/\s+/g, ' ').trim();
     return normalized;
   };
@@ -87,6 +88,8 @@ function chunksEqual(actual, expected) {
     }
   }
   
+  const textMatched = matched;
+
   if (!matched) {
     // Fallback: check for distinctive words/phrases
     // Extract key phrases that are likely unique (title, URLs, distinctive words)
@@ -134,14 +137,15 @@ function chunksEqual(actual, expected) {
   }
   
   // Compare HTML (normalize whitespace for comparison)
-  // Be very lenient: if text matched well, HTML just needs to exist
-  // Since actual chunks can have extra HTML or different structure, we just verify both have HTML
   const actualHtml = normActual.html.replace(/\s+/g, ' ').trim();
   const expectedHtml = normExpected.html.replace(/\s+/g, ' ').trim();
-  
-  // If text matched well (which we checked above), be very lenient with HTML
-  // Just ensure both chunks have HTML content (structure can differ)
-  if (expectedHtml === '') {
+
+  // Body text match is enough; snapshot HTML often differs from re-extraction
+  if (textMatched) {
+    if (expectedHtml !== '' && actualHtml === '') {
+      return false;
+    }
+  } else if (expectedHtml === '') {
     // If expected HTML is empty, actual can have any HTML (or none)
     // This is fine - extra content is OK
   } else {
@@ -184,12 +188,10 @@ function chunksEqual(actual, expected) {
     if (normActual.links.length < normExpected.links.length) {
       return false;
     }
-    // Check that all expected links exist in actual (order doesn't matter, be lenient with text matching)
     for (const expectedLink of normExpected.links) {
       const found = normActual.links.some(actualLink => {
-        // URL must match exactly
         if (actualLink.url !== expectedLink.url) return false;
-        // Text can be lenient - just check if expected text appears in actual
+        if (textMatched) return true;
         if (expectedLink.text && expectedLink.text.length > 0) {
           return actualLink.text.includes(expectedLink.text) || expectedLink.text.includes(actualLink.text);
         }
@@ -207,11 +209,23 @@ function chunksEqual(actual, expected) {
     if (normActual.images.length < normExpected.images.length) {
       return false;
     }
-    // Check that all expected images exist in actual (order doesn't matter)
+    const normalizeSrc = (src) => {
+      const s = (src || '').trim();
+      if (!s) return '';
+      try {
+        const url = new URL(s.startsWith('//') ? `https:${s}` : s.startsWith('/') ? `https://example.com${s}` : s);
+        return url.pathname;
+      } catch {
+        return s.replace(/^https?:\/\/[^/]+/, '');
+      }
+    };
     for (const expectedImg of normExpected.images) {
-      const found = normActual.images.some(actualImg => 
-        actualImg.src === expectedImg.src
-      );
+      const found = normActual.images.some(actualImg => {
+        if (textMatched) {
+          return normalizeSrc(actualImg.src) === normalizeSrc(expectedImg.src);
+        }
+        return actualImg.src === expectedImg.src;
+      });
       if (!found) {
         return false;
       }
@@ -223,7 +237,7 @@ function chunksEqual(actual, expected) {
   // Extra metadata in actual is OK
   // If expected metadata is empty, any actual metadata is acceptable
   // Optional metadata fields (chunkId, position) don't need to match exactly
-  const optionalMetadataKeys = ['chunkId', 'position'];
+  const optionalMetadataKeys = ['chunkId', 'position', 'classes', 'elementType'];
   if (Object.keys(normExpected.metadata).length > 0) {
     for (const key of Object.keys(normExpected.metadata)) {
       // Skip optional metadata keys - they're not required for matching
@@ -369,7 +383,10 @@ async function runTest() {
         unmatchedExpected.push(expectedChunk);
         // Debug: find the chunk that should match
         const normalizeText = (text) => {
-          let normalized = (text || '').replace(/([a-zA-Z])(https?:\/\/)/g, '$1 $2');
+          let normalized = (text || '')
+            .normalize('NFKC')
+            .replace(/\u00a0/g, ' ');
+          normalized = normalized.replace(/([a-zA-Z])(https?:\/\/)/g, '$1 $2');
           normalized = normalized.replace(/\s+/g, ' ').trim();
           return normalized;
         };

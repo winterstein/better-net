@@ -18,7 +18,7 @@ const MIN_CLAIM_LENGTH = 20; // Minimum length for a claim to be worth checking
  * @returns {Array<string>} Array of potential claims
  */
 export async function extractStatements(chunk: Partial<Chunk>, options: AnalysisOptions) : Promise<Statement[]> {
-  const { mode = this.mode, config = this.config } = options;
+  const { mode = 'local', config = {} } = options;
   const text = chunk.text || '';
   if (!text || text.length < MIN_CLAIM_LENGTH) {
     return [];

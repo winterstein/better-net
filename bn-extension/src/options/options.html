@@ -3,115 +3,171 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BetterNet Settings</title>
+  <title>better:net Settings</title>
   <link rel="stylesheet" href="options.css">
 </head>
 <body>
-  <div class="container">
-    <header class="header">
-      <h1>BetterNet Settings</h1>
+  <div class="app">
+    <header class="top-bar">
+      <button type="button" id="nav-toggle" class="nav-toggle" aria-label="Open menu" aria-expanded="false">☰</button>
+      <h1 class="top-bar-title">better:net</h1>
     </header>
 
-    <main class="main-content">
-      <section class="settings-section">
-        <h2>Analysis Settings</h2>
-        
-        <div class="setting-item">
-          <label for="analysis-mode">
-            <strong>Analysis Mode</strong>
-            <span class="setting-description">Choose how pages are analyzed</span>
-          </label>
-          <select id="analysis-mode">
-            <option value="local">Local Model (Fast, Private)</option>
-            <option value="openai">OpenAI API</option>
-            <option value="anthropic">Anthropic API</option>
-          </select>
-        </div>
+    <div class="app-body">
+      <nav id="settings-nav" class="settings-nav" aria-label="Settings">
+        <ul class="nav-list" id="nav-list"></ul>
+      </nav>
 
-        <div class="setting-item">
-          <label>
-            <input type="checkbox" id="auto-analyze">
-            <strong>Automatically analyze pages</strong>
+      <main class="main-content">
+        <!-- AI Model -->
+        <section id="page-ai-model" class="page" data-page="ai-model">
+          <h2>AI Model</h2>
+          <p class="page-lead">Bring your own API key, or use a local model for analysis.</p>
+
+          <div class="setting-item">
+            <label for="analysis-mode"><strong>Analysis mode</strong></label>
+            <span class="setting-description">How page content is analyzed</span>
+            <select id="analysis-mode">
+              <option value="local">Local model (fast, private)</option>
+              <option value="openai">OpenAI API</option>
+              <option value="anthropic">Anthropic API</option>
+            </select>
+          </div>
+
+          <div id="local-models-section" class="setting-item local-models-section">
+            <h3 class="subsection-title">Local models</h3>
+            <p class="setting-description">Download a small model to run analysis on your device. Models are cached in the browser.</p>
+
+            <div id="local-model-active-row" class="setting-item">
+              <label for="local-model-id"><strong>Active model</strong></label>
+              <span class="setting-description">Used when analysis mode is Local model</span>
+              <select id="local-model-id"></select>
+            </div>
+
+            <div id="local-models-list" class="local-models-list" aria-live="polite"></div>
+          </div>
+
+          <div class="setting-item">
+            <label class="checkbox-label">
+              <input type="checkbox" id="auto-analyze">
+              <span><strong>Automatically analyze pages</strong></span>
+            </label>
             <span class="setting-description">Start analysis when visiting new pages</span>
-          </label>
-        </div>
+          </div>
 
-        <div class="setting-item">
-          <label>
-            <input type="checkbox" id="show-indicators">
-            <strong>Show analysis indicators</strong>
-            <span class="setting-description">Display on-page analysis progress</span>
-          </label>
-        </div>
-      </section>
+          <div class="setting-item">
+            <label class="checkbox-label">
+              <input type="checkbox" id="show-indicators">
+              <span><strong>Show analysis indicators</strong></span>
+            </label>
+            <span class="setting-description">Show nutrient labels on analysed page chunks</span>
+          </div>
 
-      <section class="settings-section">
-        <h2>API Configuration</h2>
-        
-        <div class="setting-item">
-          <label for="openai-key">
-            <strong>OpenAI API Key</strong>
-            <span class="setting-description">Optional: For OpenAI analysis mode</span>
-          </label>
-          <input type="password" id="openai-key" placeholder="sk-...">
-        </div>
+          <h3 class="subsection-title">API keys</h3>
 
-        <div class="setting-item">
-          <label for="anthropic-key">
-            <strong>Anthropic API Key</strong>
-            <span class="setting-description">Optional: For Anthropic analysis mode</span>
-          </label>
-          <input type="password" id="anthropic-key" placeholder="sk-ant-...">
-        </div>
+          <div class="setting-item">
+            <label for="openai-key"><strong>OpenAI API key</strong></label>
+            <span class="setting-description">Required when using OpenAI analysis mode</span>
+            <input type="password" id="openai-key" placeholder="sk-..." autocomplete="off">
+          </div>
 
-        <div class="setting-item">
-          <label for="google-factcheck-key">
-            <strong>Google Fact Check API Key</strong>
-            <span class="setting-description">Optional: For real-time fact-checking using Google's Fact Check Tools API. <a href="https://console.cloud.google.com/apis/api/factchecktools.googleapis.com" target="_blank">Get API key</a></span>
-          </label>
-          <input type="password" id="google-factcheck-key" placeholder="AIza...">
-        </div>
-      </section>
+          <div class="setting-item">
+            <label for="anthropic-key"><strong>Anthropic API key</strong></label>
+            <span class="setting-description">Required when using Anthropic analysis mode</span>
+            <input type="password" id="anthropic-key" placeholder="sk-ant-..." autocomplete="off">
+          </div>
 
-      <section class="settings-section">
-        <h2>Excluded Sites</h2>
-        
-        <div class="setting-item">
-          <label>
-            <strong>Sites to exclude from analysis</strong>
-            <span class="setting-description">Add domains or URLs to skip analysis. Use domain names (e.g., example.com) or full URLs.</span>
-          </label>
-          <div class="excluded-sites-container">
+          <div class="setting-item">
+            <label for="google-factcheck-key"><strong>Google Fact Check API key</strong></label>
+            <span class="setting-description">Used by Fact Checker. <a href="https://console.cloud.google.com/apis/api/factchecktools.googleapis.com" target="_blank" rel="noopener">Get API key</a></span>
+            <input type="password" id="google-factcheck-key" placeholder="AIza..." autocomplete="off">
+          </div>
+        </section>
+
+        <!-- Modules -->
+        <section id="page-modules" class="page hidden" data-page="modules">
+          <h2>Modules</h2>
+          <p class="page-lead">Switch features on or off globally. Per-domain overrides are on Off-List.</p>
+          <div id="modules-list" class="modules-list"></div>
+        </section>
+
+        <!-- Off-List -->
+        <section id="page-off-list" class="page hidden" data-page="off-list">
+          <h2>Off-List</h2>
+          <p class="page-lead">Domains where features are switched off. Overrides the global module toggles above.</p>
+
+          <div class="setting-item">
+            <h3 class="subsection-title">Per-domain overrides</h3>
             <div class="add-site-input">
-              <input type="text" id="new-excluded-site" placeholder="example.com or https://example.com/page">
-              <button id="add-excluded-site-btn" class="btn btn-small">Add</button>
+              <input type="text" id="new-offlist-domain" placeholder="example.com">
+              <button type="button" id="add-offlist-domain-btn" class="btn btn-small">Add domain</button>
+            </div>
+            <div id="offlist-domains" class="offlist-domains"></div>
+          </div>
+
+          <div class="setting-item">
+            <h3 class="subsection-title">Excluded from all features</h3>
+            <span class="setting-description">These domains skip every module and analysis.</span>
+            <div class="add-site-input">
+              <input type="text" id="new-excluded-site" placeholder="example.com">
+              <button type="button" id="add-excluded-site-btn" class="btn btn-small">Add</button>
             </div>
             <ul id="excluded-sites-list" class="excluded-sites-list"></ul>
           </div>
+        </section>
+
+        <!-- Account -->
+        <section id="page-account" class="page hidden" data-page="account">
+          <h2>Account</h2>
+          <p class="page-lead">Your better:net account (optional).</p>
+          <div class="setting-item">
+            <label for="account-email"><strong>Email</strong></label>
+            <span class="setting-description">Sign-in and sync coming soon. Stored locally for now.</span>
+            <input type="email" id="account-email" placeholder="you@example.com" autocomplete="email">
+          </div>
+          <p class="placeholder-note">Account sync and subscription management are not yet available.</p>
+        </section>
+
+        <!-- Data Sharing -->
+        <section id="page-data-sharing" class="page hidden" data-page="data-sharing">
+          <h2>Data Sharing</h2>
+          <p class="page-lead">Choose what anonymous data you share to improve better:net.</p>
+
+          <div class="setting-item">
+            <label class="checkbox-label">
+              <input type="checkbox" id="share-anonymous">
+              <span><strong>Share anonymous analysis data</strong></span>
+            </label>
+            <span class="setting-description">Aggregated signals to improve detection (no page content by default)</span>
+          </div>
+
+          <div class="setting-item">
+            <label class="checkbox-label">
+              <input type="checkbox" id="share-usage-stats">
+              <span><strong>Share usage statistics</strong></span>
+            </label>
+            <span class="setting-description">Which modules are used and error rates</span>
+          </div>
+
+          <div class="setting-item">
+            <label class="checkbox-label">
+              <input type="checkbox" id="share-factcheck-cache">
+              <span><strong>Contribute to shared fact-check cache</strong></span>
+            </label>
+            <span class="setting-description">Help others by sharing fact-check results (claims only)</span>
+          </div>
+        </section>
+
+        <div class="actions">
+          <button type="button" id="save-btn" class="btn btn-primary">Save settings</button>
+          <button type="button" id="reset-btn" class="btn btn-secondary">Reset to defaults</button>
         </div>
-      </section>
-
-      <section class="settings-section">
-        <h2>Privacy</h2>
-        
-        <div class="setting-item">
-          <label>
-            <input type="checkbox" id="share-anonymous">
-            <strong>Share anonymous analysis data</strong>
-            <span class="setting-description">Help improve BetterNet by sharing anonymous usage data</span>
-          </label>
-        </div>
-      </section>
-
-      <div class="actions">
-        <button id="save-btn" class="btn btn-primary">Save Settings</button>
-        <button id="reset-btn" class="btn btn-secondary">Reset to Defaults</button>
-      </div>
-
-      <div id="status-message" class="status-message"></div>
-    </main>
+        <div id="status-message" class="status-message"></div>
+      </main>
+    </div>
   </div>
 
+  <script src="../settings/defaults.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

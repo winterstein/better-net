@@ -6,8 +6,8 @@
 
 import { extractClaims } from './extract-claims.js';
 import { FactCheckResults } from './factcheck.js';
-import { getGoogleFactCheckKey } from '../utils/env-utils.js';
-import { logit } from '../utils/logger.js';
+import { getGoogleFactCheckKey } from '../../utils/env-utils.js';
+import { logit } from '../../utils/logger.js';
 
 const FACT_CHECK_API_BASE = 'https://factchecktools.googleapis.com/v1alpha1';
 const MAX_CLAIMS_TO_CHECK = 3; // Limit number of claims to check per chunk
@@ -146,13 +146,13 @@ function calculateRatingScore(reviews) {
  */
 export async function factCheckContent(chunk, pageMetadata = {}, options = {}) {
   const {
-    apiKey: providedApiKey,
     languageCode = 'en',
     maxClaims = MAX_CLAIMS_TO_CHECK
   } = options;
 
-  // Get API key from provided options, or from env-utils (env vars, env.js, chrome.storage)
-  const apiKey = providedApiKey || getGoogleFactCheckKey();
+  const apiKey = Object.prototype.hasOwnProperty.call(options, 'apiKey')
+    ? options.apiKey
+    : getGoogleFactCheckKey();
 
   if (!apiKey) {
     return new FactCheckResults(

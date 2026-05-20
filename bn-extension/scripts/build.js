@@ -54,10 +54,12 @@ function copyRecursive(src, dest, excludeFiles = []) {
   }
 }
 
-// Copy source files (excluding background and content scripts which will be bundled)
+// Copy source files (excluding scripts that will be bundled)
 copyRecursive(srcDir, distDir, [
   'background/background.js',
-  'content/content.js'
+  'content/content.js',
+  'offscreen/offscreen.js',
+  'options/options.js',
 ]);
 
 // Bundle background script
@@ -89,6 +91,63 @@ await build({
   // Content scripts need to be IIFE, not ESM
   globalName: 'BetterNetContent'
 });
+
+// Bundle options page (classic script — avoids broken ESM import in extension pages)
+console.log('Bundling options script...');
+await build({
+  entryPoints: [path.join(srcDir, 'options', 'options.js')],
+  bundle: true,
+  outfile: path.join(distDir, 'options', 'options.js'),
+  format: 'iife',
+  platform: 'browser',
+  target: 'es2020',
+  minify: false,
+  sourcemap: false,
+  logLevel: 'info',
+});
+
+// Bundle offscreen local AI worker
+console.log('Bundling offscreen script...');
+await build({
+  entryPoints: [path.join(srcDir, 'offscreen', 'offscreen.js')],
+  bundle: true,
+  outfile: path.join(distDir, 'offscreen', 'offscreen.js'),
+  format: 'esm',
+  platform: 'browser',
+  target: 'es2020',
+  minify: false,
+  sourcemap: false,
+  logLevel: 'info',
+});
+
+// Copy ONNX WASM runtime for local models (MV3 cannot load from CDN)
+const transformersDist = path.join(
+  __dirname,
+  '..',
+  'node_modules',
+  '@huggingface',
+  'transformers',
+  'dist'
+);
+const wasmDir = path.join(distDir, 'wasm');
+fs.mkdirSync(wasmDir, { recursive: true });
+const wasmFiles = [
+  'ort-wasm-simd-threaded.jsep.mjs',
+  'ort-wasm-simd-threaded.jsep.wasm',
+  // Non-jsep fallback (single-thread builds)
+  'ort-wasm-simd-threaded.mjs',
+  'ort-wasm-simd-threaded.wasm',
+];
+for (const file of wasmFiles) {
+  const src = path.join(transformersDist, file);
+  const ortSrc = path.join(__dirname, '..', 'node_modules', 'onnxruntime-web', 'dist', file);
+  const from = fs.existsSync(src) ? src : ortSrc;
+  if (fs.existsSync(from)) {
+    fs.copyFileSync(from, path.join(wasmDir, file));
+  } else {
+    console.warn(`Warning: missing WASM file ${file}`);
+  }
+}
 
 // Copy appropriate manifest and increment version
 const manifestFile = targetBrowser === 'firefox' ? 'manifest.firefox.json' : 'manifest.json';

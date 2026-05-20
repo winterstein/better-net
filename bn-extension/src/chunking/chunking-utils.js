@@ -15,8 +15,11 @@ export function generateXPath(element) {
 
   const parts = [];
   let current = element;
+  const ELEMENT_NODE = 1;
+  let depth = 0;
 
-  while (current && current.nodeType === Node.ELEMENT_NODE) {
+  while (current && current.nodeType === ELEMENT_NODE && depth < 64) {
+    depth++;
     let index = 1;
     let sibling = current.previousElementSibling;
     
@@ -47,21 +50,32 @@ export function generateXPath(element) {
  */
 export function isElementHidden(element) {
   if (!element) return true;
-  
-  // Only check computed style if element is in the live DOM
-  // For cloned elements or parsed HTML, skip this check
+
+  if (element.hasAttribute('hidden') || element.getAttribute('aria-hidden') === 'true') {
+    return true;
+  }
+
+  const inlineDisplay = element.style?.display;
+  if (inlineDisplay === 'none' || inlineDisplay === 'hidden') {
+    return true;
+  }
+
+  // getComputedStyle is unreliable for saved HTML / happy-dom (often reports display:none)
   try {
-    if (element.ownerDocument && element.ownerDocument.defaultView && 
-        element.ownerDocument.body && element.ownerDocument.body.contains(element)) {
-      const style = window.getComputedStyle ? window.getComputedStyle(element) : null;
-      if (style && (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0')) {
+    const view = element.ownerDocument?.defaultView;
+    if (view?.getComputedStyle && element.ownerDocument?.body?.contains(element)) {
+      const style = view.getComputedStyle(element);
+      if (style?.visibility === 'hidden' || style?.opacity === '0') {
+        return true;
+      }
+      if (style?.display === 'none' && style?.visibility === 'hidden') {
         return true;
       }
     }
   } catch (e) {
-    // If getComputedStyle fails (element not in DOM), continue
+    // ignore
   }
-  
+
   return false;
 }
 

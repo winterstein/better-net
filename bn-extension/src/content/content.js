@@ -4,6 +4,17 @@
 // Import chunking (will be bundled by esbuild)
 import { extractChunks } from '../chunking/chunking.js';
 import { findElementByXPath, waitForContentRender } from '../utils/utils.js';
+import { partitionChunks } from '../ad-blocker/detect-chunk.js';
+import {
+  initAdBlocker,
+  shouldBlockPageAds,
+  blockAdsFromChunks,
+  showBlockedAds,
+  hideBlockedAdsPreview,
+  getBlockedAdCount,
+  isAdsPreviewActive,
+} from '../ad-blocker/run.js';
+import { mergeSettings } from '../settings/modules-esm.js';
 
 class PageAnalyzer {
     constructor() {
@@ -22,8 +33,9 @@ class PageAnalyzer {
     setupListeners() {
       // Listen for messages from background script
       chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-        this.handleMessage(message, sender, sendResponse);
-        return true;
+        // Only return true when sendResponse will be called async (keeps channel open).
+        // Returning true for unhandled messages (e.g. BN_LOCAL_MODEL) blocks other listeners.
+        return this.handleMessage(message, sender, sendResponse);
       });
 
 
@@ -60,9 +72,54 @@ class PageAnalyzer {
       };
     }
 
-    init() {
-      // Extract and analyze page content
+    async init() {
+      this.injectHighlightStyles();
+      this.injectAdPreviewStyles();
+      this.stopAdBlocker = await initAdBlocker();
       this.analyzePage();
+    }
+
+    injectAdPreviewStyles() {
+      if (document.getElementById('betternet-ad-preview-styles')) return;
+      const style = document.createElement('style');
+      style.id = 'betternet-ad-preview-styles';
+      style.textContent = `
+        .bn-ad-block-preview {
+          outline: 2px dashed #ff9800 !important;
+          outline-offset: 2px;
+          position: relative;
+        }
+        .bn-ad-block-preview::before {
+          content: 'Hidden ad (preview)';
+          position: absolute;
+          top: 4px;
+          left: 4px;
+          z-index: 2147483646;
+          font: 600 11px/1.2 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          color: #e65100;
+          background: #fff3e0;
+          border: 1px solid #ffb74d;
+          border-radius: 4px;
+          padding: 2px 6px;
+          pointer-events: none;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    injectHighlightStyles() {
+      if (document.getElementById('betternet-highlight-styles')) return;
+      const style = document.createElement('style');
+      style.id = 'betternet-highlight-styles';
+      style.textContent = `
+        .betternet-chunk-highlight {
+          outline: 3px solid #667eea !important;
+          outline-offset: 2px;
+          box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.25);
+          scroll-margin: 80px;
+        }
+      `;
+      document.head.appendChild(style);
     }
 
     async analyzePage() {
@@ -101,10 +158,14 @@ class PageAnalyzer {
       // Extract chunks in content script (has DOM access)
       console.log('[BetterNet] [CONTENT] Extracting chunks from page...');
       try {
+        const hostname = new URL(url).hostname;
+        const settings = mergeSettings(await chrome.storage.sync.get(null));
+        const blockPageAds = shouldBlockPageAds(settings, hostname);
+
         let chunks = await extractChunks(document, url, {
           minTextLength: 100,
           maxChunks: 50,
-          includeAds: false
+          includeAds: blockPageAds,
         });
         console.log('[BetterNet] [CONTENT] Extracted', chunks.length, 'chunks');
 
@@ -115,9 +176,23 @@ class PageAnalyzer {
           chunks = await extractChunks(document, url, {
             minTextLength: 100,
             maxChunks: 50,
-            includeAds: false
+            includeAds: blockPageAds,
           });
           console.log('[BetterNet] [CONTENT] Retry extracted', chunks.length, 'chunks');
+        }
+
+        let adsHidden = 0;
+        if (blockPageAds) {
+          const { adChunks, contentChunks } = partitionChunks(chunks, url);
+          adsHidden = blockAdsFromChunks(adChunks, url);
+          chunks = contentChunks;
+          console.log(
+            '[BetterNet] [CONTENT] Ad blocker:',
+            adsHidden,
+            'hidden,',
+            adChunks.length,
+            'ad chunks removed from analysis'
+          );
         }
 
         // Send chunks to background for analysis
@@ -126,6 +201,7 @@ class PageAnalyzer {
           type: 'ANALYZE_CHUNKS',
           url,
           chunks,
+          adsHidden,
           pageMetadata: {
             title: content.title,
             domain: new URL(url).hostname,
@@ -139,9 +215,6 @@ class PageAnalyzer {
             console.log('[BetterNet] [CONTENT] Chunks sent successfully');
           }
         });
-
-        // Show initial UI indicator
-        this.showAnalysisIndicator();
       } catch (error) {
         console.error('[BetterNet] [CONTENT] Error extracting chunks:', error);
         this.isAnalyzing = false;
@@ -255,35 +328,46 @@ class PageAnalyzer {
         case 'BG_LOG':
           // Handle background script logs
           this.handleBackgroundLog(message);
-          break;
+          return false;
 
         case 'ANALYSIS_UPDATE':
-          // Check if this is a chunk-specific update
           if (message.data.type === 'analysisUpdate' && message.data.xpath) {
-            console.log('[BetterNet] [CONTENT] Handling chunk analysis update, xpath:', message.data.xpath);
             this.handleChunkAnalysisUpdate(message.data);
-          } else {
-            console.log('[BetterNet] [CONTENT] Handling general analysis update');
-            this.handleAnalysisUpdate(message.data);
           }
-          break;
+          return false;
 
         case 'ANALYSIS_COMPLETE':
           console.log('[BetterNet] [CONTENT] Handling analysis complete');
           this.handleAnalysisComplete(message.result);
-          break;
+          return false;
 
         case 'EXCLUSION_CHANGED':
           // Re-check if site is excluded and update accordingly
           this.checkExclusionStatus();
-          break;
+          return false;
 
         case 'TRIGGER_ANALYSIS':
           this.analyzePage();
-          break;
+          return false;
+
+        case 'HIGHLIGHT_CHUNK':
+          this.highlightChunk(message.xpath);
+          return false;
+
+        case 'SHOW_BLOCKED_ADS':
+          sendResponse({ count: showBlockedAds(), adsPreviewActive: true });
+          return false;
+
+        case 'HIDE_BLOCKED_ADS_PREVIEW':
+          sendResponse({ count: hideBlockedAdsPreview(), adsPreviewActive: false });
+          return false;
+
+        case 'GET_AD_BLOCK_STATUS':
+          this.getAdBlockStatus(sendResponse);
+          return true;
 
         default:
-          console.log('[BetterNet] [CONTENT] Unknown message type:', message.type);
+          return false;
       }
     }
 
@@ -300,16 +384,26 @@ class PageAnalyzer {
       }
     }
 
+    async getAdBlockStatus(sendResponse) {
+      try {
+        const hostname = window.location.hostname;
+        const settings = mergeSettings(await chrome.storage.sync.get(null));
+        const enabled = shouldBlockPageAds(settings, hostname);
+        sendResponse({
+          enabled,
+          blockedCount: getBlockedAdCount(),
+          adsPreviewActive: isAdsPreviewActive(),
+        });
+      } catch {
+        sendResponse({ enabled: false, blockedCount: 0, adsPreviewActive: false });
+      }
+    }
+
     async checkExclusionStatus() {
       const url = window.location.href;
       const isExcluded = await this.isSiteExcluded(url);
       
       if (isExcluded) {
-        // Hide analysis indicator if visible
-        const indicator = document.getElementById('betternet-analysis-indicator');
-        if (indicator) {
-          indicator.remove();
-        }
         this.isAnalyzing = false;
       } else {
         // If not excluded and not analyzing, start analysis
@@ -319,15 +413,31 @@ class PageAnalyzer {
       }
     }
 
-    handleAnalysisUpdate(data) {
-      // Update UI indicator with progress
-      this.updateAnalysisIndicator(data);
+    handleAnalysisComplete(result) {
+      this.isAnalyzing = false;
     }
 
-    handleAnalysisComplete(result) {
-      // Show final results
-      this.showAnalysisResults(result);
-      this.isAnalyzing = false;
+    highlightChunk(xpath) {
+      this.clearChunkHighlight();
+      if (!xpath) return;
+      const element = findElementByXPath(xpath);
+      if (!element) {
+        console.warn('[BetterNet] [CONTENT] Could not find element for highlight:', xpath);
+        return;
+      }
+      element.classList.add('betternet-chunk-highlight');
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      this.highlightedChunkElement = element;
+    }
+
+    clearChunkHighlight() {
+      if (this.highlightedChunkElement) {
+        this.highlightedChunkElement.classList.remove('betternet-chunk-highlight');
+        this.highlightedChunkElement = null;
+      }
+      document.querySelectorAll('.betternet-chunk-highlight').forEach((el) => {
+        el.classList.remove('betternet-chunk-highlight');
+      });
     }
 
     handleChunkAnalysisUpdate(data) {
@@ -648,11 +758,10 @@ class PageAnalyzer {
 
       // Analysis type labels
       const analysisLabels = {
-        fakeNews: 'Fake News',
-        bias: 'Bias',
-        scams: 'Scams',
-        toxicity: 'Toxicity',
-        aiGenerated: 'AI Generated'
+        factChecker: 'Fact Checker',
+        biasDetector: 'Bias Detector',
+        antiManipulation: 'Anti-manipulation',
+        defuseRagebait: 'Defuse Ragebait',
       };
 
       // Build details HTML
@@ -703,8 +812,8 @@ class PageAnalyzer {
           const scorePercent = (score * 100).toFixed(0);
           const barColor = score >= 0.7 ? '#f44336' : score >= 0.4 ? '#ff9800' : '#4CAF50';
           
-          // Check if this is fakeNews and has fact-check results
-          const hasFactChecks = type === 'fakeNews' && result.factChecks && result.factChecks.length > 0;
+          // Fact Checker may include claim-level fact-check results
+          const hasFactChecks = type === 'factChecker' && result.factChecks && result.factChecks.length > 0;
           const factCheckHTML = hasFactChecks ? this.renderFactCheckClaims(result.factChecks) : '';
           
           detailsHTML += `
@@ -800,94 +909,6 @@ class PageAnalyzer {
       document.addEventListener('keydown', escapeHandler);
     }
 
-    showAnalysisIndicator() {
-      // Create or show analysis indicator badge
-      let indicator = document.getElementById('betternet-analysis-indicator');
-      if (!indicator) {
-        indicator = document.createElement('div');
-        indicator.id = 'betternet-analysis-indicator';
-        indicator.style.cssText = `
-          position: fixed;
-          top: 20px;
-          right: 20px;
-          background: #4CAF50;
-          color: white;
-          padding: 12px 20px;
-          border-radius: 8px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-          z-index: 999999;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          font-size: 14px;
-          max-width: 300px;
-          transition: all 0.3s ease;
-        `;
-        document.body.appendChild(indicator);
-      }
-
-      indicator.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <div class="betternet-spinner" style="width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: betternet-spin 0.8s linear infinite;"></div>
-          <div>
-            <div style="font-weight: 600;">Analyzing page...</div>
-            <div style="font-size: 12px; opacity: 0.9; margin-top: 2px;" id="betternet-stage">Starting analysis</div>
-          </div>
-        </div>
-      `;
-
-      // Add spinner animation
-      if (!document.getElementById('betternet-styles')) {
-        const style = document.createElement('style');
-        style.id = 'betternet-styles';
-        style.textContent = `
-          @keyframes betternet-spin {
-            to { transform: rotate(360deg); }
-          }
-        `;
-        document.head.appendChild(style);
-      }
-    }
-
-    updateAnalysisIndicator(data) {
-      const indicator = document.getElementById('betternet-analysis-indicator');
-      if (!indicator) return;
-
-      const stageEl = document.getElementById('betternet-stage');
-      if (stageEl && data.currentStage) {
-        stageEl.textContent = data.currentStage;
-      }
-
-      // Update progress if available
-      if (data.progress !== undefined) {
-        indicator.setAttribute('data-progress', data.progress);
-      }
-    }
-
-    showAnalysisResults(result) {
-      const indicator = document.getElementById('betternet-analysis-indicator');
-      if (!indicator) return;
-
-      // Update indicator with results
-      const summary = result.summary || {};
-      const statusColor = summary.overall === 'high-risk' ? '#f44336' :
-                          summary.overall === 'caution' ? '#ff9800' : '#4CAF50';
-
-      indicator.style.background = statusColor;
-      indicator.innerHTML = `
-        <div style="font-weight: 600;">Analysis complete</div>
-        <div style="font-size: 12px; opacity: 0.9; margin-top: 4px;">
-          Overall: ${summary.overall || 'safe'}
-        </div>
-      `;
-
-      // Auto-hide after 5 seconds
-      setTimeout(() => {
-        if (indicator) {
-          indicator.style.opacity = '0';
-          indicator.style.transform = 'translateY(-10px)';
-          setTimeout(() => indicator.remove(), 300);
-        }
-      }, 5000);
-    }
   }
 
 // Initialize page analyzer

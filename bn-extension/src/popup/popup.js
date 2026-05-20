@@ -1,10 +1,30 @@
 // Popup script for BetterNet extension
 
+const FEATURE_DISPLAY = {
+  factChecker: { name: 'Fact Checker', description: 'Claims checked against fact-check sources' },
+  biasDetector: { name: 'Bias Detector', description: 'Political or ideological bias' },
+  antiManipulation: { name: 'Anti-manipulation', description: 'Dark patterns and manipulative UX' },
+  defuseRagebait: { name: 'Defuse Ragebait', description: 'Outrage-bait and harmful language' },
+};
+
+function runtimeSendMessage(message) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage(message, (response) => {
+      if (chrome.runtime.lastError) {
+        resolve(null);
+        return;
+      }
+      resolve(response ?? null);
+    });
+  });
+}
+
 class PopupController {
   constructor() {
     this.currentTabId = null;
     this.currentUrl = null;
     this.updateInterval = null;
+    this.adPreviewActive = false;
     this.init();
   }
 
@@ -42,6 +62,10 @@ class PopupController {
     // Set up exclude toggle button
     document.getElementById('exclude-toggle-btn').addEventListener('click', () => {
       this.toggleSiteExclusion();
+    });
+
+    document.getElementById('chunks-toggle')?.addEventListener('click', () => {
+      this.toggleChunksList();
     });
 
     // Check and update exclusion status
@@ -98,6 +122,9 @@ class PopupController {
     // Also poll for updates (backup mechanism)
     this.updateInterval = setInterval(() => {
       this.loadAnalysisStatus();
+      if (!document.getElementById('results-section')?.classList.contains('hidden')) {
+        void this.appendAdBlockerResultItem();
+      }
     }, 1000);
   }
 
@@ -147,16 +174,20 @@ class PopupController {
     }
 
     if (data.status === 'analyzing') {
-      // Show progress
       const progress = data.progress || 0;
       document.getElementById('progress-bar').style.width = `${progress}%`;
-      
-      const stageEl = document.getElementById('current-stage');
-      if (data.currentStage) {
-        stageEl.textContent = data.currentStage;
-      }
 
-      // Show partial results if available
+      const stageEl = document.getElementById('current-stage');
+      const flagged = (data.neutralisedCount || 0) + (data.adsHidden || 0);
+      let stageText = data.currentStage || 'Analyzing page…';
+      if (flagged > 0) {
+        const parts = [];
+        if (data.neutralisedCount > 0) parts.push(`${data.neutralisedCount} labelled`);
+        if (data.adsHidden > 0) parts.push(`${data.adsHidden} ads hidden`);
+        stageText = `${stageText} · ${parts.join(', ')}`;
+      }
+      stageEl.textContent = stageText;
+
       if (data.partialResults && Object.keys(data.partialResults).length > 0) {
         this.showPartialResults(data.partialResults, data.stages);
       }
@@ -168,6 +199,7 @@ class PopupController {
       resultsSection.classList.remove('hidden');
       this.displayResults(data.result);
     }
+
   }
 
   showPartialResults(partialResults, stages) {
@@ -195,17 +227,8 @@ class PopupController {
     resultsList.innerHTML = '';
     const results = result.results || {};
     
-    const resultTypes = [
-      { key: 'fakeNews', name: 'Fake News', description: 'Checked for misleading or false information' },
-      { key: 'scams', name: 'Scams', description: 'Scanned for fraudulent or deceptive content' },
-      { key: 'toxicity', name: 'Toxicity', description: 'Analyzed for harmful or abusive language' },
-      { key: 'bias', name: 'Bias', description: 'Detected political or ideological bias' },
-    //   { key: 'aiGenerated', name: 'AI Generated', description: 'Checked for AI-generated content' },
-      { key: 'reasoning', name: 'Reasoning', description: 'Evaluated logical reasoning quality' }
-    ];
-
-    resultTypes.forEach(type => {
-      const resultData = results[type.key];
+    Object.entries(FEATURE_DISPLAY).forEach(([key, meta]) => {
+      const resultData = results[key];
       if (!resultData) return;
 
       const score = resultData.score || 0;
@@ -217,28 +240,210 @@ class PopupController {
       item.className = 'result-item';
       item.innerHTML = `
         <div class="result-item-header">
-          <span class="result-item-name">${type.name}</span>
+          <span class="result-item-name">${meta.name}</span>
           <span class="result-item-score ${scoreClass}">${scorePercent}%</span>
         </div>
         <div class="result-item-details">
-          ${type.description}<br>
+          ${meta.description}<br>
           <small>Confidence: ${(confidence * 100).toFixed(0)}%</small>
         </div>
       `;
       resultsList.appendChild(item);
     });
 
-    // Display fact-check results if available
     this.displayFactCheckResults(result);
+    this.displayChunkResults(result.chunkResults || []);
+    void this.appendAdBlockerResultItem();
+  }
+
+  toggleChunksList() {
+    const list = document.getElementById('chunks-list');
+    const btn = document.getElementById('chunks-toggle');
+    const icon = document.getElementById('chunks-toggle-icon');
+    const open = list.classList.toggle('hidden');
+    const expanded = !open;
+    btn.setAttribute('aria-expanded', String(expanded));
+    icon.textContent = expanded ? '▾' : '▸';
+  }
+
+  displayChunkResults(chunkResults) {
+    const section = document.getElementById('chunks-section');
+    const list = document.getElementById('chunks-list');
+    const label = document.getElementById('chunks-toggle-label');
+    if (!section || !list) return;
+
+    if (!chunkResults.length) {
+      section.classList.add('hidden');
+      return;
+    }
+
+    section.classList.remove('hidden');
+    label.textContent = `Page chunks (${chunkResults.length})`;
+    list.innerHTML = '';
+    list.classList.add('hidden');
+    document.getElementById('chunks-toggle')?.setAttribute('aria-expanded', 'false');
+    document.getElementById('chunks-toggle-icon').textContent = '▸';
+
+    chunkResults.forEach((chunk, index) => {
+      const score = chunk.overallScore ?? 0;
+      const scoreClass = score < 0.3 ? 'low' : score < 0.6 ? 'medium' : 'high';
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'chunk-item';
+      item.dataset.xpath = chunk.xpath || '';
+      const preview = chunk.textPreview || `Chunk ${index + 1}`;
+      item.innerHTML = `
+        <span class="chunk-item-preview">${this.escapeHtml(preview)}</span>
+        <span class="chunk-item-score ${scoreClass}">${(score * 100).toFixed(0)}%</span>
+      `;
+      item.addEventListener('click', () => this.highlightChunkOnPage(chunk.xpath, item));
+      list.appendChild(item);
+    });
+  }
+
+  async isPageAdBlockerEnabled() {
+    if (!this.currentUrl) return false;
+    let hostname = '';
+    try {
+      hostname = new URL(this.currentUrl).hostname.replace(/^www\./, '');
+    } catch {
+      return false;
+    }
+
+    const stored = await chrome.storage.sync.get(null);
+    const mod = {
+      enabled: true,
+      blockPageAds: true,
+      blockYouTubeAds: true,
+      ...(stored.modules?.adBlocker || {}),
+    };
+    if (mod.enabled === false || mod.blockPageAds === false) return false;
+
+    const excluded = stored.excludedSites || [];
+    if (excluded.includes(hostname) || excluded.includes(`www.${hostname}`)) {
+      return false;
+    }
+
+    const overrides =
+      stored.domainOverrides?.[hostname] || stored.domainOverrides?.[`www.${hostname}`];
+    if (overrides?.adBlocker === false) return false;
+
+    return true;
+  }
+
+  async fetchAdBlockStatus() {
+    const enabled = await this.isPageAdBlockerEnabled();
+    if (!enabled) {
+      return { enabled: false, blockedCount: 0, adsPreviewActive: false };
+    }
+
+    let blockedCount = 0;
+    let adsPreviewActive = false;
+
+    if (this.currentTabId) {
+      const key = `analysis_${this.currentTabId}`;
+      const local = await chrome.storage.local.get(key);
+      blockedCount = local[key]?.adsHidden ?? 0;
+
+      const remote = await runtimeSendMessage({
+        type: 'GET_AD_BLOCK_STATUS',
+        tabId: this.currentTabId,
+      });
+      if (remote) {
+        blockedCount = Math.max(blockedCount, remote.blockedCount ?? 0);
+        adsPreviewActive = remote.adsPreviewActive ?? false;
+      }
+    }
+
+    return { enabled: true, blockedCount, adsPreviewActive };
+  }
+
+  async appendAdBlockerResultItem() {
+    const resultsList = document.getElementById('results-list');
+    if (!resultsList) return;
+
+    document.querySelector('.adblocker-result-item')?.remove();
+
+    const status = await this.fetchAdBlockStatus();
+    if (!status.enabled) return;
+
+    this.adPreviewActive = status.adsPreviewActive;
+
+    const countLabel =
+      status.blockedCount > 0
+        ? `${status.blockedCount} hidden`
+        : 'None on this page';
+
+    let hintText = 'No ads detected on this page yet.';
+    if (status.adsPreviewActive) {
+      hintText =
+        'Previewing what was blocked. Ad blocking is still on — new ads stay hidden.';
+    } else if (status.blockedCount > 0) {
+      hintText = `${status.blockedCount} ad block${status.blockedCount === 1 ? '' : 's'} hidden — see what you were protected from.`;
+    }
+
+    const item = document.createElement('div');
+    item.className = 'result-item adblocker-result-item';
+    item.innerHTML = `
+      <div class="result-item-header">
+        <span class="result-item-name">Ad Blocker</span>
+        <span class="result-item-score low">${countLabel}</span>
+      </div>
+      <div class="result-item-details">
+        Blocks ads on web pages while you browse.<br>
+        <small>${this.escapeHtml(hintText)}</small><br>
+        <button type="button" class="show-ads-btn show-ads-btn--inline" ${status.blockedCount === 0 && !status.adsPreviewActive ? 'disabled' : ''}>
+          ${status.adsPreviewActive ? 'Hide again' : 'Show blocked'}
+        </button>
+      </div>
+    `;
+
+    item.querySelector('.show-ads-btn--inline')?.addEventListener('click', () => {
+      this.toggleBlockedAdsPreview();
+    });
+
+    resultsList.insertBefore(item, resultsList.firstChild);
+  }
+
+  async toggleBlockedAdsPreview() {
+    if (!this.currentTabId) return;
+
+    try {
+      const type = this.adPreviewActive ? 'HIDE_BLOCKED_ADS_PREVIEW' : 'SHOW_BLOCKED_ADS';
+      await chrome.tabs.sendMessage(this.currentTabId, { type });
+      await this.appendAdBlockerResultItem();
+    } catch (error) {
+      this.showStatusMessage('Could not update ad preview on this tab', 'error');
+      console.log('Ad preview toggle failed:', error);
+    }
+  }
+
+  async highlightChunkOnPage(xpath, clickedEl) {
+    if (!xpath || !this.currentTabId) return;
+    document.querySelectorAll('.chunk-item.active').forEach((el) => el.classList.remove('active'));
+    clickedEl?.classList.add('active');
+    try {
+      await chrome.tabs.sendMessage(this.currentTabId, {
+        type: 'HIGHLIGHT_CHUNK',
+        xpath,
+      });
+    } catch (error) {
+      console.log('Could not highlight chunk:', error);
+    }
+  }
+
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
   displayFactCheckResults(result) {
     const factCheckSection = document.getElementById('factcheck-results');
     const factCheckList = document.getElementById('factcheck-list');
     
-    // Check if we have fact-check results in fakeNews results
-    const fakeNewsResult = result.results?.fakeNews;
-    if (!fakeNewsResult || !fakeNewsResult.factChecks || fakeNewsResult.factChecks.length === 0) {
+    const factCheckerResult = result.results?.factChecker;
+    if (!factCheckerResult || !factCheckerResult.factChecks || factCheckerResult.factChecks.length === 0) {
       factCheckSection.classList.add('hidden');
       return;
     }
@@ -248,15 +453,15 @@ class PopupController {
     factCheckList.innerHTML = '';
 
     // Display explanation
-    if (fakeNewsResult.explanation) {
+    if (factCheckerResult.explanation) {
       const explanationEl = document.createElement('div');
       explanationEl.className = 'factcheck-explanation';
-      explanationEl.textContent = fakeNewsResult.explanation;
+      explanationEl.textContent = factCheckerResult.explanation;
       factCheckList.appendChild(explanationEl);
     }
 
     // Display each claim and its fact-checks
-    fakeNewsResult.factChecks.forEach((claimResult, index) => {
+    factCheckerResult.factChecks.forEach((claimResult, index) => {
       const claimItem = document.createElement('div');
       claimItem.className = 'factcheck-claim-item';
       
@@ -303,14 +508,14 @@ class PopupController {
     });
 
     // Show metadata if available
-    if (fakeNewsResult.metadata) {
+    if (factCheckerResult.metadata) {
       const metadataEl = document.createElement('div');
       metadataEl.className = 'factcheck-metadata';
       metadataEl.innerHTML = `
         <small>
-          Claims checked: ${fakeNewsResult.metadata.claimsChecked || 0} | 
-          Fact-checks found: ${fakeNewsResult.metadata.factChecksFound || 0}
-          ${fakeNewsResult.metadata.averageRating !== undefined ? ` | Average rating: ${(fakeNewsResult.metadata.averageRating * 100).toFixed(0)}%` : ''}
+          Claims checked: ${factCheckerResult.metadata.claimsChecked || 0} | 
+          Fact-checks found: ${factCheckerResult.metadata.factChecksFound || 0}
+          ${factCheckerResult.metadata.averageRating !== undefined ? ` | Average rating: ${(factCheckerResult.metadata.averageRating * 100).toFixed(0)}%` : ''}
         </small>
       `;
       factCheckList.appendChild(metadataEl);
@@ -428,7 +633,13 @@ class PopupController {
       
       await chrome.storage.sync.set({ excludedSites });
       await this.updateExclusionStatus();
-      
+
+      chrome.runtime.sendMessage({
+        type: 'SITE_EXCLUSION_CHANGED',
+        tabId: this.currentTabId,
+        excluded: !isExcluded,
+      });
+
       // Notify content script to update
       try {
         await chrome.tabs.sendMessage(this.currentTabId, {

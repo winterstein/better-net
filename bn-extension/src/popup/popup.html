@@ -40,7 +40,7 @@
         <div class="progress-bar-container">
           <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
         </div>
-        <div id="current-stage" class="current-stage">Starting analysis...</div>
+        <div id="current-stage" class="current-stage">Analyzing page…</div>
       </div>
 
       <div id="results-section" class="results-section hidden">
@@ -51,8 +51,16 @@
         </div>
 
         <div id="detailed-results" class="detailed-results">
-          <h3>Detailed Analysis</h3>
+          <h3>By feature</h3>
           <div id="results-list" class="results-list"></div>
+        </div>
+
+        <div id="chunks-section" class="chunks-section">
+          <button type="button" id="chunks-toggle" class="chunks-toggle" aria-expanded="false">
+            <span id="chunks-toggle-label">Page chunks</span>
+            <span id="chunks-toggle-icon" class="chunks-toggle-icon">▸</span>
+          </button>
+          <div id="chunks-list" class="chunks-list hidden"></div>
         </div>
 
         <div id="factcheck-results" class="factcheck-results hidden">

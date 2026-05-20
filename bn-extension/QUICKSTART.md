@@ -50,9 +50,9 @@ npm run build:firefox
 
 ## What You'll See
 
-- **On-page indicator**: A small badge appears in the top-right showing analysis progress
-- **Popup window**: Click the extension icon to see detailed analysis results
-- **Progress updates**: Real-time updates as each analysis stage completes
+- **Toolbar badge**: Icon shows `…` while analyzing, then a count of flagged chunks (like AdBlock’s blocked count)
+- **Popup window**: Click the icon for stage detail and full results
+- **Nutrient labels**: On-page labels on individual chunks (not a global “Analyzing page…” banner)
 
 ## Current Status
 

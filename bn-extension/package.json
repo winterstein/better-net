@@ -13,7 +13,8 @@
     "watch:chrome": "node scripts/watch.js chrome",
     "watch:firefox": "node scripts/watch.js firefox",
     "watch:edge": "node scripts/watch.js edge",
-    "test": "node test/chunking.test.js",
+    "test": "node test/chunking.test.js && node test/mock.factcheck-google.test.js && node test/ad-blocker-facebook.test.js && node test/ad-blocker-detect-chunk.test.js && node test/local-inference-client.test.js && node test/model-manager.test.js",
+    "test:mobilebert": "node test/mobilebert-integration.test.js",
     "run": "npm run build && npm run watch",
     "type-check": "tsc --noEmit"
   },
@@ -35,5 +36,8 @@
     "happy-dom": "^20.0.10",
     "jsdom": "^27.1.0",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.4.0"
   }
 }

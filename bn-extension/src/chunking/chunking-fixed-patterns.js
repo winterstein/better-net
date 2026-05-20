@@ -282,7 +282,7 @@ function splitBySemanticBoundaries(element, options = {}) {
 /**
  * Check if element is likely an advertisement
  */
-function isLikelyAdElement(element) {
+export function isLikelyAdElement(element) {
   // Check class names - use word boundaries to avoid false positives
   // e.g., "adtqdayogch0dyrgtrx6" shouldn't match "ad"
   const adClasses = ['ad', 'advertisement', 'advert', 'sponsored', 'promo', 'promotion'];

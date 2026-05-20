@@ -139,6 +139,32 @@ body {
   background: #ffe0b2;
 }
 
+.show-ads-btn {
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  color: #333;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.show-ads-btn:hover:not(:disabled) {
+  background: #e8e8e8;
+  border-color: #ccc;
+}
+
+.show-ads-btn:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.show-ads-btn--inline {
+  margin-top: 8px;
+}
+
 .progress-section {
   background: white;
   padding: 20px;
@@ -443,4 +469,100 @@ body {
   border-top: 1px solid #e0e0e0;
   color: #666;
   text-align: center;
+}
+
+.chunks-section {
+  background: white;
+  padding: 16px 20px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.chunks-toggle {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  cursor: pointer;
+}
+
+.chunks-toggle:hover {
+  background: #f0f0f0;
+}
+
+.chunks-toggle-icon {
+  color: #666;
+  font-size: 12px;
+}
+
+.chunks-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.chunk-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  background: #fafafa;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.chunk-item:hover {
+  border-color: #667eea;
+  background: #f5f3ff;
+}
+
+.chunk-item.active {
+  border-color: #667eea;
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.25);
+}
+
+.chunk-item-preview {
+  flex: 1;
+  font-size: 12px;
+  color: #444;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.chunk-item-score {
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.chunk-item-score.low {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.chunk-item-score.medium {
+  background: #fff3e0;
+  color: #f57c00;
+}
+
+.chunk-item-score.high {
+  background: #ffebee;
+  color: #c62828;
 }

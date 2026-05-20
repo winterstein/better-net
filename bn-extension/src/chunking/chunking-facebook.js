@@ -4,6 +4,7 @@
  */
 
 import { isElementHidden, generateXPath } from './chunking-utils.js';
+import { isFacebookSponsoredPost } from '../ad-blocker/facebook-sponsored.js';
 
 /**
  * Extract chunks from Facebook
@@ -56,6 +57,10 @@ function extractFacebookChunk(container, linkElement, linkRegex, pageUrl, option
   const { includeAds } = options;
 
   if (!container || isElementHidden(container)) {
+    return null;
+  }
+
+  if (!includeAds && isFacebookSponsoredPost(container)) {
     return null;
   }
 
@@ -130,9 +135,10 @@ function extractFacebookChunk(container, linkElement, linkRegex, pageUrl, option
  * Check if chunk is likely an ad
  */
 function isLikelyAd(chunk) {
+  if (chunk.metadata?.isSponsored) return true;
   const text = (chunk.text || '').toLowerCase();
-  const adKeywords = ['advertisement', 'sponsored', 'promoted', 'ad'];
-  return adKeywords.some(keyword => text.includes(keyword));
+  const adKeywords = ['advertisement', 'sponsored', 'promoted'];
+  return adKeywords.some((keyword) => text.includes(keyword));
 }
 
 /**

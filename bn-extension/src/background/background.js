@@ -2,9 +2,19 @@
 Coordinates page analysis and manages state
 */ 
 
-import { analyzeChunksParallel } from '../analyzers/analysis.js';
+import { analyzeChunksParallel, enabledFeaturesFromSettings } from '../analysis/engine.js';
+import { ANALYSIS_FEATURE_IDS } from '../features/registry.js';
+import { mergeSettings } from '../settings/modules-esm.js';
 import { getGoogleFactCheckKey, getOpenAIKey, getAnthropicKey, initializeChromeStorage } from '../utils/env-utils.js';
 import { logit, setTabId } from '../utils/logger.js';
+import { setupModelManager } from './model-manager.js';
+import { clearToolbarBadge, updateToolbarBadge } from './toolbar-badge.js';
+import { shouldBlockPageAds } from '../ad-blocker/run.js';
+
+/** Chunks labelled below safe (caution / high-risk). */
+function isNeutralisedScore(score) {
+  return score != null && score >= 0.4;
+}
 
 // Test that service worker loaded
 try {
@@ -32,6 +42,16 @@ class AnalysisManager {
     try {
       // Listen for messages from content scripts
       chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        const handledTypes = new Set([
+          'ANALYZE_CHUNKS',
+          'ANALYSIS_UPDATE',
+          'ANALYSIS_COMPLETE',
+          'GET_ANALYSIS_STATUS',
+          'GET_AD_BLOCK_STATUS',
+          'SITE_EXCLUSION_CHANGED',
+        ]);
+        if (!handledTypes.has(message?.type)) return false;
+
         try {
           this.handleMessage(message, sender, sendResponse);
         } catch (error) {
@@ -57,6 +77,7 @@ class AnalysisManager {
           if (changeInfo.status === 'loading') {
             // Reset analysis when page starts loading
             this.activeAnalyses.delete(tabId);
+            clearToolbarBadge(tabId);
           }
         } catch (error) {
           console.error('[BetterNet] Error in onUpdated listener:', error);
@@ -79,7 +100,13 @@ class AnalysisManager {
 
       switch (message.type) {
         case 'ANALYZE_CHUNKS':
-          this.startAnalysis(tabId, message.url, message.chunks, message.pageMetadata);
+          this.startAnalysis(
+            tabId,
+            message.url,
+            message.chunks,
+            message.pageMetadata,
+            message.adsHidden ?? 0
+          );
           break;
 
       case 'ANALYSIS_UPDATE':
@@ -93,6 +120,21 @@ class AnalysisManager {
       case 'GET_ANALYSIS_STATUS':
         sendResponse({ status: this.getAnalysisStatus(tabId) });
         break;
+
+      case 'GET_AD_BLOCK_STATUS':
+        await this.getAdBlockStatus(message.tabId ?? tabId, sendResponse);
+        break;
+
+      case 'SITE_EXCLUSION_CHANGED': {
+        const targetTab = message.tabId ?? tabId;
+        if (message.excluded) {
+          this.activeAnalyses.delete(targetTab);
+          updateToolbarBadge(targetTab, { status: 'excluded', siteEnabled: false });
+        } else {
+          clearToolbarBadge(targetTab);
+        }
+        break;
+      }
 
       default:
         logit('warn', '[BetterNet] Unknown message type:', message.type);
@@ -112,7 +154,51 @@ class AnalysisManager {
     }
   }
 
-  async startAnalysis(tabId, url, chunks, pageMetadata) {
+  async getAdBlockStatus(tabId, sendResponse) {
+    if (!tabId) {
+      sendResponse({ enabled: false, blockedCount: 0, adsPreviewActive: false });
+      return;
+    }
+
+    let hostname = '';
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      if (!tab?.url || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
+        sendResponse({ enabled: false, blockedCount: 0, adsPreviewActive: false });
+        return;
+      }
+      hostname = new URL(tab.url).hostname;
+    } catch {
+      sendResponse({ enabled: false, blockedCount: 0, adsPreviewActive: false });
+      return;
+    }
+
+    const settings = mergeSettings(await chrome.storage.sync.get(null));
+    const enabled = shouldBlockPageAds(settings, hostname);
+    let blockedCount = 0;
+    let adsPreviewActive = false;
+
+    if (enabled) {
+      try {
+        const tabStatus = await chrome.tabs.sendMessage(tabId, { type: 'GET_AD_BLOCK_STATUS' });
+        if (tabStatus) {
+          blockedCount = tabStatus.blockedCount ?? 0;
+          adsPreviewActive = tabStatus.adsPreviewActive ?? false;
+        }
+      } catch {
+        // Content script not ready yet
+      }
+
+      const stored = await chrome.storage.local.get(`analysis_${tabId}`);
+      const analysis = stored[`analysis_${tabId}`];
+      const fromAnalysis = analysis?.adsHidden ?? 0;
+      blockedCount = Math.max(blockedCount, fromAnalysis);
+    }
+
+    sendResponse({ enabled, blockedCount, adsPreviewActive });
+  }
+
+  async startAnalysis(tabId, url, chunks, pageMetadata, adsHidden = 0) {
     setTabId(tabId);
     logit('log', '[BetterNet] [ANALYZE_CHUNKS] Starting analysis for tab', tabId, 'URL:', url, 'Chunks:', chunks.length);
     
@@ -122,7 +208,8 @@ class AnalysisManager {
       logit('log', '[BetterNet] [ANALYZE_CHUNKS] Site is excluded:', url);
       this.broadcastUpdate(tabId, {
         status: 'excluded',
-        message: 'This site is excluded from analysis'
+        message: 'This site is excluded from analysis',
+        siteEnabled: false,
       });
       return;
     }
@@ -131,7 +218,8 @@ class AnalysisManager {
       logit('warn', '[BetterNet] [ANALYZE_CHUNKS] No chunks provided');
       this.broadcastUpdate(tabId, {
         status: 'no_chunks',
-        message: 'No content chunks found'
+        message: 'No content chunks found',
+        adsHidden,
       });
       return;
     }
@@ -144,16 +232,16 @@ class AnalysisManager {
       url,
       chunks, // Store chunks for analysis
       pageMetadata,
+      adsHidden,
+      neutralisedCount: 0,
       status: 'analyzing',
       progress: 0,
-      stages: {
-        contentExtraction: 'completed',
-        fakeNews: 'pending',
-        scams: 'pending',
-        toxicity: 'pending',
-        bias: 'pending',
-        // aiGenerated: 'pending'
-      },
+      stages: Object.fromEntries(
+        ['contentExtraction', ...ANALYSIS_FEATURE_IDS].map((id) => [
+          id,
+          id === 'contentExtraction' ? 'completed' : 'pending',
+        ])
+      ),
       results: {},
       startTime: Date.now()
     };
@@ -209,18 +297,27 @@ class AnalysisManager {
       // Ensure chrome storage is initialized
       await initializeChromeStorage();
       
-      // Get analysis settings
-      const settings = await chrome.storage.sync.get({
-        analysisMode: 'local'
-      });
+      const stored = await chrome.storage.sync.get(null);
+      const settings = mergeSettings(stored);
+      const enabledFeatures = enabledFeaturesFromSettings(
+        settings,
+        pageMetadata.domain
+      );
       
       // Get API keys from env-utils (checks env vars, env.js, chrome.storage)
       const googleFactCheckKey = getGoogleFactCheckKey();
       const openaiKey = getOpenAIKey();
       const anthropicKey = getAnthropicKey();
       
+      const { localModels = {} } = await chrome.storage.local.get({ localModels: {} });
+      const localModelReady =
+        settings.analysisMode !== 'local' ||
+        localModels[settings.localModelId]?.status === 'ready';
+
       logit('log', '[BetterNet] [PERFORM_ANALYSIS] Analysis settings:', {
         mode: settings.analysisMode,
+        localModelId: settings.localModelId,
+        localModelReady,
         hasOpenAIKey: !!openaiKey,
         hasAnthropicKey: !!anthropicKey,
         hasGoogleFactCheckKey: !!googleFactCheckKey
@@ -242,11 +339,15 @@ class AnalysisManager {
 			overallScore: combinedResults.overallScore,
 			analysesCount: Object.keys(combinedResults.analyses || {}).length
 		});
+		if (isNeutralisedScore(combinedResults.overallScore)) {
+		  state.neutralisedCount += 1;
+		}
 		this.broadcastUpdate(state.tabId, {
 			type: "analysisUpdate",
 			xpath: chunk.xpath,
-			combinedResults
-		})
+			combinedResults,
+			neutralisedCount: state.neutralisedCount,
+		});
 	  };
       
       logit('log', '[BetterNet] [PERFORM_ANALYSIS] Analyzing chunks in parallel...');
@@ -256,12 +357,14 @@ class AnalysisManager {
         {
           mode: settings.analysisMode,
           config: {
+            apiKey: openaiKey,
             openaiKey: openaiKey,
             anthropicKey: anthropicKey,
-            googleFactCheckKey: googleFactCheckKey
+            googleFactCheckKey: googleFactCheckKey,
+            localModelId: settings.localModelId || 'mobilebert-mnli',
           },
           maxConcurrency: 5,
-          enabledAnalyzers: ['fakeNews', 'bias', 'scams', 'toxicity']
+          enabledFeatures,
         },
         onAnalysis
       );
@@ -275,9 +378,8 @@ class AnalysisManager {
         logit('log', '[BetterNet] [PERFORM_ANALYSIS] Processing results, chunks:', chunkResults.length);
         // Aggregate results from all chunks
         const aggregated = {};
-        const analysisTypes = ['fakeNews', 'bias', 'scams', 'toxicity'];
-        
-        analysisTypes.forEach(type => {
+        ANALYSIS_FEATURE_IDS.forEach((type) => {
+          if (!enabledFeatures.includes(type)) return;
           const scores = [];
           const flags = [];
           
@@ -328,18 +430,31 @@ class AnalysisManager {
 
       // Generate summary
       const summary = this.generateSummary(state.results);
+      state.summaryOverall = summary.overall;
+      state.neutralisedCount = chunkResults.filter((cr) =>
+        isNeutralisedScore(cr.overallScore)
+      ).length;
       
-      // Analysis complete
+      const chunkByKey = new Map(
+        state.chunks.map((c) => [c.id ?? c.fingerprint ?? c.xpath, c])
+      );
+
       this.completeAnalysis(state.tabId, {
         url: state.url,
         analysisId: state.id,
         results: state.results,
         summary: summary,
-        chunks: state.chunks.map(c => ({
-          id: c.id,
-          textLength: c.text?.length || 0,
-          xpath: c.xpath
-        })),
+        chunkResults: chunkResults.map((cr) => {
+          const src = chunkByKey.get(cr.chunkId) || {};
+          const text = src.text || '';
+          return {
+            id: cr.chunkId,
+            xpath: cr.xpath,
+            overallScore: cr.overallScore,
+            analyses: cr.analyses,
+            textPreview: text.slice(0, 120) + (text.length > 120 ? '…' : ''),
+          };
+        }),
         aggregated: {},
         timestamp: Date.now(),
         duration: Date.now() - state.startTime
@@ -358,11 +473,10 @@ class AnalysisManager {
   getStageName(stage) {
     const names = {
       contentExtraction: 'Extracting content',
-      fakeNews: 'Checking for fake news',
-      scams: 'Scanning for scams',
-      toxicity: 'Analyzing toxicity',
-      bias: 'Detecting bias',
-    //   aiGenerated: 'Checking for AI-generated content'
+      factChecker: 'Fact checking',
+      biasDetector: 'Detecting bias',
+      antiManipulation: 'Anti-manipulation scan',
+      defuseRagebait: 'Defusing ragebait',
     };
     return names[stage] || stage;
   }
@@ -388,6 +502,18 @@ class AnalysisManager {
     return summary;
   }
 
+  syncToolbarBadge(tabId, data) {
+    const state = this.activeAnalyses.get(tabId);
+    updateToolbarBadge(tabId, {
+      status: data.status,
+      progress: data.progress ?? state?.progress ?? 0,
+      neutralisedCount: data.neutralisedCount ?? state?.neutralisedCount ?? 0,
+      adsHidden: data.adsHidden ?? state?.adsHidden ?? 0,
+      summaryOverall: data.summaryOverall ?? state?.summaryOverall,
+      siteEnabled: data.siteEnabled !== false,
+    });
+  }
+
   broadcastUpdate(tabId, data) {
 	setTabId(tabId);
 	logit('log', '[BetterNet] [BROADCAST_UPDATE] Tab:', tabId, data);
@@ -395,7 +521,16 @@ class AnalysisManager {
     // Update internal state
     const state = this.activeAnalyses.get(tabId);
     if (state) {
+      if (data.neutralisedCount != null) state.neutralisedCount = data.neutralisedCount;
+      if (data.progress != null) state.progress = data.progress;
+      if (data.status) state.status = data.status;
       Object.assign(state, data);
+    }
+
+    if (data.status && data.status !== 'analysisUpdate' && !data.type) {
+      this.syncToolbarBadge(tabId, data);
+    } else if (state?.status === 'analyzing' && data.neutralisedCount != null) {
+      this.syncToolbarBadge(tabId, { status: 'analyzing', ...data });
     }
 
     // Send update to popup and content scripts
@@ -434,6 +569,15 @@ class AnalysisManager {
       state.progress = 100;
     }
 
+    updateToolbarBadge(tabId, {
+      status: 'completed',
+      progress: 100,
+      neutralisedCount: state?.neutralisedCount ?? 0,
+      adsHidden: state?.adsHidden ?? 0,
+      summaryOverall: result.summary?.overall ?? state?.summaryOverall,
+      siteEnabled: true,
+    });
+
     // Broadcast completion
     chrome.tabs.sendMessage(tabId, {
       type: 'ANALYSIS_COMPLETE',
@@ -450,6 +594,8 @@ class AnalysisManager {
         tabId,
         status: 'completed',
         progress: 100,
+        neutralisedCount: state?.neutralisedCount ?? 0,
+        adsHidden: state?.adsHidden ?? 0,
         result,
         timestamp: Date.now()
       }
@@ -476,6 +622,8 @@ class AnalysisManager {
     };
   }
 } // .end AnalysisManager
+
+setupModelManager();
 
 // Initialize manager with error handling
 let analysisManager;
