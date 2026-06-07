@@ -9,7 +9,7 @@ import { writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { Window } from 'happy-dom';
-import { getDefaultAnalysisEngine } from '../src/plugin-src/analyzers/AnalysisEngine.js';
+import { getDefaultAnalysisEngine } from '../src/bn-extension-src/analyzers/AnalysisEngine.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

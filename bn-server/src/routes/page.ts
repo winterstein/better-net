@@ -4,7 +4,7 @@ interface PageParams {
 	id: string;
 }
 
-interface Page {
+interface InMemoryRecord {
 	id: string;
 	createdAt: string;
 	updatedAt: string;
@@ -13,7 +13,7 @@ interface Page {
 
 async function pageRoutes(fastify: FastifyInstance, options: any) {
   // In-memory store (replace with actual database in production)
-  const pages = new Map<string, Page>();
+  const pages = new Map<string, InMemoryRecord>();
   let nextId = 1;
 
   // GET /api/page - List all pages
@@ -35,7 +35,7 @@ async function pageRoutes(fastify: FastifyInstance, options: any) {
 
   // POST /api/page - Create a new page
   fastify.post('/', async (request: FastifyRequest, reply: FastifyReply) => {
-    const page: Page = {
+    const page: InMemoryRecord = {
       id: String(nextId++),
       ...request.body as any,
       createdAt: new Date().toISOString(),
@@ -55,7 +55,7 @@ async function pageRoutes(fastify: FastifyInstance, options: any) {
       return reply.code(404).send({ error: 'Page not found' });
     }
     
-    const updatedPage: Page = {
+    const updatedPage: InMemoryRecord = {
       ...existingPage,
       ...request.body as any,
       id,

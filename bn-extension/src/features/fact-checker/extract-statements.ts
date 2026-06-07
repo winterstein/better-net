@@ -3,10 +3,10 @@
  * Simple heuristic-based extraction - could be enhanced with NLP
  */
 
-import { logit } from '../utils/logger.js';
-import type { Chunk } from '../types/Chunk.js';
-import type { AnalysisOptions } from '../types/AnalysisOptions.js';
-import type { Statement } from '../types/Statement.js';
+import { logit } from '../../utils/logger.js';
+import type { Chunk } from '../../types/Chunk.js';
+import type { AnalysisOptions } from '../../types/AnalysisOptions.js';
+import type { Statement } from '../../types/Statement.js';
 
 const MAX_CLAIMS_TO_CHECK = 3; // Limit number of claims to check per chunk
 const MIN_CLAIM_LENGTH = 20; // Minimum length for a claim to be worth checking

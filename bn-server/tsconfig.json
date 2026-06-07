@@ -23,7 +23,30 @@
     "noFallthroughCasesInSwitch": false,
     "types": ["chrome", "node"]
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "test"]
+  "include": [
+    "src/server.ts",
+    "src/db.ts",
+    "src/SearchQuery.ts",
+    "src/routes/**/*",
+    "src/utils/**/*",
+    "src/ai/**/*",
+    "src/bn-extension-src/analysis/**/*",
+    "src/bn-extension-src/analyzers/**/*",
+    "src/bn-extension-src/features/**/*",
+    "src/bn-extension-src/types/**/*",
+    "src/bn-extension-src/ai/**/*",
+    "src/bn-extension-src/prompts/**/*",
+    "src/bn-extension-src/utils/hash.ts",
+    "src/bn-extension-src/utils/logger.ts",
+    "src/bn-extension-src/utils/env-utils.ts",
+    "src/bn-extension-src/env.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test",
+    "src/bn-extension-src/ai/local-model-offscreen.ts",
+    "src/bn-extension-src/ai/local-inference-client.ts"
+  ]
 }
 

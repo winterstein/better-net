@@ -56,30 +56,34 @@ function copyRecursive(src, dest, excludeFiles = []) {
 
 // Copy source files (excluding scripts that will be bundled)
 copyRecursive(srcDir, distDir, [
-  'background/background.js',
-  'content/content.js',
-  'offscreen/offscreen.js',
-  'options/options.js',
+  'background/background.ts',
+  'content/content.ts',
+  'offscreen/offscreen.ts',
+  'options/options.ts',
+  'popup/popup.ts',
+  'settings/defaults.ts',
 ]);
 
 // Bundle background script
 console.log('Bundling background script...');
 await build({
-  entryPoints: [path.join(srcDir, 'background', 'background.js')],
+  entryPoints: [path.join(srcDir, 'background', 'background.ts')],
   bundle: true,
   outfile: path.join(distDir, 'background', 'background.js'),
-  format: 'esm',
+  format: 'iife',
   platform: 'browser',
   target: 'es2020',
   minify: false,
   sourcemap: false,
-  logLevel: 'info'
+  logLevel: 'info',
+  loader: { '.ts': 'ts', '.txt': 'text' },
 });
 
 // Bundle content script
 console.log('Bundling content script...');
 await build({
-  entryPoints: [path.join(srcDir, 'content', 'content.js')],
+  entryPoints: [path.join(srcDir, 'content', 'content.ts')],
+  loader: { '.ts': 'ts', '.txt': 'text' },
   bundle: true,
   outfile: path.join(distDir, 'content', 'content.js'),
   format: 'iife',
@@ -95,7 +99,8 @@ await build({
 // Bundle options page (classic script — avoids broken ESM import in extension pages)
 console.log('Bundling options script...');
 await build({
-  entryPoints: [path.join(srcDir, 'options', 'options.js')],
+  entryPoints: [path.join(srcDir, 'options', 'options.ts')],
+  loader: { '.ts': 'ts', '.txt': 'text' },
   bundle: true,
   outfile: path.join(distDir, 'options', 'options.js'),
   format: 'iife',
@@ -106,10 +111,41 @@ await build({
   logLevel: 'info',
 });
 
+// Bundle popup (classic script in popup.html)
+console.log('Bundling popup script...');
+await build({
+  entryPoints: [path.join(srcDir, 'popup', 'popup.ts')],
+  bundle: true,
+  outfile: path.join(distDir, 'popup', 'popup.js'),
+  format: 'iife',
+  platform: 'browser',
+  target: 'es2020',
+  minify: false,
+  sourcemap: false,
+  logLevel: 'info',
+  loader: { '.ts': 'ts', '.txt': 'text' },
+});
+
+// Bundle settings defaults IIFE (loaded before options.js)
+console.log('Bundling settings defaults...');
+await build({
+  entryPoints: [path.join(srcDir, 'settings', 'defaults.ts')],
+  bundle: true,
+  outfile: path.join(distDir, 'settings', 'defaults.js'),
+  format: 'iife',
+  platform: 'browser',
+  target: 'es2020',
+  minify: false,
+  sourcemap: false,
+  logLevel: 'info',
+  loader: { '.ts': 'ts' },
+});
+
 // Bundle offscreen local AI worker
 console.log('Bundling offscreen script...');
 await build({
-  entryPoints: [path.join(srcDir, 'offscreen', 'offscreen.js')],
+  entryPoints: [path.join(srcDir, 'offscreen', 'offscreen.ts')],
+  loader: { '.ts': 'ts', '.txt': 'text' },
   bundle: true,
   outfile: path.join(distDir, 'offscreen', 'offscreen.js'),
   format: 'esm',

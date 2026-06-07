@@ -3,10 +3,8 @@ import pg from 'pg';
 const { Pool } = pg;
 import type { Pool as PoolType, PoolClient, QueryResult } from 'pg';
 import SearchQuery from './SearchQuery.js';
-import type { TopLevelItem } from './plugin-src/types/TopLevelItem.js';
-import { Chunk, fingerprint } from './plugin-src/types/Chunk.js';
-import {Page} from './plugin-src/types/Page.js';
-import {ChunkAnalysis} from './plugin-src/types/ChunkAnalysis.js';
+import type { TopLevelItem } from './bn-extension-src/types/TopLevelItem.js';
+import { Chunk, fingerprint } from './bn-extension-src/types/Chunk.js';
 
 // database connection pool
 let pool: PoolType | null = null;
@@ -37,10 +35,18 @@ const chunkAnalysis_columns: DBTableColumn[] = [
 	{ name: 'created', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
 	{ name: 'updated', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
 ];
+const feedback_columns: DBTableColumn[] = [
+	{ name: 'id', type: 'SERIAL PRIMARY KEY' },
+	{ name: 'chunkId', type: 'INTEGER NOT NULL' },
+	{ name: 'props', type: 'JSONB NOT NULL' },
+	{ name: 'created', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+	{ name: 'updated', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
+];
 const columns4table = {
 	chunk: chunk_columns,
 	page: page_columns,
 	chunkAnalysis: chunkAnalysis_columns,
+	feedback: feedback_columns,
 };
 
 
@@ -135,6 +141,13 @@ async function db_init(): Promise<boolean> {
 		await client.query(`CREATE INDEX IF NOT EXISTS idx_chunkAnalysis_props ON chunkAnalysis USING GIN (props);`);
 		await client.query(`CREATE INDEX IF NOT EXISTS idx_chunkAnalysis_chunkId ON chunkAnalysis (chunkId);`);
 		console.log('ChunkAnalysis table initialized successfully');
+
+		console.log('Creating feedback table...');
+		const sql_feedback = `CREATE TABLE IF NOT EXISTS feedback (${feedback_columns.map(c => `${c.name} ${c.type}`).join(', ')})`;
+		await client.query(sql_feedback);
+		await client.query(`CREATE INDEX IF NOT EXISTS idx_feedback_props ON feedback USING GIN (props);`);
+		await client.query(`CREATE INDEX IF NOT EXISTS idx_feedback_chunkId ON feedback (chunkId);`);
+		console.log('Feedback table initialized successfully');
 	} catch (error) {
 		console.error('Error initializing tables:', error);
 		throw error;
@@ -205,6 +218,20 @@ function convert_row_to_item(row: any): TopLevelItem {
  * @param {*} id 
  * @returns object
  */
+async function get_chunk_by_fingerprint(fp: string): Promise<TopLevelItem | undefined> {
+	const client = await db_get_client();
+	try {
+		const result: QueryResult = await client.query(
+			`SELECT ${chunk_columns.map(c => c.name).join(', ')} FROM chunk WHERE fingerprint = $1 LIMIT 1`,
+			[fp]
+		);
+		if (result.rows.length === 0) return undefined;
+		return convert_row_to_item(result.rows[0]);
+	} finally {
+		client.release();
+	}
+}
+
 async function get_item(table: string, id: number): Promise<TopLevelItem | undefined> {
 	const client = await db_get_client();
 	try {
@@ -233,7 +260,7 @@ interface CreateItemOptions {
 
 function fingerprint_item(table: string, item: TopLevelItem): void {
 	// Only fingerprint Chunk items, as they're the only ones with fingerprint column
-	if (table === 'chunk') {
+	if (table === 'chunk' && !item.fingerprint) {
 		item.fingerprint = fingerprint(item as Chunk);
 		console.log('Fingerprinted item '+table+" "+JSON.stringify(item));
 	}
@@ -345,6 +372,6 @@ async function delete_item(table: string, id: number): Promise<void> {
 	}
 }
 
-export { db_init, db_close, db_query_items, db_get_client, get_item, create_item, update_item, delete_item };
+export { db_init, db_close, db_query_items, db_get_client, get_item, get_chunk_by_fingerprint, create_item, update_item, delete_item };
 export type { TopLevelItem as Item };
 

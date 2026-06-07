@@ -125,6 +125,11 @@
             <span class="setting-description">Sign-in and sync coming soon. Stored locally for now.</span>
             <input type="email" id="account-email" placeholder="you@example.com" autocomplete="email">
           </div>
+          <div class="setting-item">
+            <label for="server-endpoint"><strong>Server endpoint</strong></label>
+            <span class="setting-description">bn-server base URL for feedback, cached analysis, and updates (e.g. http://localhost:3001)</span>
+            <input type="url" id="server-endpoint" placeholder="https://api.betternet.org" autocomplete="off">
+          </div>
           <p class="placeholder-note">Account sync and subscription management are not yet available.</p>
         </section>
 
@@ -138,7 +143,7 @@
               <input type="checkbox" id="share-anonymous">
               <span><strong>Share anonymous analysis data</strong></span>
             </label>
-            <span class="setting-description">Aggregated signals to improve detection (no page content by default)</span>
+            <span class="setting-description">Share chunk-aspect feedback (+/−) and aggregated signals to improve detection</span>
           </div>
 
           <div class="setting-item">

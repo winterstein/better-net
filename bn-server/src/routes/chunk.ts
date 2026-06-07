@@ -1,9 +1,11 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { get_item, create_item, update_item, delete_item, db_query_items } from '../db.js';
-import type { Chunk } from '../plugin-src/types/Chunk.js';
-import type { AnalysisOptions } from '../plugin-src/types/AnalysisOptions.js';
-import { fingerprint } from '../plugin-src/types/Chunk.js';
-import { getDefaultAnalysisEngine } from '../plugin-src/analyzers/AnalysisEngine.js';
+import type { Chunk } from '../bn-extension-src/types/Chunk.js';
+import type { AnalysisOptions } from '../bn-extension-src/types/AnalysisOptions.js';
+import type { PageMetadata } from '../bn-extension-src/types/Page.js';
+import { fingerprint } from '../bn-extension-src/types/Chunk.js';
+import { getDefaultAnalysisEngine } from '../bn-extension-src/analyzers/AnalysisEngine.js';
+import { buildServerAnalysisOptions } from '../ai/server-analysis.js';
 
 interface ChunkParams {
 	id: string;
@@ -16,13 +18,7 @@ interface ChunkQuerystring {
 
 interface AnalyzeBody {
 	options?: AnalysisOptions;
-	pageMetadata?: {
-		url?: string;
-		title?: string;
-		domain?: string;
-		author?: string;
-		description?: string;
-	};
+	pageMetadata?: Partial<PageMetadata>;
 }
 
 async function chunkRoutes(fastify: FastifyInstance, options: any) {
@@ -129,7 +125,11 @@ async function chunkRoutes(fastify: FastifyInstance, options: any) {
     
     // Perform analysis - chunk from DB has id, created, updated fields, but analyzeChunk expects Chunk type
     const engine = getDefaultAnalysisEngine();
-    const analysisResult = await engine.analyzeChunk(chunk, metadata, options);
+    const analysisResult = await engine.analyzeChunk(
+      chunk,
+      metadata,
+      buildServerAnalysisOptions(options)
+    );
     
     // Store analysis in chunk
     const updatedChunkData = {

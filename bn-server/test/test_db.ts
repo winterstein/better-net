@@ -2,7 +2,7 @@ import tap from 'tap';
 import { db_init, db_close, db_get_client } from '../src/db.js';
 // Load .env and .env.test for test configuration
 import dotenv from 'dotenv';
-import { Chunk } from '../src/plugin-src/types/Chunk.js';
+import { Chunk } from '../src/bn-extension-src/types/Chunk.js';
 dotenv.config();
 dotenv.config({ path: '.env.test', override: true });
 

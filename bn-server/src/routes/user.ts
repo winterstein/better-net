@@ -4,7 +4,7 @@ interface UserParams {
 	id: string;
 }
 
-interface User {
+interface InMemoryRecord {
 	id: string;
 	createdAt: string;
 	updatedAt: string;
@@ -13,7 +13,7 @@ interface User {
 
 async function userRoutes(fastify: FastifyInstance, options: any) {
   // In-memory store (replace with actual database in production)
-  const users = new Map<string, User>();
+  const users = new Map<string, InMemoryRecord>();
   let nextId = 1;
 
   // GET /api/user - List all users
@@ -35,7 +35,7 @@ async function userRoutes(fastify: FastifyInstance, options: any) {
 
   // POST /api/user - Create a new user
   fastify.post('/', async (request: FastifyRequest, reply: FastifyReply) => {
-    const user: User = {
+    const user: InMemoryRecord = {
       id: String(nextId++),
       ...request.body as any,
       createdAt: new Date().toISOString(),
@@ -55,7 +55,7 @@ async function userRoutes(fastify: FastifyInstance, options: any) {
       return reply.code(404).send({ error: 'User not found' });
     }
     
-    const updatedUser: User = {
+    const updatedUser: InMemoryRecord = {
       ...existingUser,
       ...request.body as any,
       id,

@@ -5,7 +5,7 @@ User-first browser AI: label misleading/toxic content, reduce manipulative UX, a
 | Package | Role |
 |---------|------|
 | `bn-extension` | MV3 browser extension (chunking, analysis, popup) — main product |
-| `bn-server` | Fastify + Postgres backend (cache, APIs) |
+| `bn-server` | Fastify + Postgres + ElasticSearch backend (cache, APIs) |
 | `bn-webapp` | Vite + React companion UI |
 
 ## Specs, Status and docs
@@ -14,16 +14,18 @@ User-first browser AI: label misleading/toxic content, reduce manipulative UX, a
 - **Per-package task/status**: `bn-<name>/status.md` — read before work, update when you change scope or fix blockers.
 - **Product blurb**: `blurb.md`
 - **Extension details**: `bn-extension/README.md`, `QUICKSTART.md`
+- **Code style and review principles**: `bn-extension/code-guidelines.md`
 
 `bn-extension` is an early prototype (build/analysis wiring incomplete). Treat `bn-extension/status.md` as source of truth for what works vs broken.
 
 ## Code Organisation
 
-Use typescript for preference.
+Use TypeScript. Code can be duplicated between bn-server, bn-webapp, and bn-extension for easier compilation.
 
-Follow KISS and DRY. Code should be simple and modular.
+For KISS, DRY, modularity, comments, and refactoring rules, follow `bn-extension/code-guidelines.md`.
 
-Code can be duplicated between bn-server, bn-webapp, and bn-extension for easier compilation.
+bn-server and bn-webapp have a sym-linked folder, bn-extension-src, which is the bn-extension/src folder.
+This should be used for code reuse of e.g. types, analyzers.
 
 ### bn-extension 
 
@@ -41,10 +43,14 @@ Several features share a common pipeline:
 
 ## Conventions
 
-- Keep changes **minimal** and scoped to the package you are touching.
+- Keep changes focused and scoped to the package you are touching.
+- Respect the user's work.
 - Match existing style (TypeScript, esbuild in extension; `tsc`/`tap` on server; Vite on webapp).
 - Do not commit secrets (`.env`, API keys).
-- Commits and PRs only when the user asks.
+- PRs only when the user asks.
+- Produce unit and integration tests when adding new features. Test coverage does not have to be 100%. Keep tests simple. Tests should be able to run quickly and in CI-CD pipelines — if not, mark the test and comment.
+- Commit when a significant feature is done and tested.
+- Avoid identical file-names with different folders. Prefer file-names with a marker to indicate individual place.
 
 ## Commands (run from package dir)
 
@@ -63,4 +69,5 @@ npm install && npm run dev
 
 1. Identify the right `bn-*` package.
 2. Check that package’s `status.md` (create if missing).
-3. After meaningful work, refresh `status.md` (done / blocked / next).
+3. Use npm test regularly to check for issues.
+4. After meaningful work, refresh `status.md` (done / blocked / next).

@@ -19,5 +19,7 @@ Pages:
     - Ad Revenue
     - Defuse Ragebait
 - Off-List: see and manage the domains where features are switched off
-- Account: your account with better:net (if you have one)
+- Account: 
+    - Your account with better:net (if you have one).
+    - The better:net server endpoint for update-manager and cached anslysis
 - Data Sharing

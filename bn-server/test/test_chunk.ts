@@ -5,26 +5,18 @@ import { db_init, db_close } from '../src/db.js';
 
 // load .env
 import dotenv from 'dotenv';
-import { is } from '../src/utils/miscutils.js';
-import { isDeepEqual } from '../src/utils/miscutils.ts';
-import { getDefaultAnalysisEngine } from '../src/plugin-src/analyzers/AnalysisEngine.js';
 dotenv.config();
-// load .env.test
 dotenv.config({ path: '.env.test', override: true });
 
 let fastify: FastifyInstance | undefined;
 
 async function initTestNoIntegration(): Promise<FastifyInstance> {
 	console.log('Initializing test...');
-	// disable API keys - loop over process.env keys and set to empty string
 	for (const key in process.env) {
 		if (key.match(/API_?(KEY|SECRET)/)) {
 			process.env[key] = '';
 		}
 	}
-	// AnalysisEngine: set enabled analyzers to []
-	process.env.BN_ANALYSIS_ENABLED_ANALYZERS = '[]';
-	getDefaultAnalysisEngine().setEnabledAnalyzers([]);	
 	
 	await db_init();
 	if ( ! fastify) {
@@ -120,8 +112,8 @@ tap.test('Chunk_analyze_POST_and_GET', async (t) => {
 		url: `/api/chunk/${chunk.id}/analyze`,
 		payload: {
 			options: {
-				mode: 'local',
-				enabledAnalyzers: ['fakeNews', 'bias', 'scams', 'toxicity']
+				mode: 'heuristic',
+				enabledFeatures: ['factChecker', 'biasDetector', 'antiManipulation', 'defuseRagebait']
 			}
 		}
 	});
@@ -129,9 +121,9 @@ tap.test('Chunk_analyze_POST_and_GET', async (t) => {
 	t.equal(analyzeRes.statusCode, 200, 'Analyze POST should return 200');
 	const analysisResult = analyzeRes.json() as any;
 	t.ok(analysisResult.chunkId, 'Analysis result should have chunkId');
-	t.ok(typeof analysisResult.overallScore === 'number', 'Analysis result should have overallScore');
-	t.ok(analysisResult.analyses, 'Analysis result should have analyses object');
-	t.ok(analysisResult.timestamp, 'Analysis result should have timestamp');
+	t.ok(typeof analysisResult.summary?.problemScore === 'number', 'Analysis result should have summary.problemScore');
+	t.ok(Array.isArray(analysisResult.analyses), 'Analysis result should have analyses array');
+	t.ok(analysisResult.chunkId, 'Analysis result should have chunkId');
 
 	// 3. GET analyze - retrieve analysis from database
 	const getAnalyzeRes = await fastify.inject({

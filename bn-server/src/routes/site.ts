@@ -4,7 +4,7 @@ interface SiteParams {
 	id: string;
 }
 
-interface Site {
+interface InMemoryRecord {
 	id: string;
 	createdAt: string;
 	updatedAt: string;
@@ -13,7 +13,7 @@ interface Site {
 
 async function siteRoutes(fastify: FastifyInstance, options: any) {
   // In-memory store (replace with actual database in production)
-  const sites = new Map<string, Site>();
+  const sites = new Map<string, InMemoryRecord>();
   let nextId = 1;
 
   // GET /api/site - List all sites
@@ -35,7 +35,7 @@ async function siteRoutes(fastify: FastifyInstance, options: any) {
 
   // POST /api/site - Create a new site
   fastify.post('/', async (request: FastifyRequest, reply: FastifyReply) => {
-    const site: Site = {
+    const site: InMemoryRecord = {
       id: String(nextId++),
       ...request.body as any,
       createdAt: new Date().toISOString(),
@@ -55,7 +55,7 @@ async function siteRoutes(fastify: FastifyInstance, options: any) {
       return reply.code(404).send({ error: 'Site not found' });
     }
     
-    const updatedSite: Site = {
+    const updatedSite: InMemoryRecord = {
       ...existingSite,
       ...request.body as any,
       id,

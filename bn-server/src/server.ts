@@ -1,5 +1,6 @@
 import Fastify, { FastifyInstance } from 'fastify';
 import chunkRoutes from './routes/chunk.js';
+import feedbackRoutes from './routes/feedback.js';
 import pageRoutes from './routes/page.js';
 import siteRoutes from './routes/site.js';
 import userRoutes from './routes/user.js';
@@ -11,6 +12,7 @@ const fastify: FastifyInstance = Fastify({
 
 // Register routes
 fastify.register(chunkRoutes, { prefix: '/api/chunk' });
+fastify.register(feedbackRoutes, { prefix: '/api/feedback' });
 fastify.register(pageRoutes, { prefix: '/api/page' });
 fastify.register(siteRoutes, { prefix: '/api/site' });
 fastify.register(userRoutes, { prefix: '/api/user' });

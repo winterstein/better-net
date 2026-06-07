@@ -2,7 +2,7 @@
 
 ## Source code structure
 
-plugin-src is a sym-link to the src folder of the browser plugin, to allow easy shared use of data types and common functions
+bn-extension-src is a sym-link to the src folder of the browser plugin, to allow easy shared use of data types and common functions
 
 ## How to Run Tests
 

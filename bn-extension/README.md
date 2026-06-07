@@ -170,51 +170,73 @@ The current implementation uses mock analysis results. To implement real analysi
 
 ## Testing
 
-### Running Tests
+Run from `bn-extension/` after `npm install`.
 
-The project includes tests for the chunking functionality. To run the tests:
+| Command | When to run | What it does |
+|---------|-------------|--------------|
+| `npm test` | Every change; CI default | Fast unit tests (chunking, tags, ad-blocker, update-manager, …). Builds HTML fixtures from `test-data/*.chunking.json` first. |
+| `npm run test:e2e:smoke` | After popup/options/background changes; quick CI gate | Playwright smoke: service worker, popup init, options init, settings navigation (~10s). |
+| `npm run test:e2e` | Before release; after content/background/popup changes | Smoke tests + fixture analysis on `test-data/` pages. |
+| `npm run test:online` | Manual smoke; optional CI job with network | Playwright against live sites (e.g. bbc.co.uk). Needs network; may flake if a site changes or blocks bots. |
+| `npm run test:mobilebert` | Manual only | Downloads real MobileBERT model (~25–80 MB). Not part of default CI. |
 
-```bash
-npm test
+### Unit tests (`npm test`)
+
+1. `scripts/build-fixture-html.js` writes `test-data/*.html` from each `*.chunking.json`
+2. Chunking tests compare extracted chunks to the JSON expectations (lenient match)
+3. Other tests cover tags, ad-blocker, local-inference client, update-manager, etc.
+
+### Smoke tests (`npm run test:e2e:smoke`)
+
+Fast extension UI checks (~10s). Catches broken popup/options pages, dead service worker, or missing toolbar popup wiring.
+
+1. Service worker loads; `chrome.action.getPopup` points at `popup/popup.html`; background answers `GET_ANALYSIS_STATUS`
+2. Options page builds nav and form (not stuck loading)
+3. Popup leaves the loading spinner when the active tab is an analyzable page
+4. Popup settings button opens the options page
+
+Playwright cannot click the browser toolbar icon; popup tests open `chrome-extension://…/popup/popup.html` directly and refocus the content tab via CDP.
+
+### E2E tests (`npm run test:e2e`)
+
+Uses [Playwright](https://playwright.dev/docs/chrome-extensions) with Playwright’s bundled Chromium (`channel: 'chromium'`). Requires a prior build (`dist/chrome/`).
+
+1. Runs smoke tests first
+2. Builds the extension and regenerates fixture HTML
+3. Starts a local fixture server on port 8765
+4. Loads the extension, opens each fixture page, waits for the content script and analysis to finish
+5. Asserts analysis status is `completed` and at least one chunk was found
+
+Fixture pages: `duckduckgo.com.hello.html`, `bbc.co.uk-news.1.html`, `google.com.edinburgh - Google Search.html`.
+
+Install browsers once: `npx playwright install chromium`
+
+### Online tests (`npm run test:online`)
+
+Same Playwright + extension setup, but navigates to live URLs (currently BBC News). Longer timeouts (120s). Run when you want a real-site smoke test—not in the default fast CI loop.
+
+### Adding fixture test cases
+
+1. Add `test-data/example.com.chunking.json` (array of expected chunk objects)
+2. Run `node scripts/build-fixture-html.js` to generate `example.com.html`
+3. Add the HTML filename to `e2e/fixtures.spec.ts` if it should run in e2e
+
+Chunk JSON shape:
+
+```json
+[
+  {
+    "url": "https://example.com",
+    "html": "<article>...</article>",
+    "text": "Extracted text content",
+    "images": [],
+    "links": [],
+    "metadata": {}
+  }
+]
 ```
 
-This will:
-1. Find all `.html` files in the `test-data/` directory
-2. For each HTML file, look for a corresponding `.chunking.json` file
-3. Run the chunking algorithm on the HTML
-4. Compare the results against the expected chunks in the JSON file
-5. Report any mismatches
-
-### Test Structure
-
-Test files are located in:
-- `test/chunking.test.js` - Main test file for chunking functionality
-- `test-data/` - Directory containing test HTML files and expected chunk JSON files
-
-### Adding Test Cases
-
-To add a new test case:
-
-1. Place an HTML file in `test-data/` (e.g., `example.com.html`)
-2. Create a corresponding JSON file with the expected chunks (e.g., `example.com.chunking.json`)
-3. The JSON file should contain an array of chunk objects with the following structure:
-   ```json
-   [
-     {
-       "url": "https://example.com",
-       "html": "<div>...</div>",
-       "text": "Extracted text content",
-       "images": [],
-       "links": [],
-       "metadata": {}
-     }
-   ]
-   ```
-
-The test is lenient and will pass if:
-- All expected chunks are found in the actual results (extra chunks are OK)
-- Expected text appears in actual chunks (extra text is OK)
-- Expected metadata is present (extra metadata is OK)
+Unit chunking tests pass when all expected chunks are found (extra chunks OK).
 
 ## Configuration
 

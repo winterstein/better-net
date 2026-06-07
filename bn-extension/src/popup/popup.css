@@ -310,6 +310,13 @@ body {
   color: #666;
 }
 
+.result-item-explanation {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #444;
+}
+
 .error-section {
   padding: 20px;
   text-align: center;
