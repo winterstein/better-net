@@ -38,7 +38,10 @@ deployuser ALL=(ALL) NOPASSWD: /bin/systemctl stop bn-server, /bin/systemctl sta
 deployuser ALL=(ALL) NOPASSWD: /bin/mv, /bin/mkdir, /bin/rmdir, /bin/rm, /bin/chown, /bin/chmod
 ```
 
-Install Node 20 and PostgreSQL on the host. Create the `betternet` database and a DB user matching GitHub secrets.
+Install Node 20 and PostgreSQL on the host. 
+
+Create the `betternet` database and a DB user matching GitHub secrets.
+This should be in Neon 
 
 ### How to Deploy
 
