@@ -12,30 +12,20 @@ Hetzner: Ubuntu. App lives at `/opt/betternet/server`, managed by systemd as `bn
 
 ```bash
 sudo mkdir -p /opt/betternet/server
+# This line attempts to create a system user named 'bn' (with home directory /opt/betternet/server and no login shell)
+# It will not error if the user already exists, due to '|| true'.
+
 sudo useradd --system --home /opt/betternet/server --shell /usr/sbin/nologin bn || true
 ```
 
-Create `/etc/systemd/system/bn-server.service`:
+Also copy a couple of these files to the server
 
-```ini
-[Unit]
-Description=BetterNet API server
-After=network.target postgresql.service
+scp bn-server.service aberdeen:~
 
-[Service]
-Type=simple
-User=bn
-WorkingDirectory=/opt/betternet/server
-EnvironmentFile=/opt/betternet/server/.env
-ExecStart=/usr/bin/node dist/server.js
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
+Then:
 
 ```bash
+sudo cp bn-server.service /etc/systemd/system/bn-server.service
 sudo systemctl daemon-reload
 sudo systemctl enable bn-server
 ```

@@ -1,0 +1,15 @@
+[Unit]
+Description=BetterNet API server
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=bn
+WorkingDirectory=/opt/betternet/server
+EnvironmentFile=/opt/betternet/server/.env
+ExecStart=/usr/bin/node dist/server.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

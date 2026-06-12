@@ -1,0 +1,45 @@
+# Reverse proxy for bn-server (Fastify API) on the Hetzner production host.
+# Copy or symlink into nginx sites-available; enable site; reload nginx.
+# DNS: point server.better-net.com (or api.betternet.org) at the server IP.
+
+server {
+	server_name server.better-net.com localserver.better-net.com;
+
+	listen 80;
+	listen [::]:80;
+	listen 443 ssl http2;
+	listen [::]:443 ssl http2;
+
+	# stop nginx redirecting to http
+	absolute_redirect off;
+	port_in_redirect off;
+
+	# Adjust cert paths after certbot (e.g. certbot certonly -d server.better-net.com)
+	ssl_certificate /etc/letsencrypt/live/better-net.com/fullchain.pem;
+	ssl_certificate_key /etc/letsencrypt/live/better-net.com/privkey.pem;
+	ssl_protocols TLSv1.2 TLSv1.3;
+	ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+	ssl_prefer_server_ciphers off;
+
+	large_client_header_buffers 4 32k;
+
+	add_header X-Frame-Options SAMEORIGIN always;
+
+	location / {
+		proxy_pass http://localhost:3001;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header Host $http_host;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		add_header 'Access-Control-Allow-Origin' "$http_origin";
+		add_header 'Access-Control-Allow-Credentials' 'true';
+		add_header 'Cache-Control' 'no-cache';
+		# Long-running analysis requests (LLM calls)
+		proxy_read_timeout 600s;
+		proxy_connect_timeout 60s;
+		proxy_send_timeout 600s;
+	}
+
+	error_log /var/log/nginx/bn-server.error.log warn;
+	access_log /var/log/nginx/bn-server.access.log;
+}
