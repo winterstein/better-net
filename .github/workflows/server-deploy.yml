@@ -1,0 +1,184 @@
+# Deploy bn-server to production via SSH.
+# Pattern follows aiqa server-deploy: build in CI, SCP artefacts, swap on host, restart systemd.
+name: Deploy Server
+
+on:
+  push:
+    paths:
+      # Monorepo: only deploy when server package (or this workflow) changes
+      - 'bn-server/**'
+      - 'bn-extension/src/**'   # bn-server/src/bn-extension-src symlinks here
+      - '.github/workflows/server-deploy.yml'
+  workflow_dispatch:            # manual re-deploy from GitHub Actions UI
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: prod           # GitHub Environment — holds prod secrets/vars
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || 22 }}
+      # Test DB (job-local Postgres service below; not used for production deploy)
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: betternet
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: betternet
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        # bn-server compiles shared code from bn-extension via src/bn-extension-src symlink
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: bn-server/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./bn-server
+        run: npm ci
+
+      - name: Run tests
+        working-directory: ./bn-server
+        run: npm test
+
+      - name: Build server
+        working-directory: ./bn-server
+        run: npm run build
+
+      - name: Deploy to temporary location
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ env.DEPLOY_HOST }}
+          username: ${{ env.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ env.DEPLOY_PORT }}
+          # Only ship runtime artefacts; node_modules are installed on the host
+          source: "bn-server/dist,bn-server/package.json,bn-server/package-lock.json"
+          target: "/opt/betternet/server.new"
+          strip_components: 1
+
+      - name: Verify deployment and swap files
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ env.DEPLOY_HOST }}
+          username: ${{ env.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ env.DEPLOY_PORT }}
+          script: |
+            # Abort if the build artefact is missing
+            if [ ! -f /opt/betternet/server.new/dist/server.js ]; then
+              echo "ERROR: New deployment missing dist/server.js!"
+              sudo rm -rf /opt/betternet/server.new
+              exit 1
+            fi
+
+            # Stop service before swapping files (minimal downtime)
+            sudo systemctl stop bn-server || true
+
+            # Backup current deployment (one generation, for quick rollback)
+            if [ -d /opt/betternet/server/dist ]; then
+              sudo mv /opt/betternet/server/dist /opt/betternet/server/dist.old || true
+            fi
+            if [ -f /opt/betternet/server/package.json ]; then
+              sudo mv /opt/betternet/server/package.json /opt/betternet/server/package.json.old || true
+            fi
+            if [ -f /opt/betternet/server/package-lock.json ]; then
+              sudo mv /opt/betternet/server/package-lock.json /opt/betternet/server/package-lock.json.old || true
+            fi
+
+            # Move new files into place
+            sudo mv /opt/betternet/server.new/dist /opt/betternet/server/dist
+            sudo mv /opt/betternet/server.new/package.json /opt/betternet/server/package.json
+            sudo mv /opt/betternet/server.new/package-lock.json /opt/betternet/server/package-lock.json
+
+            sudo rmdir /opt/betternet/server.new || sudo rm -rf /opt/betternet/server.new
+
+            # Drop older backup generation
+            sudo rm -rf /opt/betternet/server/dist.old.old || true
+            if [ -d /opt/betternet/server/dist.old ]; then
+              sudo mv /opt/betternet/server/dist.old /opt/betternet/server/dist.old.old || true
+            fi
+            sudo rm -f /opt/betternet/server/package.json.old /opt/betternet/server/package-lock.json.old || true
+
+      - name: Install dependencies and configure server
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          SERVER_PORT: ${{ vars.SERVER_PORT || '3001' }}
+          SERVER_HOST: ${{ vars.SERVER_HOST || '0.0.0.0' }}
+          DB_HOST: ${{ vars.DB_HOST }}
+          DB_PORT: ${{ vars.DB_PORT || '5432' }}
+          DB_NAME: ${{ vars.DB_NAME || 'betternet' }}
+          DB_USERNAME: ${{ vars.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          BN_AIQA_ENDPOINT: ${{ vars.BN_AIQA_ENDPOINT }}
+          BN_OPENAI_API_KEY: ${{ secrets.BN_OPENAI_API_KEY }}
+          BN_ANTHROPIC_API_KEY: ${{ secrets.BN_ANTHROPIC_API_KEY }}
+          BN_GOOGLE_API_KEY: ${{ secrets.BN_GOOGLE_API_KEY }}
+          RUN_AS_USER: ${{ vars.RUN_AS_USER || vars.DEPLOY_USER }}
+        with:
+          host: ${{ env.DEPLOY_HOST }}
+          username: ${{ env.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ env.DEPLOY_PORT }}
+          envs: SERVER_PORT,SERVER_HOST,DB_HOST,DB_PORT,DB_NAME,DB_USERNAME,DB_PASSWORD,BN_AIQA_ENDPOINT,BN_OPENAI_API_KEY,BN_ANTHROPIC_API_KEY,BN_GOOGLE_API_KEY,RUN_AS_USER
+          script: |
+            cd /opt/betternet/server
+
+            # Deployment user needs write access for npm ci; service runs as RUN_AS_USER
+            sudo chown -R $USER:$USER /opt/betternet/server || true
+
+            echo "Installing production dependencies..."
+            npm ci --omit=dev
+
+            if [ ! -d node_modules/fastify ]; then
+              echo "ERROR: fastify module not found after installation!"
+              exit 1
+            fi
+
+            # Write .env (see bn-server/env.example and src/db.ts)
+            {
+              echo "ENVIRONMENT=production"
+              echo "PORT=${SERVER_PORT:-3001}"
+              echo "HOST=${SERVER_HOST:-0.0.0.0}"
+              echo "DB_HOST=${DB_HOST}"
+              echo "DB_PORT=${DB_PORT:-5432}"
+              echo "DB_NAME=${DB_NAME:-betternet}"
+              echo "DB_USERNAME=${DB_USERNAME}"
+              echo "DB_PASSWORD=${DB_PASSWORD}"
+              [ -n "${BN_AIQA_ENDPOINT}" ] && echo "BN_AIQA_ENDPOINT=${BN_AIQA_ENDPOINT}"
+              [ -n "${BN_OPENAI_API_KEY}" ] && echo "BN_OPENAI_API_KEY=${BN_OPENAI_API_KEY}"
+              [ -n "${BN_ANTHROPIC_API_KEY}" ] && echo "BN_ANTHROPIC_API_KEY=${BN_ANTHROPIC_API_KEY}"
+              [ -n "${BN_GOOGLE_API_KEY}" ] && echo "BN_GOOGLE_API_KEY=${BN_GOOGLE_API_KEY}"
+            } > .env
+
+            sudo chown -R ${RUN_AS_USER}:${RUN_AS_USER} /opt/betternet/server
+            sudo chmod 600 .env
+
+            if [ ! -f dist/server.js ]; then
+              echo "ERROR: dist/server.js not found!"
+              exit 1
+            fi
+
+            sudo systemctl daemon-reload
+            sudo systemctl restart bn-server
+            sleep 2
+            sudo systemctl status bn-server --no-pager -l

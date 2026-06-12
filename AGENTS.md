@@ -71,3 +71,9 @@ npm install && npm run dev
 2. Check that package’s `status.md` (create if missing).
 3. Use npm test regularly to check for issues.
 4. After meaningful work, refresh `status.md` (done / blocked / next).
+
+## Writing Style
+
+Keep it short.
+Prefer lists to tables.
+Avoid **bold**.
