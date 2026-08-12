@@ -14,8 +14,9 @@ import { AspectType } from '../src/types/AspectAnalysis.js';
 assert.equal(moduleToAspect('factChecker'), AspectType.ACCURACY);
 assert.equal(moduleToAspect('biasDetector'), AspectType.BIAS);
 assert.equal(moduleToAspect('defuseRagebait'), AspectType.TOXICITY);
+assert.equal(moduleToAspect('clickUnbait'), AspectType.CLICKBAIT);
 assert.equal(moduleToAspect('unknown'), undefined);
-assert.ok(Object.keys(MODULE_ASPECT_MAP).length >= 4);
+assert.ok(Object.keys(MODULE_ASPECT_MAP).length >= 5);
 
 assert.equal(isFeedbackEnabled({ shareAnonymous: false, serverEndpoint: 'http://x' }), false);
 assert.equal(isFeedbackEnabled({ shareAnonymous: true, serverEndpoint: '' }), false);

@@ -65,7 +65,7 @@
 
   const DEFAULTS = {
     analysisMode: 'local',
-    localModelId: 'mobilebert-mnli',
+    localModelId: 'flan-t5-small',
     autoAnalyze: true,
     showIndicators: true,
     BN_OPENAI_API_KEY: '',

@@ -4,12 +4,17 @@
  */
 
 import { runFeatureAnalysis } from '../../ai/run-feature-analysis.js';
+import {
+	isZeroShotPayload,
+	problemScoreFromZeroShotPayload,
+} from '../zero-shot-score.js';
 
 const PROMPT_ID = 'defuse-ragebait';
 
+// Phrasing calibrated for MNLI zero-shot (avoids false-positives on normal news).
 const ZERO_SHOT_LABELS = [
-  'toxic hateful or harassing content',
-  'respectful appropriate content',
+  'This text is toxic hate speech',
+  'This text is respectful',
 ];
 
 export async function analyzeChunk(chunk, pageMetadata: any = {}, options: any = {}) {
@@ -111,7 +116,7 @@ function analyzeWithHeuristics(context) {
     confidence: 0.6,
     flags,
     categories,
-    explanation: generateExplanation(score, flags, categories)
+    explanation: generateExplanation(score, flags, categories),
   };
 }
 
@@ -129,6 +134,18 @@ function parseAIResponse(responseText) {
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
+      if (isZeroShotPayload(parsed)) {
+        const problemScore = problemScoreFromZeroShotPayload(parsed);
+        const flags = problemScore > 0.45 ? ['local_zero_shot'] : [];
+        const categories = {};
+        return {
+          problemScore,
+          confidence: Math.max(0.5, Math.min(0.95, parsed.scores?.[0] ?? 0.7)),
+          flags,
+          categories,
+          explanation: generateExplanation(problemScore, flags, categories),
+        };
+      }
       return {
         problemScore: Math.max(0, Math.min(1, parsed.problemScore ?? parsed.score ?? 0)),
         confidence: Math.max(0, Math.min(1, parsed.confidence || 0.7)),
@@ -157,7 +174,7 @@ function generateExplanation(score, flags, categories) {
   const activeCategories = Object.entries(categories)
     .filter(([_, value]) => (value as number) > 0)
     .map(([key, _]) => key.replace('_', ' '));
-  
+
   if (score < 0.2) {
     return 'Content appears non-toxic and appropriate.';
   } else if (score < 0.5) {

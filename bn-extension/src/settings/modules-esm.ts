@@ -28,6 +28,7 @@ export function defaultModuleState() {
   );
 }
 
+// TODO wtf is this code? it smells bogus
 export function mergeSettings(stored: any = {}) {
   const modules = { ...defaultModuleState(), ...(stored.modules || {}) };
   for (const m of MODULES) {
@@ -35,7 +36,7 @@ export function mergeSettings(stored: any = {}) {
   }
   return {
     analysisMode: 'local',
-    localModelId: 'mobilebert-mnli',
+    localModelId: 'flan-t5-small',
     excludedSites: [],
     domainOverrides: {},
     ...stored,

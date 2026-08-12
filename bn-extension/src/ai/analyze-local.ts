@@ -1,5 +1,5 @@
 /**
- * Shared local-model analysis for bias-detector, anti-manipulation, and defuse-ragebait.
+ * Shared local-model runner. Does not invent scores/explanations — analyzers parse those.
  */
 
 import { getLocalModel } from './model-catalog.js';
@@ -17,9 +17,10 @@ function truncate(text: string) {
 export interface AnalyzeWithLocalLLMParams {
 	modelId?: string;
 	systemPrompt?: string;
-	context: Record<string, unknown> & { text?: string };
+	context: Record<string, unknown> & { text?: string; title?: string };
 	candidateLabels?: string[];
 	multiLabel?: boolean;
+	/** Analyzer: turn model text (or zero-shot JSON) into problemScore + explanation */
 	parseResponse: (text: string) => Record<string, unknown>;
 	fallback: () => Record<string, unknown>;
 	localBackend?: LocalModelBackend | null;
@@ -63,21 +64,13 @@ export async function analyzeWithLocalLLM(params: AnalyzeWithLocalLLMParams) {
 			if (result?.error) throw new Error(result.error);
 			if (!result?.labels?.length) throw new Error('Empty zero-shot result');
 
-			const primaryIdx = 0;
-			const riskLabel = candidateLabels[0];
-			const riskIdx = result.labels.indexOf(riskLabel);
-			const score =
-				riskIdx >= 0 ? (result.scores?.[riskIdx] ?? 0) : (result.scores?.[primaryIdx] ?? 0);
-
 			const parsed = parseResponse(
 				JSON.stringify({
-					problemScore: Math.max(0, Math.min(1, score)),
-					confidence: Math.max(0.5, Math.min(0.95, result.scores?.[primaryIdx] ?? 0.7)),
-					flags: score > 0.45 ? [`local_${model.id}`] : [],
-					explanation: buildZeroShotExplanation(model, result as { labels: string[]; scores?: number[] }, candidateLabels, score),
+					labels: result.labels,
+					scores: result.scores,
+					candidateLabels,
 				})
 			);
-			parsed.explanation = parsed.explanation || buildZeroShotExplanation(model, result as { labels: string[]; scores?: number[] }, candidateLabels, score);
 			parsed.metadata = { ...(parsed.metadata as object || {}), localModel: model.id, method: 'zero-shot' };
 			return parsed;
 		}
@@ -95,8 +88,8 @@ export async function analyzeWithLocalLLM(params: AnalyzeWithLocalLLMParams) {
 		if (!text) throw new Error('Empty generation');
 
 		const parsed = parseResponse(text);
-		const explanationText = typeof parsed.explanation === 'string' ? parsed.explanation : '';
-		if (!explanationText.trim()) {
+		const explanationText = typeof parsed.explanation === 'string' ? parsed.explanation.trim() : '';
+		if (!explanationText) {
 			parsed.explanation = summarizeGeneratedResponse(text, parsed.problemScore ?? parsed.score);
 		}
 		parsed.metadata = { ...(parsed.metadata as object || {}), localModel: model.id, method: 'generate' };
@@ -108,28 +101,6 @@ export async function analyzeWithLocalLLM(params: AnalyzeWithLocalLLMParams) {
 		fb.metadata = { ...(fb.metadata as object || {}), localModelError: message };
 		return fb;
 	}
-}
-
-function buildZeroShotExplanation(
-	model: { name: string },
-	result: { labels: string[]; scores?: number[] },
-	candidateLabels: string[],
-	riskScore: number
-) {
-	const riskLabel = candidateLabels[0];
-	const safeLabel = candidateLabels[1] ?? candidateLabels[candidateLabels.length - 1];
-	const riskIdx = result.labels.indexOf(riskLabel);
-	const riskConfidence = riskIdx >= 0 ? (result.scores?.[riskIdx] ?? 0) : 0;
-	const riskPct = (riskConfidence * 100).toFixed(0);
-
-	if (riskIdx >= 0 && riskScore > 0.45) {
-		return `${model.name} flagged this as "${riskLabel}" (${riskPct}% confidence). The content may warrant a closer read.`;
-	}
-
-	const safeIdx = result.labels.indexOf(safeLabel);
-	const safeConfidence = safeIdx >= 0 ? (result.scores?.[safeIdx] ?? 0) : (result.scores?.[0] ?? 0);
-	const safePct = (safeConfidence * 100).toFixed(0);
-	return `${model.name} classified this as "${safeLabel}" (${safePct}% confidence). No strong concern signals were detected.`;
 }
 
 function summarizeGeneratedResponse(text: string, score: unknown) {

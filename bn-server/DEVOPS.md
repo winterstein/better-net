@@ -87,4 +87,4 @@ npm run build && npm start
 
 Health check: `curl http://localhost:3001/health`
 
-Tests: `npm test` (requires local Postgres; see `env.example`).
+Tests: `npm test` (requires local Postgres; copy `.env.test` is committed — override there if your local user/password differ).

@@ -21,6 +21,7 @@ import {
   getTrafficLight,
   showContentAnalysisModal,
 } from './content-analysis-modal.js';
+import { applyClickUnbaitFromAnalysis } from './apply-click-unbait.js';
 
 class PageAnalyzer {
   [key: string]: any;
@@ -482,6 +483,7 @@ class PageAnalyzer {
     }
 
     console.log('[BetterNet] [CONTENT] Element found, adding badge. Score:', combinedResults.summary?.problemScore);
+    applyClickUnbaitFromAnalysis(element, combinedResults);
     this.addBadgeToChunk(element, combinedResults, xpath);
   }
 

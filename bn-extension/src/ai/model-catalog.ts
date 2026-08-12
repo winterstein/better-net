@@ -6,11 +6,10 @@ export const LOCAL_MODELS = [
   {
     id: 'mobilebert-mnli',
     name: 'MobileBERT (zero-shot)',
-    description: 'Fast classification for bias, scams, and toxicity. Recommended default.',
+    description: 'Fast classification for bias, scams, and toxicity.',
     pipeline: 'zero-shot-classification',
     huggingFaceId: 'Xenova/mobilebert-uncased-mnli',
     sizeBytes: 25_000_000,
-    default: true,
   },
   {
     id: 'distilbert-mnli',
@@ -23,10 +22,11 @@ export const LOCAL_MODELS = [
   {
     id: 'flan-t5-small',
     name: 'FLAN-T5 Small',
-    description: 'Generates detailed JSON explanations. Slower and uses more memory.',
+    description: 'Generates quoted explanations. Recommended default.',
     pipeline: 'text2text-generation',
     huggingFaceId: 'Xenova/flan-t5-small',
     sizeBytes: 80_000_000,
+    default: true,
   },
   {
     id: 'flan-t5-base',

@@ -55,18 +55,18 @@ class SettingsController {
   }
 
   setupEventListeners() {
-    document.getElementById('save-btn').addEventListener('click', () => this.saveSettings());
-    document.getElementById('reset-btn').addEventListener('click', () => this.resetSettings());
-    document.getElementById('add-excluded-site-btn').addEventListener('click', () =>
+    document.getElementById('save-btn')?.addEventListener('click', () => this.saveSettings());
+    document.getElementById('reset-btn')?.addEventListener('click', () => this.resetSettings());
+    document.getElementById('add-excluded-site-btn')?.addEventListener('click', () =>
       this.addExcludedSite()
     );
-    document.getElementById('new-excluded-site').addEventListener('keypress', (e) => {
+    document.getElementById('new-excluded-site')?.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') this.addExcludedSite();
     });
-    document.getElementById('add-offlist-domain-btn').addEventListener('click', () =>
+    document.getElementById('add-offlist-domain-btn')?.addEventListener('click', () =>
       this.addOffListDomain()
     );
-    document.getElementById('new-offlist-domain').addEventListener('keypress', (e) => {
+    document.getElementById('new-offlist-domain')?.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') this.addOffListDomain();
     });
 
@@ -130,22 +130,79 @@ class SettingsController {
 
   ensureLocalModelsUI() {
     if (!this.localModelsUiReady) {
-      document.getElementById('analysis-mode').addEventListener('change', () => {
+      document.getElementById('analysis-mode')?.addEventListener('change', () => {
         this.updateLocalModelsVisibility();
+      });
+      document.getElementById('local-memory-clear')?.addEventListener('click', () => {
+        void this.clearLocalModelMemory();
       });
       this.localModelsUiReady = true;
     }
     this.updateLocalModelsVisibility();
-    this.refreshLocalModelStatus();
+    void this.refreshLocalModelStatus().catch((err) => {
+      console.warn('[BetterNet] Local model status refresh failed:', err);
+    });
   }
 
   updateLocalModelsVisibility() {
-    const isLocal = document.getElementById('analysis-mode').value === 'local';
-    document.getElementById('local-model-active-row').classList.toggle('hidden', !isLocal);
+    const isLocal = document.getElementById('analysis-mode')?.value === 'local';
+    document.getElementById('local-model-active-row')?.classList.toggle('hidden', !isLocal);
   }
 
   isModelDownloaded(state) {
     return state?.status === 'ready';
+  }
+
+  formatMemoryStats(stats) {
+    if (!stats || stats.error) {
+      return stats?.error || 'Memory stats unavailable';
+    }
+    const loaded = (stats.loadedModelIds || [])
+      .map((id) => LOCAL_MODELS.find((m) => m.id === id)?.name || id)
+      .join(', ');
+    const heap =
+      stats.jsHeapUsedBytes != null && stats.jsHeapLimitBytes != null
+        ? `JS heap ${formatBytes(stats.jsHeapUsedBytes)} used / ${formatBytes(stats.jsHeapLimitBytes)} limit`
+        : 'JS heap size not reported by this browser';
+    return `${heap}. In memory: ${loaded || 'none'}.`;
+  }
+
+  async refreshLocalMemoryStats() {
+    const el = document.getElementById('local-memory-stats');
+    if (!el) return;
+    try {
+      const res = await sendExtensionMessage({
+        type: 'BN_LOCAL_MODEL',
+        action: 'memory',
+      });
+      if (res?.error) throw new Error(res.error);
+      el.textContent = this.formatMemoryStats(res);
+    } catch (err) {
+      el.textContent = 'Memory stats unavailable' + (err?.message ? `: ${err.message}` : '');
+    }
+  }
+
+  async clearLocalModelMemory() {
+    if (
+      !confirm(
+        'Clear runtime memory? Downloaded models stay on disk; the next analysis will reload the active model.'
+      )
+    ) {
+      return;
+    }
+    try {
+      const res = await sendExtensionMessage({
+        type: 'BN_LOCAL_MODEL',
+        action: 'clearMemory',
+      });
+      if (res?.error) throw new Error(res.error);
+      const el = document.getElementById('local-memory-stats');
+      if (el && res?.memory) el.textContent = this.formatMemoryStats(res.memory);
+      else await this.refreshLocalMemoryStats();
+      this.showStatus('Runtime memory cleared', 'success');
+    } catch (err) {
+      this.showStatus('Clear memory failed: ' + (err?.message || err), 'error');
+    }
   }
 
   async refreshLocalModelStatus() {
@@ -157,6 +214,7 @@ class SettingsController {
       if (res?.models) {
         this.localModelsState = res.models;
         this.renderLocalModelsList(res.models);
+        void this.refreshLocalMemoryStats();
         return;
       }
     } catch {
@@ -165,6 +223,7 @@ class SettingsController {
     const { localModels = {} } = await chrome.storage.local.get({ localModels: {} });
     this.localModelsState = localModels;
     this.renderLocalModelsList(localModels);
+    void this.refreshLocalMemoryStats();
   }
 
   syncLocalModelSelect(stateMap = this.localModelsState) {
@@ -179,7 +238,7 @@ class SettingsController {
       opt.textContent = `${model.name} (${tag}, ~${formatBytes(model.sizeBytes)})`;
       select.appendChild(opt);
     }
-    const preferred = this.settings.localModelId || 'mobilebert-mnli';
+    const preferred = this.settings.localModelId || 'flan-t5-small';
     select.value = [...select.options].some((o) => o.value === prev)
       ? prev
       : [...select.options].some((o) => o.value === preferred)
@@ -199,26 +258,71 @@ class SettingsController {
     }
   }
 
+  busyStatusText(state) {
+    const progressPct = Math.min(100, Math.max(0, state.progress ?? 0));
+    if (state.status === 'loading') return 'Loading model…';
+    return `Downloading… ${progressPct}%`;
+  }
+
+  /** Update progress bars in place when only %/busy text changed — avoids list flicker. */
+  updateLocalModelProgressInPlace(stateMap = {}) {
+    const container = document.getElementById('local-models-list');
+    if (!container?.children.length) return false;
+
+    for (const model of LOCAL_MODELS) {
+      const state = stateMap[model.id] || { status: 'not_installed' };
+      const card = container.querySelector(`[data-model-id="${CSS.escape(model.id)}"]`);
+      if (!(card instanceof HTMLElement)) return false;
+
+      const prevStatus = card.dataset.status || 'not_installed';
+      const nextStatus = state.status || 'not_installed';
+      const wasBusy = prevStatus === 'downloading' || prevStatus === 'loading';
+      const isBusy = nextStatus === 'downloading' || nextStatus === 'loading';
+
+      if (wasBusy && isBusy) {
+        const progressPct = Math.min(100, Math.max(0, state.progress ?? 0));
+        const statusEl = card.querySelector('.local-model-status');
+        const bar = card.querySelector('.local-model-progress-bar');
+        const progress = card.querySelector('.local-model-progress');
+        if (statusEl) statusEl.textContent = this.busyStatusText(state);
+        if (bar instanceof HTMLElement) bar.style.width = `${progressPct}%`;
+        if (progress instanceof HTMLElement) {
+          progress.setAttribute('aria-valuenow', String(progressPct));
+        }
+        card.dataset.status = nextStatus;
+        continue;
+      }
+
+      if (prevStatus !== nextStatus) return false;
+    }
+    return true;
+  }
+
   renderLocalModelsList(stateMap = {}) {
     if (!this.settings) return;
     const container = document.getElementById('local-models-list');
     console.log(LOG, 'renderLocalModelsList', stateMap);
-    container.innerHTML = '';
     this.syncLocalModelSelect(stateMap);
     this.updateLocalModelPoll(stateMap);
+
+    if (this.updateLocalModelProgressInPlace(stateMap)) return;
+
+    container.innerHTML = '';
 
     for (const model of LOCAL_MODELS) {
       const state = stateMap[model.id] || { status: 'not_installed' };
       const downloaded = this.isModelDownloaded(state);
       const card = document.createElement('div');
       card.className = 'local-model-card' + (downloaded ? ' local-model-card--downloaded' : '');
+      card.dataset.modelId = model.id;
+      card.dataset.status = state.status || 'not_installed';
 
       const isBusy = state.status === 'downloading' || state.status === 'loading';
       const progressPct = Math.min(100, Math.max(0, state.progress ?? 0));
       let statusText = 'Not downloaded';
       let statusClass = 'local-model-status';
       if (isBusy) {
-        statusText = `Downloading… ${progressPct}%`;
+        statusText = this.busyStatusText(state);
         statusClass += ' local-model-status--busy';
       } else if (downloaded) {
         statusText = 'Downloaded — ready to use';
@@ -231,7 +335,9 @@ class SettingsController {
       }
 
       const canDownload = !['ready', 'loading', 'downloading'].includes(state.status);
-      const canRemove = downloaded;
+      // Ready or failed: allow remove (error may leave cached files / bad state).
+      const canRemove =
+        !isBusy && (downloaded || state.status === 'error');
 
       const badge = downloaded
         ? '<span class="local-model-badge local-model-badge--downloaded">Downloaded</span>'
@@ -273,7 +379,7 @@ class SettingsController {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'btn btn-small btn-secondary';
-        btn.textContent = 'Delete download';
+        btn.textContent = 'Remove';
         btn.addEventListener('click', () => this.removeLocalModel(model.id));
         actions.appendChild(btn);
       }
@@ -334,6 +440,7 @@ class SettingsController {
 
   buildNav() {
     const list = document.getElementById('nav-list');
+    if (!list) return;
     list.innerHTML = '';
     for (const page of this.navPages) {
       const li = document.createElement('li');
@@ -351,7 +458,11 @@ class SettingsController {
   showPage(pageId, updateHash = true) {
     this.currentPage = pageId;
     if (updateHash) location.hash = pageId;
-    if (pageId === 'ai-model') this.refreshLocalModelStatus();
+    if (pageId === 'ai-model') {
+      void this.refreshLocalModelStatus().catch((err) => {
+        console.warn('[BetterNet] Local model status refresh failed:', err);
+      });
+    }
 
     document.querySelectorAll('.page').forEach((el) => {
       el.classList.toggle('hidden', el.dataset.page !== pageId);
@@ -359,18 +470,20 @@ class SettingsController {
     document.querySelectorAll('.nav-link').forEach((el) => {
       el.classList.toggle('active', el.dataset.page === pageId);
     });
-    document.getElementById('settings-nav').classList.remove('nav-open');
-    document.getElementById('nav-toggle').setAttribute('aria-expanded', 'false');
+    document.getElementById('settings-nav')?.classList.remove('nav-open');
+    document.getElementById('nav-toggle')?.setAttribute('aria-expanded', 'false');
   }
 
   toggleNav() {
     const nav = document.getElementById('settings-nav');
+    if (!nav) return;
     const open = nav.classList.toggle('nav-open');
-    document.getElementById('nav-toggle').setAttribute('aria-expanded', String(open));
+    document.getElementById('nav-toggle')?.setAttribute('aria-expanded', String(open));
   }
 
   buildModulesList() {
     const container = document.getElementById('modules-list');
+    if (!container) return;
     container.innerHTML = '';
 
     for (const mod of this.modules) {
@@ -412,19 +525,33 @@ class SettingsController {
 
   applySettingsToForm() {
     const s = this.settings;
-    document.getElementById('analysis-mode').value = s.analysisMode;
-    document.getElementById('local-model-id').value = s.localModelId || 'mobilebert-mnli';
+    const analysisMode = document.getElementById('analysis-mode') as HTMLSelectElement | null;
+    if (!analysisMode) return;
+
+    analysisMode.value = s.analysisMode;
+    const localModelId = document.getElementById('local-model-id') as HTMLSelectElement | null;
+    if (localModelId) localModelId.value = s.localModelId || 'flan-t5-small';
     this.updateLocalModelsVisibility();
-    document.getElementById('auto-analyze').checked = s.autoAnalyze;
-    document.getElementById('show-indicators').checked = s.showIndicators;
-    document.getElementById('openai-key').value = s.BN_OPENAI_API_KEY || '';
-    document.getElementById('anthropic-key').value = s.BN_ANTHROPIC_API_KEY || '';
-    document.getElementById('google-factcheck-key').value = s.BN_GOOGLE_API_KEY || '';
-    document.getElementById('share-anonymous').checked = !!s.shareAnonymous;
-    document.getElementById('share-usage-stats').checked = !!s.shareUsageStats;
-    document.getElementById('share-factcheck-cache').checked = !!s.shareFactCheckCache;
-    document.getElementById('account-email').value = s.accountEmail || '';
-    document.getElementById('server-endpoint').value = s.serverEndpoint || '';
+
+    const setChecked = (id: string, checked: boolean) => {
+      const el = document.getElementById(id) as HTMLInputElement | null;
+      if (el) el.checked = checked;
+    };
+    const setValue = (id: string, value: string) => {
+      const el = document.getElementById(id) as HTMLInputElement | null;
+      if (el) el.value = value;
+    };
+
+    setChecked('auto-analyze', s.autoAnalyze);
+    setChecked('show-indicators', s.showIndicators);
+    setValue('openai-key', s.BN_OPENAI_API_KEY || '');
+    setValue('anthropic-key', s.BN_ANTHROPIC_API_KEY || '');
+    setValue('google-factcheck-key', s.BN_GOOGLE_API_KEY || '');
+    setChecked('share-anonymous', !!s.shareAnonymous);
+    setChecked('share-usage-stats', !!s.shareUsageStats);
+    setChecked('share-factcheck-cache', !!s.shareFactCheckCache);
+    setValue('account-email', s.accountEmail || '');
+    setValue('server-endpoint', s.serverEndpoint || '');
   }
 
   readFormIntoSettings() {

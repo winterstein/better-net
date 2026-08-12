@@ -4,12 +4,17 @@
  */
 
 import { runFeatureAnalysis } from '../../ai/run-feature-analysis.js';
+import {
+	isZeroShotPayload,
+	problemScoreFromZeroShotPayload,
+} from '../zero-shot-score.js';
 
 const PROMPT_ID = 'bias-detector';
 
+// Phrasing calibrated for MNLI zero-shot (raw "biased vs balanced" false-positives on news).
 const ZERO_SHOT_LABELS = [
-  'biased political or ideological slant',
-  'balanced objective content',
+  'This text is politically biased',
+  'This text is objective',
 ];
 
 export async function analyzeChunk(chunk, pageMetadata: any = {}, options: any = {}) {
@@ -33,6 +38,7 @@ export async function analyzeChunk(chunk, pageMetadata: any = {}, options: any =
   });
 }
 
+// Fallback if no LLM is available
 function analyzeWithHeuristics(context) {
   const text = context.text.toLowerCase();
   let score = 0;
@@ -83,7 +89,7 @@ function analyzeWithHeuristics(context) {
     confidence: 0.6,
     flags,
     metadata: { biasDirection: direction },
-    explanation: generateExplanation(score, flags, biasDirection)
+    explanation: generateExplanation(score, flags, biasDirection),
   };
 }
 
@@ -102,6 +108,18 @@ function parseAIResponse(responseText) {
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
+      if (isZeroShotPayload(parsed)) {
+        const problemScore = problemScoreFromZeroShotPayload(parsed);
+        const flags = problemScore > 0.45 ? ['local_zero_shot'] : [];
+        const biasDirection = { left: 0, right: 0, neutral: 1 };
+        return {
+          problemScore,
+          confidence: Math.max(0.5, Math.min(0.95, parsed.scores?.[0] ?? 0.7)),
+          flags,
+          metadata: { biasDirection: 'neutral' },
+          explanation: generateExplanation(problemScore, flags, biasDirection),
+        };
+      }
       return {
         problemScore: Math.max(0, Math.min(1, parsed.problemScore ?? parsed.score ?? 0)),
         confidence: Math.max(0, Math.min(1, parsed.confidence || 0.7)),
@@ -129,7 +147,7 @@ function parseAIResponse(responseText) {
 function generateExplanation(score, flags, biasDirection) {
   const direction = biasDirection.left > biasDirection.right ? 'left-leaning' :
                     biasDirection.right > biasDirection.left ? 'right-leaning' : 'neutral';
-  
+
   if (score < 0.2) {
     return `Content appears balanced and objective.`;
   } else if (score < 0.5) {

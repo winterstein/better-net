@@ -14,4 +14,4 @@ Respond with a JSON object containing:
 - confidence: float between 0 and 1
 - flags: array of specific toxicity indicators
 - categories: object with categories like profanity, hate_speech, harassment, threats
-- explanation: brief explanation of findings
+- explanation: one or two sentences that quote specific words or phrases from the content and say why they matter (e.g. "Uses emotionally charged words like 'crazed thug' which exaggerate the story."). Do not mention models, scores, or confidence.

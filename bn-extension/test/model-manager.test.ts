@@ -24,6 +24,14 @@ const chrome = installChromeMock({
     REMOVE(msg) {
       return { removed: true, modelId: msg.modelId };
     },
+    GET_MEMORY() {
+      return {
+        jsHeapUsedBytes: 50_000_000,
+        jsHeapTotalBytes: 60_000_000,
+        jsHeapLimitBytes: 2_000_000_000,
+        loadedModelIds: ['mobilebert-mnli'],
+      };
+    },
   },
 });
 
@@ -52,20 +60,25 @@ const downloadRes = await dispatchRuntimeMessage(chrome, {
 });
 assert(downloadRes?.started === true, 'download should return offscreen DOWNLOAD response');
 
-// download surfaces offscreen errors
+// download surfaces offscreen errors (after restartOffscreen recreates the doc)
 await chrome.offscreen.closeDocument();
 const errorPort = createOffscreenPort({
   DOWNLOAD() {
     return { error: 'disk full' };
   },
 });
-chrome._test.setOffscreenDocumentExists(true);
-chrome._test.connectPort(errorPort);
+const origCreateForErr = chrome.offscreen.createDocument.bind(chrome.offscreen);
+chrome.offscreen.createDocument = async (...args) => {
+  const result = await origCreateForErr(...args);
+  chrome._test.connectPort(errorPort);
+  return result;
+};
 const downloadErr = await dispatchRuntimeMessage(chrome, {
   type: 'BN_LOCAL_MODEL',
   action: 'download',
   modelId: 'mobilebert-mnli',
 });
+chrome.offscreen.createDocument = origCreateForErr;
 assert(downloadErr?.error === 'disk full', `download error should propagate, got: ${JSON.stringify(downloadErr)}`);
 
 // remove delegates to offscreen
@@ -76,6 +89,25 @@ const removeRes = await dispatchRuntimeMessage(chrome, {
   modelId: 'mobilebert-mnli',
 });
 assert(removeRes?.removed === true, 'remove should return offscreen REMOVE response');
+
+// memory reads offscreen heap stats
+const memoryRes = await dispatchRuntimeMessage(chrome, {
+  type: 'BN_LOCAL_MODEL',
+  action: 'memory',
+});
+assert(memoryRes?.jsHeapUsedBytes === 50_000_000, 'memory should return heap stats');
+assert(
+  memoryRes?.loadedModelIds?.includes('mobilebert-mnli'),
+  'memory should list loaded models'
+);
+
+// clearMemory restarts offscreen then returns fresh stats
+const clearRes = await dispatchRuntimeMessage(chrome, {
+  type: 'BN_LOCAL_MODEL',
+  action: 'clearMemory',
+});
+assert(clearRes?.ok === true, 'clearMemory should return ok');
+assert(clearRes?.memory?.jsHeapLimitBytes === 2_000_000_000, 'clearMemory should include memory');
 
 // unknown action
 const unknownRes = await dispatchRuntimeMessage(chrome, {

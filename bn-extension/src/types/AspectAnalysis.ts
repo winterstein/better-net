@@ -57,6 +57,7 @@ export const MODULE_ASPECT_TYPE: Record<string, AspectType> = {
 	biasDetector: AspectType.BIAS,
 	antiManipulation: AspectType.SCAMS,
 	defuseRagebait: AspectType.TOXICITY,
+	clickUnbait: AspectType.CLICKBAIT,
 };
 
 export function aspectTypeForModule(moduleId: string): AspectType {

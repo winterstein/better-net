@@ -132,7 +132,9 @@ class AnalysisManager {
         break;
 
       case 'GET_ANALYSIS_STATUS':
-        sendResponse({ status: this.getAnalysisStatus(tabId) });
+        sendResponse({
+          status: this.getAnalysisStatus(message.tabId ?? tabId),
+        });
         break;
 
       case 'GET_AD_BLOCK_STATUS':
@@ -381,7 +383,7 @@ class AnalysisManager {
             openaiKey: openaiKey,
             anthropicKey: anthropicKey,
             googleFactCheckKey: googleFactCheckKey,
-            localModelId: settings.localModelId || 'mobilebert-mnli',
+            localModelId: settings.localModelId || 'flan-t5-small',
           },
           maxConcurrency: 5,
           enabledFeatures,
@@ -497,6 +499,7 @@ class AnalysisManager {
       biasDetector: 'Detecting bias',
       antiManipulation: 'Anti-manipulation scan',
       defuseRagebait: 'Defusing ragebait',
+      clickUnbait: 'Unravelling clickbait',
     };
     return names[stage] || stage;
   }

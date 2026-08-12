@@ -6,6 +6,7 @@ export const MODULE_ASPECT_MAP: Record<string, AspectType> = {
 	biasDetector: AspectType.BIAS,
 	antiManipulation: AspectType.BIAS,
 	defuseRagebait: AspectType.TOXICITY,
+	clickUnbait: AspectType.CLICKBAIT,
 };
 
 export function moduleToAspect(moduleId: string): AspectType | undefined {

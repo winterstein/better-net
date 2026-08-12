@@ -6,7 +6,7 @@ LLM calls use external APIs (OpenAI, Anthropic) or **local models** per user set
 
 - Small ONNX models via [Transformers.js](https://huggingface.co/docs/transformers.js) in an **offscreen document** (keeps the service worker light).
 - User downloads from **Settings → AI Model → Local models**; weights cache in the browser (IndexedDB + Cache API).
-- Catalog: `src/ai/model-catalog.js` (default: MobileBERT zero-shot; optional: DistilBERT zero-shot, FLAN-T5 Small/Base, Gemma 3 270M for generative analysis).
+- Catalog: `src/ai/model-catalog.js` (default: FLAN-T5 Small for generative explanations; optional: MobileBERT/DistilBERT zero-shot, FLAN-T5 Base, Gemma 3 270M).
 - Inference: `src/offscreen/offscreen.js`; background client: `src/ai/local-inference-client.js`.
 - WASM runtime bundled under `wasm/` (no CDN) for MV3 compliance. Offscreen sets explicit `wasmPaths`, `proxy: false`, `numThreads: 1` (extension pages are not cross-origin isolated).
 

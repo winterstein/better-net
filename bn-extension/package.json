@@ -13,7 +13,7 @@
     "watch:chrome": "node scripts/watch.js chrome",
     "watch:firefox": "node scripts/watch.js firefox",
     "watch:edge": "node scripts/watch.js edge",
-    "test": "node scripts/build-fixture-html.js && tsx test/chunking.test.ts && tsx test/chunk-tags.test.ts && tsx test/chunk-title.test.ts && tsx test/mock.factcheck-google.test.ts && tsx test/ad-blocker-facebook.test.ts && tsx test/ad-blocker-detect-chunk.test.ts && tsx test/local-inference-client.test.ts && tsx test/model-manager.test.ts && tsx test/update-manager.test.ts && tsx test/feedback.test.ts",
+    "test": "node scripts/build-fixture-html.js && tsx test/chunking.test.ts && tsx test/chunk-tags.test.ts && tsx test/chunk-title.test.ts && tsx test/mock.factcheck-google.test.ts && tsx test/ad-blocker-facebook.test.ts && tsx test/ad-blocker-detect-chunk.test.ts && tsx test/local-inference-client.test.ts && tsx test/analyze-local.test.ts && tsx test/model-manager.test.ts && tsx test/download-progress.test.ts && tsx test/update-manager.test.ts && tsx test/feedback.test.ts && tsx test/click-unbait.test.ts",
     "test:e2e": "npm run build && node scripts/build-fixture-html.js && playwright test --project=smoke --project=e2e",
     "test:e2e:smoke": "npm run build && playwright test --project=smoke",
     "test:online": "npm run build && playwright test --project=online",

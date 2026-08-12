@@ -4,12 +4,17 @@
  */
 
 import { runFeatureAnalysis } from '../../ai/run-feature-analysis.js';
+import {
+	isZeroShotPayload,
+	problemScoreFromZeroShotPayload,
+} from '../zero-shot-score.js';
 
 const PROMPT_ID = 'anti-manipulation';
 
+// Phrasing calibrated for MNLI zero-shot (avoids false-positives on normal news).
 const ZERO_SHOT_LABELS = [
-  'scam fraud or deceptive content',
-  'legitimate trustworthy content',
+  'spam scam',
+  'real content',
 ];
 
 export async function analyzeChunk(chunk, pageMetadata: any = {}, options: any = {}) {
@@ -110,7 +115,7 @@ function analyzeWithHeuristics(context) {
     problemScore: Math.min(score, 1.0),
     confidence: 0.65,
     flags,
-    explanation: generateExplanation(score, flags)
+    explanation: generateExplanation(score, flags),
   };
 }
 
@@ -131,6 +136,16 @@ function parseAIResponse(responseText) {
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
+      if (isZeroShotPayload(parsed)) {
+        const problemScore = problemScoreFromZeroShotPayload(parsed);
+        const flags = problemScore > 0.45 ? ['local_zero_shot'] : [];
+        return {
+          problemScore,
+          confidence: Math.max(0.5, Math.min(0.95, parsed.scores?.[0] ?? 0.7)),
+          flags,
+          explanation: generateExplanation(problemScore, flags),
+        };
+      }
       return {
         problemScore: Math.max(0, Math.min(1, parsed.problemScore ?? parsed.score ?? 0)),
         confidence: Math.max(0, Math.min(1, parsed.confidence || 0.7)),

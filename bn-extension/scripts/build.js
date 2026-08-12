@@ -222,3 +222,7 @@ if (fs.existsSync(iconsSrc)) {
 }
 
 console.log(`✓ Build complete: ${distDir}`);
+console.log('');
+console.log('Load unpacked extension from:');
+console.log(`  ${distDir}`);
+console.log('(chrome://extensions → Developer mode → Load unpacked)');

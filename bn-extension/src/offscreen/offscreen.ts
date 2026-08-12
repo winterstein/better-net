@@ -4,6 +4,10 @@
 
 import { pipeline, env } from '@huggingface/transformers';
 import { LOCAL_MODELS, getLocalModel } from '../ai/model-catalog.js';
+import {
+  applyDownloadProgressEvent,
+  type FileByteProgress,
+} from '../ai/download-progress.js';
 
 const LOG = '[BN:local-model]';
 
@@ -41,6 +45,9 @@ const pipelines = new Map();
 /** @type {Map<string, { status: string, progress?: number, error?: string }>} */
 const modelState = new Map();
 
+/** Per-model file byte totals while a download is in flight. */
+const downloadFiles = new Map<string, Map<string, FileByteProgress>>();
+
 /** @type {chrome.runtime.Port | null} */
 let backgroundPort = null;
 
@@ -60,20 +67,49 @@ function setModelState(modelId, patch) {
   }
 }
 
-async function reportProgress(modelId, progress) {
-  const pct = progress?.progress != null ? Math.round(progress.progress) : undefined;
+function reportProgress(modelId, progress) {
+  let files = downloadFiles.get(modelId);
+  if (!files) {
+    files = new Map();
+    downloadFiles.set(modelId, files);
+  }
+  const estimated = getLocalModel(modelId)?.sizeBytes ?? 0;
+  const pct = applyDownloadProgressEvent(files, progress, estimated);
+  if (pct == null) return;
+
+  const prevPct = modelState.get(modelId)?.progress ?? 0;
+  // Keep UI monotonic within a download (new files can temporarily lower the ratio).
   setModelState(modelId, {
     status: 'downloading',
-    progress: pct ?? 0,
+    progress: Math.max(prevPct, pct),
   });
+}
+
+/** Release in-memory ONNX sessions. WASM heaps rarely shrink; prefer a fresh offscreen doc for large loads. */
+async function disposePipelines() {
+  const entries = [...pipelines.entries()];
+  pipelines.clear();
+  for (const [id, pipe] of entries) {
+    try {
+      const disposable = pipe as { dispose?: () => Promise<void> | void };
+      await disposable.dispose?.();
+      console.log(LOG, 'offscreen: disposed pipeline', id);
+    } catch (err) {
+      console.warn(LOG, 'offscreen: dispose failed', id, err);
+    }
+  }
 }
 
 async function getPipeline(modelId) {
   if (pipelines.has(modelId)) return pipelines.get(modelId);
 
+  // One resident model: free others before allocating a new WASM session buffer.
+  await disposePipelines();
+
   const spec = getLocalModel(modelId);
   console.log(LOG, 'offscreen: loading pipeline', modelId, spec.huggingFaceId);
-  setModelState(modelId, { status: 'loading', progress: 0 });
+  // Keep last download % while the pipeline finishes initializing.
+  setModelState(modelId, { status: 'loading' });
 
   const pipe = await pipeline(spec.pipeline as import('@huggingface/transformers').PipelineType, spec.huggingFaceId, {
     progress_callback: (p) => reportProgress(modelId, p),
@@ -81,6 +117,7 @@ async function getPipeline(modelId) {
   });
 
   pipelines.set(modelId, pipe);
+  downloadFiles.delete(modelId);
   setModelState(modelId, { status: 'ready', progress: 100, error: undefined });
   console.log(LOG, 'offscreen: pipeline ready', modelId);
   return pipe;
@@ -128,7 +165,15 @@ async function generate({ modelId, prompt, maxNewTokens }) {
 }
 
 async function removeModel(modelId) {
+  const pipe = pipelines.get(modelId);
   pipelines.delete(modelId);
+  if (pipe) {
+    try {
+      await (pipe as { dispose?: () => Promise<void> | void }).dispose?.();
+    } catch (err) {
+      console.warn(LOG, 'offscreen: dispose on remove failed', modelId, err);
+    }
+  }
   setModelState(modelId, { status: 'not_installed', progress: 0, error: undefined });
   try {
     const keys = await caches.keys();
@@ -143,13 +188,27 @@ function startDownload(modelId) {
     return Promise.reject(new Error('modelId required'));
   }
   console.log(LOG, 'offscreen: startDownload', modelId);
+  downloadFiles.set(modelId, new Map());
   setModelState(modelId, { status: 'downloading', progress: 0, error: undefined });
   return getPipeline(modelId).catch((err) => {
     const msg = formatOnnxError(err);
     console.error(LOG, 'offscreen: download failed', modelId, msg, err);
+    downloadFiles.delete(modelId);
     setModelState(modelId, { status: 'error', error: msg });
     throw err;
   });
+}
+
+async function getMemoryStats() {
+  const perfMem = (performance as Performance & {
+    memory?: { usedJSHeapSize: number; totalJSHeapSize: number; jsHeapSizeLimit: number };
+  }).memory;
+  return {
+    jsHeapUsedBytes: perfMem?.usedJSHeapSize ?? null,
+    jsHeapTotalBytes: perfMem?.totalJSHeapSize ?? null,
+    jsHeapLimitBytes: perfMem?.jsHeapSizeLimit ?? null,
+    loadedModelIds: [...pipelines.keys()],
+  };
 }
 
 async function handleOffscreenAction(action, message) {
@@ -169,6 +228,8 @@ async function handleOffscreenAction(action, message) {
       return { ok: true };
     case 'GET_STATUS':
       return { models: Object.fromEntries(modelState), catalog: LOCAL_MODELS };
+    case 'GET_MEMORY':
+      return getMemoryStats();
     case 'ZERO_SHOT':
       return zeroShot(message);
     case 'GENERATE':
@@ -243,7 +304,15 @@ function formatOnnxError(err) {
   if (err instanceof ErrorEvent) {
     return err.message || err.type || 'WebAssembly failed to load (check extension wasm/ files)';
   }
-  return err?.message || String(err);
+  const msg = err?.message || String(err);
+  if (/failed to allocate a buffer|Can't create a session/i.test(msg)) {
+    return (
+      'Not enough memory to load this model on-device. ' +
+      'Close other tabs, delete unused local models, retry, or use MobileBERT. ' +
+      `(${msg})`
+    );
+  }
+  return msg;
 }
 
 console.log(LOG, 'offscreen: script loaded, wasm base', WASM_BASE);

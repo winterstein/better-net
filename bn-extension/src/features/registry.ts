@@ -6,6 +6,7 @@ import { analyzeChunk as analyzeFactChecker } from './fact-checker/analyze-chunk
 import { analyzeChunk as analyzeBiasDetector } from './bias-detector/analyze-chunk.js';
 import { analyzeChunk as analyzeAntiManipulation } from './anti-manipulation/analyze-chunk.js';
 import { analyzeChunk as analyzeDefuseRagebait } from './defuse-ragebait/analyze-chunk.js';
+import { analyzeChunk as analyzeClickUnbait } from './click-unbait/analyze-chunk.js';
 
 /** @type {Array<{ id: string, name: string, description: string, analyze: Function }>} */
 export const ANALYSIS_FEATURES = [
@@ -32,6 +33,12 @@ export const ANALYSIS_FEATURES = [
     name: 'Defuse Ragebait',
     description: 'Label outrage-bait and harmful or abusive language.',
     analyze: analyzeDefuseRagebait,
+  },
+  {
+    id: 'clickUnbait',
+    name: 'Click Unbait',
+    description: 'Rewrite clickbait link text with an honest summary prefix.',
+    analyze: analyzeClickUnbait,
   },
 ];
 

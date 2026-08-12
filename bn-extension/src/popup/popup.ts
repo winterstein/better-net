@@ -8,18 +8,32 @@ const FEATURE_DISPLAY = {
   biasDetector: { name: 'Bias Detector', description: 'Political or ideological bias' },
   antiManipulation: { name: 'Anti-manipulation', description: 'Dark patterns and manipulative UX' },
   defuseRagebait: { name: 'Defuse Ragebait', description: 'Outrage-bait and harmful language' },
+  clickUnbait: { name: 'Click Unbait', description: 'Honest summaries on clickbait links' },
 };
 
+const STORAGE_TIMEOUT_MS = 8_000;
+const MESSAGE_TIMEOUT_MS = 5_000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> {
+  return Promise.race([
+    promise,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+  ]);
+}
+
 function runtimeSendMessage(message) {
-  return new Promise((resolve) => {
-    chrome.runtime.sendMessage(message, (response) => {
-      if (chrome.runtime.lastError) {
-        resolve(null);
-        return;
-      }
-      resolve(response ?? null);
-    });
-  });
+  return withTimeout(
+    new Promise((resolve) => {
+      chrome.runtime.sendMessage(message, (response) => {
+        if (chrome.runtime.lastError) {
+          resolve(null);
+          return;
+        }
+        resolve(response ?? null);
+      });
+    }),
+    MESSAGE_TIMEOUT_MS
+  );
 }
 
 class PopupController {
@@ -74,7 +88,7 @@ class PopupController {
     });
 
     // Set up exclude toggle button
-    document.getElementById('exclude-toggle-btn').addEventListener('click', () => {
+    document.getElementById('exclude-toggle-btn')?.addEventListener('click', () => {
       this.toggleSiteExclusion();
     });
 
@@ -93,29 +107,57 @@ class PopupController {
 
     // Request analysis if not already started
     this.ensureAnalysisStarted();
+
+    this.dismissLoadingIfNeeded();
+  }
+
+  dismissLoadingIfNeeded() {
+    const loadingEl = document.getElementById('loading');
+    if (loadingEl && !loadingEl.classList.contains('hidden')) {
+      this.showIdleAnalysis();
+    }
+  }
+
+  showIdleAnalysis() {
+    this.updateUI({
+      status: 'not_started',
+      progress: 0,
+      currentStage: 'Starting analysis…',
+    });
   }
 
   async loadAnalysisStatus() {
-    // Check storage for cached analysis
     const storageKey = `analysis_${this.currentTabId}`;
-    const data = await chrome.storage.local.get(storageKey);
-    
-    if (data[storageKey]) {
+    const data = await withTimeout(
+      chrome.storage.local.get(storageKey) as Promise<Record<string, unknown>>,
+      STORAGE_TIMEOUT_MS
+    );
+
+    if (data?.[storageKey]) {
       this.updateUI(data[storageKey]);
-    } else {
-      // Request status from background
-      chrome.runtime.sendMessage({
-        type: 'GET_ANALYSIS_STATUS'
-      }, (response) => {
-        if (response && response.status) {
-          this.updateUI({
-            status: response.status.status,
-            progress: response.status.progress,
-            stages: response.status.stages
-          });
-        }
-      });
+      return;
     }
+
+    const response = await runtimeSendMessage({
+      type: 'GET_ANALYSIS_STATUS',
+      tabId: this.currentTabId,
+    });
+
+    if (response?.status) {
+      this.updateUI({
+        status: response.status.status,
+        progress: response.status.progress,
+        stages: response.status.stages,
+        currentStage: response.status.currentStage,
+        neutralisedCount: response.status.neutralisedCount,
+        adsHidden: response.status.adsHidden,
+        partialResults: response.status.partialResults,
+        result: response.status.result,
+      });
+      return;
+    }
+
+    this.showIdleAnalysis();
   }
 
   setupUpdates() {
@@ -187,6 +229,13 @@ class PopupController {
       resultsSection.classList.add('hidden');
       errorSection.classList.remove('hidden');
       this.setErrorMessage(data.message || 'This site is excluded from analysis');
+      return;
+    }
+
+    if (data.status === 'not_started' || data.status === 'idle') {
+      document.getElementById('progress-bar').style.width = '0%';
+      document.getElementById('current-stage').textContent =
+        data.currentStage || 'Starting analysis…';
       return;
     }
 
@@ -579,7 +628,14 @@ class PopupController {
 
   showMessage(message) {
     const loadingEl = document.getElementById('loading');
-    loadingEl.innerHTML = `<p>${message}</p>`;
+    const analysisEl = document.getElementById('analysis-container');
+    if (!loadingEl) return;
+    loadingEl.classList.add('hidden');
+    analysisEl?.classList.remove('hidden');
+    document.getElementById('progress-section')?.classList.add('hidden');
+    document.getElementById('results-section')?.classList.add('hidden');
+    document.getElementById('error-section')?.classList.remove('hidden');
+    this.setErrorMessage(message);
   }
 
   async retryAnalysis() {
@@ -612,6 +668,7 @@ class PopupController {
     const toggleBtn = document.getElementById('exclude-toggle-btn');
     const toggleIcon = document.getElementById('exclude-toggle-icon');
     const toggleText = document.getElementById('exclude-toggle-text');
+    if (!toggleBtn || !toggleIcon || !toggleText) return;
 
     if (isExcluded) {
       toggleBtn.classList.add('excluded');

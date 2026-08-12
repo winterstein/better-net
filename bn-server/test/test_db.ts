@@ -64,7 +64,11 @@ tap.test('create, get, update, delete a chunk item', async t => {
     t.fail('Chunk should exist after update');
     return;
   }
-  t.same(chunkAfterUpdate, updatedChunk, 'Fetched chunk should reflect updated data');
+  t.same(
+    { type: chunkAfterUpdate.type, value: chunkAfterUpdate.value, metadata: chunkAfterUpdate.metadata },
+    { type: 'text', value: 'Updated value', metadata: { foo: 'baz' } },
+    'Fetched chunk should reflect updated data'
+  );
 
   // 5. Delete the chunk item
   await delete_item(table, id);

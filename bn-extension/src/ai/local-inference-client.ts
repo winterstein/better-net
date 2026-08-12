@@ -111,6 +111,16 @@ async function closeOffscreenDocument() {
   console.log(LOG, 'background: closing offscreen document');
   await chrome.offscreen.closeDocument();
   offscreenPort = null;
+  offscreenReady = null;
+}
+
+/** Tear down and recreate offscreen so WASM heap starts fresh (needed for ~60MB+ models). */
+export async function restartOffscreen() {
+  console.log(LOG, 'background: restartOffscreen');
+  await closeOffscreenDocument();
+  // Brief pause so Chrome finishes tearing down before createDocument.
+  await new Promise((r) => setTimeout(r, 100));
+  await ensureOffscreen();
 }
 
 function postToOffscreen(action, payload = {}, timeoutMs = 15_000) {

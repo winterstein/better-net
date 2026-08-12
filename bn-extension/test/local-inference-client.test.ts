@@ -18,7 +18,7 @@ const chrome = installChromeMock({
   storage: { localModels: { 'mobilebert-mnli': { status: 'ready' } } },
 });
 
-const { sendToOffscreen, ensureOffscreen, closeOffscreenIfIdle } = await import(
+const { sendToOffscreen, ensureOffscreen, closeOffscreenIfIdle, restartOffscreen } = await import(
   '../src/ai/local-inference-client.js'
 );
 
@@ -109,5 +109,24 @@ chrome._test.setOffscreenDocumentExists(true);
 chrome._test.connectPort(failPort);
 await closeOffscreenIfIdle();
 assert(!(await chrome.offscreen.hasDocument()), 'closeOffscreenIfIdle should close offscreen on PING failure');
+
+// restartOffscreen closes then recreates with a fresh port
+chrome._test.setOffscreenDocumentExists(true);
+const beforeRestart = createOffscreenPort();
+chrome._test.connectPort(beforeRestart);
+await ensureOffscreen();
+assert(!!chrome._test.connectedPort, 'port connected before restart');
+const afterRestart = createOffscreenPort();
+// Queue the new port so createDocument path can connect
+const origCreate = chrome.offscreen.createDocument.bind(chrome.offscreen);
+chrome.offscreen.createDocument = async (...args) => {
+  const result = await origCreate(...args);
+  chrome._test.connectPort(afterRestart);
+  return result;
+};
+await restartOffscreen();
+assert(await chrome.offscreen.hasDocument(), 'restartOffscreen should recreate document');
+assert(chrome._test.connectedPort === afterRestart, 'restartOffscreen should use a new port');
+chrome.offscreen.createDocument = origCreate;
 
 console.log('✅ local-inference-client tests passed');

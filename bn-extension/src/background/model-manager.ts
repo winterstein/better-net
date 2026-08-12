@@ -16,7 +16,7 @@
  * offscreen scripts.
  */
 
-import { sendToOffscreen, ensureOffscreen } from '../ai/local-inference-client.js';
+import { sendToOffscreen, ensureOffscreen, restartOffscreen } from '../ai/local-inference-client.js';
 import { logit } from '../utils/logger.js';
 
 export function setupModelManager() {
@@ -47,7 +47,8 @@ async function handleLocalModelMessage(message) {
   switch (action) {
     case 'download': {
       console.log('[BN:local-model] background: starting download flow for', modelId);
-      await ensureOffscreen();
+      // Fresh offscreen page → clean WASM heap (avoids "failed to allocate a buffer" after prior models).
+      await restartOffscreen();
       const start = await sendToOffscreen('DOWNLOAD', { modelId });
       if (start?.error) throw new Error(start.error);
       return start;
@@ -58,6 +59,16 @@ async function handleLocalModelMessage(message) {
     case 'status': {
       const { localModels = {} } = await chrome.storage.local.get({ localModels: {} });
       return { models: localModels };
+    }
+    case 'memory': {
+      await ensureOffscreen();
+      return sendToOffscreen('GET_MEMORY');
+    }
+    case 'clearMemory': {
+      // Restarting the offscreen doc is the reliable way to free WASM heap.
+      await restartOffscreen();
+      const memory = await sendToOffscreen('GET_MEMORY');
+      return { ok: true, memory };
     }
     default:
       return { error: `Unknown model action: ${action}` };

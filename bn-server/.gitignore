@@ -4,3 +4,4 @@ dist
 test/**/*.d.ts
 test/**/*.d.ts.map
 test/**/*.js.map
+.tap

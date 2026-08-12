@@ -23,6 +23,7 @@ const ANALYSIS_LABELS: Record<string, string> = {
   biasDetector: 'Bias Detector',
   antiManipulation: 'Anti-manipulation',
   defuseRagebait: 'Defuse Ragebait',
+  clickUnbait: 'Click Unbait',
 };
 
 export function getTrafficLight(score: number): TrafficLight {
