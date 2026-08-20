@@ -21,7 +21,7 @@ function App() {
 
   return (
     <div>
-      <Navbar color="light" light expand="md">
+      <Navbar color="light" light expand="md" container={false}>
         <Container>
           <NavbarBrand tag={Link} to="/pages">
             better:net

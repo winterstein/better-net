@@ -14,6 +14,7 @@ User-first browser AI: label misleading/toxic content, reduce manipulative UX, a
 - **Per-package task/status**: `bn-<name>/status.md` — read before work, update when you change scope or fix blockers.
 - **Product blurb**: `blurb.md`
 - **Extension details**: `bn-extension/README.md`, `QUICKSTART.md`
+- **Terminology / modules**: `bn-extension/terminology.md`
 - **Code style and review principles**: `bn-extension/code-guidelines.md`
 
 `bn-extension` is an early prototype (build/analysis wiring incomplete). Treat `bn-extension/status.md` as source of truth for what works vs broken.

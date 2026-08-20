@@ -20,6 +20,7 @@
 
 ## Recent fixes
 
+- Options hamburger: stay open across settings reload (storage race was closing `nav-open` with no console output)
 - Nutrient labels: `problemScore` stays “higher = worse”; zero-shot raw labels go to each feature’s `parseAIResponse`, which emits matching score + explanation. Recalibrated MNLI label pairs to cut false positives on normal news
 - Default local model is FLAN-T5 Small so the LLM writes quoted explanations
 - Local model download % no longer jumps: aggregate HF multi-file bytes (ignore initiate/done resets); options updates progress in place

@@ -50,7 +50,11 @@ class SettingsController {
     this.localModelsState = {};
     this.localModelPollTimer = null;
     this.localModelsUiReady = false;
-    document.getElementById('nav-toggle')?.addEventListener('click', () => this.toggleNav());
+    this.uiReady = false;
+    document.getElementById('nav-toggle')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.toggleNav();
+    });
     this.init();
   }
 
@@ -92,11 +96,13 @@ class SettingsController {
     this.renderExcludedSites();
 
     const pageFromHash = location.hash.replace(/^#/, '');
-    if (pageFromHash && this.navPages.some((p) => p.id === pageFromHash)) {
-      this.showPage(pageFromHash, false);
-    } else {
-      this.showPage('ai-model', false);
-    }
+    const target =
+      pageFromHash && this.navPages.some((p) => p.id === pageFromHash)
+        ? pageFromHash
+        : 'ai-model';
+    // Re-applying settings must not close the mobile nav (storage reload race).
+    this.showPage(target, false, { closeNav: !this.uiReady || target !== this.currentPage });
+    this.uiReady = true;
   }
 
   async init() {
@@ -227,7 +233,8 @@ class SettingsController {
   }
 
   syncLocalModelSelect(stateMap = this.localModelsState) {
-    const select = document.getElementById('local-model-id');
+    const select = document.getElementById('local-model-id') as HTMLSelectElement | null;
+    if (!select) return;
     const prev = select.value;
     select.innerHTML = '';
     for (const model of LOCAL_MODELS) {
@@ -455,7 +462,7 @@ class SettingsController {
     }
   }
 
-  showPage(pageId, updateHash = true) {
+  showPage(pageId, updateHash = true, { closeNav = true } = {}) {
     this.currentPage = pageId;
     if (updateHash) location.hash = pageId;
     if (pageId === 'ai-model') {
@@ -470,6 +477,10 @@ class SettingsController {
     document.querySelectorAll('.nav-link').forEach((el) => {
       el.classList.toggle('active', el.dataset.page === pageId);
     });
+    if (closeNav) this.closeNav();
+  }
+
+  closeNav() {
     document.getElementById('settings-nav')?.classList.remove('nav-open');
     document.getElementById('nav-toggle')?.setAttribute('aria-expanded', 'false');
   }
