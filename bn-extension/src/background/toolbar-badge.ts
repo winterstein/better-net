@@ -17,6 +17,27 @@ function formatCount(n) {
   return n > 999 ? '999+' : String(n);
 }
 
+/** Last state logged per tab, so progress ticks do not spam the console. */
+const lastBadgeState = new Map();
+
+/**
+ * chrome.action.* returns a promise in MV3 — a rejection (e.g. the tab closed
+ * mid-analysis) escapes try/catch and lands as an unhandled rejection in the
+ * service worker. Catch it here so a stale badge is visible in the log.
+ */
+function applyBadge(method, arg, tabId) {
+  try {
+    const result = chrome.action?.[method]?.(arg);
+    if (result && typeof result.then === 'function') {
+      result.catch((err) => {
+        console.warn(`[BetterNet][badge] ${method} failed for tab ${tabId}:`, err?.message ?? err);
+      });
+    }
+  } catch (err) {
+    console.warn(`[BetterNet][badge] ${method} threw for tab ${tabId}:`, err);
+  }
+}
+
 /**
  * @param {number} tabId
  * @param {Object} opts
@@ -81,15 +102,22 @@ export function updateToolbarBadge(tabId, opts) {
     title = 'BetterNet';
   }
 
-  try {
-    chrome.action.setBadgeText({ text, tabId });
-    chrome.action.setBadgeBackgroundColor({ color, tabId });
-    chrome.action.setTitle({ title, tabId });
-  } catch (err) {
-    console.warn('[BetterNet] toolbar badge update failed:', err);
+  const state = `${status}|${text}|${color}|${title}`;
+  if (lastBadgeState.get(tabId) !== state) {
+    lastBadgeState.set(tabId, state);
+    console.debug(`[BetterNet][badge] tab ${tabId} -> ${status}`, { text, color, title });
   }
+
+  applyBadge('setBadgeText', { text, tabId }, tabId);
+  applyBadge('setBadgeBackgroundColor', { color, tabId }, tabId);
+  applyBadge('setTitle', { title, tabId }, tabId);
 }
 
 export function clearToolbarBadge(tabId) {
   updateToolbarBadge(tabId, { status: 'idle' });
+}
+
+/** Drop cached badge state for a closed tab. */
+export function forgetToolbarBadge(tabId) {
+  lastBadgeState.delete(tabId);
 }

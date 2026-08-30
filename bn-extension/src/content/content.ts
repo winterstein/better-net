@@ -3,6 +3,7 @@
 
 // Import chunking (will be bundled by esbuild)
 import { extractChunks } from '../chunking/chunking.js';
+import { createStepRecorder } from '../tracing/trace-steps.js';
 import { findElementByXPath, waitForContentRender } from '../utils/utils.js';
 import { partitionChunks } from '../ad-blocker/detect-chunk.js';
 import {
@@ -22,6 +23,10 @@ import {
   showContentAnalysisModal,
 } from './content-analysis-modal.js';
 import { applyClickUnbaitFromAnalysis } from './apply-click-unbait.js';
+import {
+  DEFAULT_NUTRIENT_LABEL_MIN_RISK,
+  shouldShowNutrientLabel,
+} from '../types/RiskLevel.js';
 
 class PageAnalyzer {
   [key: string]: any;
@@ -31,8 +36,11 @@ class PageAnalyzer {
       this.currentUrl = window.location.href;
       this.dismissedChunkXpaths = new Set();
       this.feedbackEnabled = false;
+      this.showIndicators = true;
+      this.nutrientLabelMinRisk = DEFAULT_NUTRIENT_LABEL_MIN_RISK;
       this.setupListeners();
       void this.loadFeedbackSettings();
+      void this.loadLabelSettings();
 
     // Start analysis when page loads
     if (document.readyState === 'loading') {
@@ -50,6 +58,13 @@ class PageAnalyzer {
       return this.handleMessage(message, sender, sendResponse);
     });
 
+
+    // Apply label settings changes without needing a page reload
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== 'sync') return;
+      if (!changes.nutrientLabelMinRisk && !changes.showIndicators) return;
+      void this.loadLabelSettings().then(() => this.removeHiddenBadges());
+    });
 
     // Listen for navigation changes (SPA support)
     this.observeNavigation();
@@ -91,6 +106,38 @@ class PageAnalyzer {
     } catch {
       this.feedbackEnabled = false;
     }
+  }
+
+  /** Which chunks get a Nutrient Label. Re-read on change so it applies without a reload. */
+  async loadLabelSettings() {
+    try {
+      const settings = mergeSettings(await chrome.storage.sync.get(null));
+      this.showIndicators = settings.showIndicators !== false;
+      this.nutrientLabelMinRisk = settings.nutrientLabelMinRisk;
+      console.log(
+        '[BetterNet] [CONTENT] Nutrient Labels:',
+        this.showIndicators ? `from ${this.nutrientLabelMinRisk} upwards` : 'off'
+      );
+    } catch (error) {
+      console.warn('[BetterNet] [CONTENT] Could not read label settings:', error);
+    }
+  }
+
+  /** Does this chunk clear the user's Nutrient Label risk threshold? */
+  shouldLabelChunk(analysisResults) {
+    if (!this.showIndicators) return false;
+    const score = analysisResults?.summary?.problemScore ?? 0;
+    return shouldShowNutrientLabel(score, this.nutrientLabelMinRisk);
+  }
+
+  /** Drop labels that no longer clear the threshold after a settings change. */
+  removeHiddenBadges() {
+    document.querySelectorAll('.betternet-chunk-badge').forEach((badge) => {
+      const score = Number(badge.dataset.problemScore ?? 0);
+      if (!this.showIndicators || !shouldShowNutrientLabel(score, this.nutrientLabelMinRisk)) {
+        badge.remove();
+      }
+    });
   }
 
   async init() {
@@ -183,22 +230,28 @@ class PageAnalyzer {
       const settings = mergeSettings((await chrome.storage.sync.get(null)) as unknown as Record<string, unknown>);
       const blockPageAds = shouldBlockPageAds(settings, hostname);
 
-      let chunks = await extractChunks(document, url, {
+      // Chunking is timed here and sent to the background, which owns the AIQA
+      // exporter and the API key (tracing/trace-steps.ts). Steps are dropped there if
+      // tracing turns out to be off, so this only needs the toggle.
+      const { recorder, steps } = createStepRecorder(!!settings.aiqaTracing);
+      const chunkOptions = {
         minTextLength: 100,
         maxChunks: 50,
         includeAds: blockPageAds,
-      });
+      };
+
+      let chunks = await recorder.step('betternet.chunk_page', { 'betternet.chunk.attempt': 1 }, (step) =>
+        extractChunks(document, url, { ...chunkOptions, recorder: step })
+      );
       console.log('[BetterNet] [CONTENT] Extracted', chunks.length, 'chunks');
 
       // If no chunks found, wait a bit more and retry (for slow-loading pages)
       if (chunks.length === 0) {
         console.log('[BetterNet] [CONTENT] No chunks found, waiting for additional content...');
         await waitForContentRender(2000, 200);
-        chunks = await extractChunks(document, url, {
-          minTextLength: 100,
-          maxChunks: 50,
-          includeAds: blockPageAds,
-        });
+        chunks = await recorder.step('betternet.chunk_page', { 'betternet.chunk.attempt': 2 }, (step) =>
+          extractChunks(document, url, { ...chunkOptions, recorder: step })
+        );
         console.log('[BetterNet] [CONTENT] Retry extracted', chunks.length, 'chunks');
       }
 
@@ -223,6 +276,7 @@ class PageAnalyzer {
         url,
         chunks,
         adsHidden,
+        traceSteps: steps,
         pageMetadata: {
           title: content.title,
           domain: new URL(url).hostname,
@@ -482,8 +536,17 @@ class PageAnalyzer {
       return;
     }
 
-    console.log('[BetterNet] [CONTENT] Element found, adding badge. Score:', combinedResults.summary?.problemScore);
     applyClickUnbaitFromAnalysis(element, combinedResults);
+
+    const score = combinedResults.summary?.problemScore ?? 0;
+    if (!this.shouldLabelChunk(combinedResults)) {
+      console.log(
+        `[BetterNet] [CONTENT] No label for chunk (score ${score}, threshold ${this.nutrientLabelMinRisk})`
+      );
+      return;
+    }
+
+    console.log('[BetterNet] [CONTENT] Element found, adding badge. Score:', score);
     this.addBadgeToChunk(element, combinedResults, xpath);
   }
 
@@ -536,6 +599,7 @@ class PageAnalyzer {
       
       const { analyses = [] } = analysisResults;
       const problemScore = analysisResults.summary?.problemScore ?? 0;
+      badge.dataset.problemScore = String(problemScore);
 
       const trafficLight = getTrafficLight(problemScore);
       const nutritionData = calculateNutritionData(analyses);

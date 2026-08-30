@@ -1,6 +1,7 @@
 // better:net settings (options page)
 
 import { LOCAL_MODELS, formatBytes } from '../ai/model-catalog.js';
+import { DEFAULT_NUTRIENT_LABEL_MIN_RISK, RISK_LEVELS } from '../types/RiskLevel.js';
 
 const LOG = '[BN:local-model]';
 const STORAGE_TIMEOUT_MS = 8_000;
@@ -39,6 +40,13 @@ async function sendExtensionMessage(message) {
     MESSAGE_TIMEOUT_MS,
     'Background'
   );
+}
+
+/** AIQA_SAMPLING_RATE is a 0-1 fraction; anything unparseable means "trace everything". */
+function clampSamplingRate(value: string): number {
+  const rate = parseFloat(value);
+  if (!Number.isFinite(rate)) return 1;
+  return Math.max(0, Math.min(1, rate));
 }
 
 class SettingsController {
@@ -534,6 +542,18 @@ class SettingsController {
     }
   }
 
+  /** Options are built from RISK_LEVELS so they track the traffic-light bands. */
+  populateRiskLevels() {
+    const select = document.getElementById('nutrient-label-min-risk') as HTMLSelectElement | null;
+    if (!select || select.options.length) return;
+    for (const level of RISK_LEVELS) {
+      const option = document.createElement('option');
+      option.value = level.id;
+      option.textContent = level.optionLabel;
+      select.appendChild(option);
+    }
+  }
+
   applySettingsToForm() {
     const s = this.settings;
     const analysisMode = document.getElementById('analysis-mode') as HTMLSelectElement | null;
@@ -549,12 +569,14 @@ class SettingsController {
       if (el) el.checked = checked;
     };
     const setValue = (id: string, value: string) => {
-      const el = document.getElementById(id) as HTMLInputElement | null;
+      const el = document.getElementById(id) as HTMLInputElement | HTMLSelectElement | null;
       if (el) el.value = value;
     };
 
     setChecked('auto-analyze', s.autoAnalyze);
     setChecked('show-indicators', s.showIndicators);
+    this.populateRiskLevels();
+    setValue('nutrient-label-min-risk', s.nutrientLabelMinRisk || DEFAULT_NUTRIENT_LABEL_MIN_RISK);
     setValue('openai-key', s.BN_OPENAI_API_KEY || '');
     setValue('anthropic-key', s.BN_ANTHROPIC_API_KEY || '');
     setValue('google-factcheck-key', s.BN_GOOGLE_API_KEY || '');
@@ -563,6 +585,11 @@ class SettingsController {
     setChecked('share-factcheck-cache', !!s.shareFactCheckCache);
     setValue('account-email', s.accountEmail || '');
     setValue('server-endpoint', s.serverEndpoint || '');
+    setChecked('use-server-cache', !!s.useServerCache);
+    setChecked('aiqa-tracing', !!s.aiqaTracing);
+    setValue('aiqa-api-key', s.aiqaApiKey || '');
+    setValue('aiqa-server-url', s.aiqaServerUrl || '');
+    setValue('aiqa-sampling-rate', String(s.aiqaSamplingRate ?? 1));
   }
 
   readFormIntoSettings() {
@@ -583,6 +610,7 @@ class SettingsController {
       localModelId: document.getElementById('local-model-id').value,
       autoAnalyze: document.getElementById('auto-analyze').checked,
       showIndicators: document.getElementById('show-indicators').checked,
+      nutrientLabelMinRisk: document.getElementById('nutrient-label-min-risk').value,
       BN_OPENAI_API_KEY: document.getElementById('openai-key').value.trim(),
       BN_ANTHROPIC_API_KEY: document.getElementById('anthropic-key').value.trim(),
       BN_GOOGLE_API_KEY: document.getElementById('google-factcheck-key').value.trim(),
@@ -591,6 +619,11 @@ class SettingsController {
       shareFactCheckCache: document.getElementById('share-factcheck-cache').checked,
       accountEmail: document.getElementById('account-email').value.trim(),
       serverEndpoint: document.getElementById('server-endpoint').value.trim(),
+      useServerCache: document.getElementById('use-server-cache').checked,
+      aiqaTracing: document.getElementById('aiqa-tracing').checked,
+      aiqaApiKey: document.getElementById('aiqa-api-key').value.trim(),
+      aiqaServerUrl: document.getElementById('aiqa-server-url').value.trim(),
+      aiqaSamplingRate: clampSamplingRate(document.getElementById('aiqa-sampling-rate').value),
       modules,
       excludedSites: this.settings.excludedSites,
       domainOverrides: this.settings.domainOverrides,

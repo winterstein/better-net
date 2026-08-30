@@ -82,6 +82,46 @@ test.describe('extension smoke', () => {
     expect(errors).toEqual([]);
   });
 
+  test('nutrient label risk threshold defaults to caution and saves', async ({
+    context,
+    extensionId,
+  }) => {
+    const page = await context.newPage();
+    const errors = collectPageErrors(page);
+    await page.goto(extensionUrl(extensionId, 'options/options.html'), {
+      waitUntil: 'domcontentloaded',
+    });
+    await waitForOptionsReady(page);
+
+    const select = page.locator('#nutrient-label-min-risk');
+    await expect(select).toBeVisible();
+    await expect(select.locator('option')).toHaveCount(3);
+    // Default: safe chunks get no nutrient label
+    await expect(select).toHaveValue('caution');
+
+    await select.selectOption('high-risk');
+    await page.locator('#save-btn').click();
+
+    await expect
+      .poll(
+        () =>
+          page.evaluate(async () => {
+            const s = await chrome.storage.sync.get({ nutrientLabelMinRisk: null });
+            return s.nutrientLabelMinRisk;
+          }),
+        { timeout: 10_000 }
+      )
+      .toBe('high-risk');
+
+    // Survives a reload of the options page
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await waitForOptionsReady(page);
+    await expect(page.locator('#nutrient-label-min-risk')).toHaveValue('high-risk');
+
+    expect(errors).toEqual([]);
+    await page.close();
+  });
+
   test('popup settings button opens options page', async ({ context, extensionId }) => {
     const popupPage = await context.newPage();
     const errors = collectPageErrors(popupPage);

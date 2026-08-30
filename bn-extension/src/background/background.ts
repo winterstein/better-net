@@ -16,12 +16,29 @@ import { logit, setTabId } from '../utils/logger.js';
 import { setupModelManager } from './model-manager.js';
 import { setupUpdateManager } from './update-manager.js';
 import { setupFeedbackManager, handleSubmitFeedback } from './feedback-manager.js';
-import { clearToolbarBadge, updateToolbarBadge } from './toolbar-badge.js';
+import { clearToolbarBadge, forgetToolbarBadge, updateToolbarBadge } from './toolbar-badge.js';
 import { shouldBlockPageAds } from '../ad-blocker/run.js';
+import {
+	configureAiqaTracing,
+	flushAiqaSpans,
+	recordRelayedSteps,
+} from '../tracing/aiqa-tracer.js';
+import { startSpan, endSpan } from '../tracing/tracer-hook.js';
 
 /** Chunks labelled below safe (caution / high-risk). */
 function isNeutralisedScore(score) {
   return score != null && score >= 0.4;
+}
+
+/**
+ * Earliest timestamp the page analysis touched, so its trace covers chunking too:
+ * the content script chunks the page before it messages the background.
+ */
+function earliestStart(state): number {
+  const starts = (state.traceSteps ?? [])
+    .map((step) => step?.start)
+    .filter((start) => Number.isFinite(start));
+  return Math.min(state.startTime, ...starts);
 }
 
 // Test that service worker loaded
@@ -60,6 +77,8 @@ class AnalysisManager {
           'GET_AD_BLOCK_STATUS',
           'SITE_EXCLUSION_CHANGED',
           'BN_SUBMIT_FEEDBACK',
+          'POPUP_OPENED',
+          'POPUP_ERROR',
         ]);
         if (!handledTypes.has(message?.type)) return false;
 
@@ -80,6 +99,7 @@ class AnalysisManager {
       chrome.tabs.onRemoved.addListener((tabId) => {
         try {
           this.activeAnalyses.delete(tabId);
+          forgetToolbarBadge(tabId);
         } catch (error) {
           console.error('[BetterNet] Error in onRemoved listener:', error);
         }
@@ -119,7 +139,8 @@ class AnalysisManager {
             message.url,
             message.chunks,
             message.pageMetadata,
-            message.adsHidden ?? 0
+            message.adsHidden ?? 0,
+            message.traceSteps
           );
           break;
 
@@ -149,6 +170,27 @@ class AnalysisManager {
         } else {
           clearToolbarBadge(targetTab);
         }
+        break;
+      }
+
+      // Popup lifecycle — logged here because the service worker console
+      // survives the popup closing, unlike the popup's own console.
+      case 'POPUP_OPENED': {
+        const popupTab = message.tabId ?? tabId;
+        console.log(
+          `[BetterNet][popup] opened for tab ${popupTab} in ${message.openMs ?? '?'}ms`,
+          message.url ?? ''
+        );
+        sendResponse({ ok: true });
+        break;
+      }
+
+      case 'POPUP_ERROR': {
+        console.error(
+          `[BetterNet][popup] problem on tab ${message.tabId ?? tabId}:`,
+          message.message
+        );
+        sendResponse({ ok: true });
         break;
       }
 
@@ -220,7 +262,7 @@ class AnalysisManager {
     sendResponse({ enabled, blockedCount, adsPreviewActive });
   }
 
-  async startAnalysis(tabId, url, chunks, pageMetadata, adsHidden = 0) {
+  async startAnalysis(tabId, url, chunks, pageMetadata, adsHidden = 0, traceSteps = undefined) {
     setTabId(tabId);
     logit('log', '[BetterNet] [ANALYZE_CHUNKS] Starting analysis for tab', tabId, 'URL:', url, 'Chunks:', chunks.length);
     
@@ -265,6 +307,8 @@ class AnalysisManager {
         ])
       ),
       results: [],
+      /** Chunking steps timed in the content script; replayed as spans in performAnalysis. */
+      traceSteps,
       startTime: Date.now()
     };
 
@@ -325,6 +369,20 @@ class AnalysisManager {
         settings,
         pageMetadata.domain
       );
+
+      // AIQA tracing: settings can change between analyses, so reconfigure each time.
+      await configureAiqaTracing(settings);
+      state.trace = startSpan('betternet.analyze_page', {
+        startTime: earliestStart(state),
+        attributes: {
+          'betternet.url': state.url,
+          'betternet.domain': pageMetadata.domain,
+          'betternet.chunk_count': state.chunks.length,
+          'betternet.analysis_mode': settings.analysisMode,
+          'betternet.enabled_features': enabledFeatures.join(','),
+        },
+      });
+      recordRelayedSteps(state.traceSteps, state.trace);
       
       // Get API keys from env-utils (checks env vars, env.js, chrome.storage)
       const googleFactCheckKey = getGoogleFactCheckKey();
@@ -387,6 +445,7 @@ class AnalysisManager {
           },
           maxConcurrency: 5,
           enabledFeatures,
+          trace: state.trace,
         },
         onAnalysis
       );
@@ -485,10 +544,19 @@ class AnalysisManager {
     } catch (error) {
       logit('error', '[BetterNet] [PERFORM_ANALYSIS] Error:', error);
       logit('error', '[BetterNet] [PERFORM_ANALYSIS] Error stack:', error.stack);
+      endSpan(state.trace, {}, error);
+      state.trace = null;
       this.broadcastUpdate(state.tabId, {
         status: 'error',
         error: error.message
       });
+    } finally {
+      endSpan(state.trace, {
+        'betternet.neutralised_count': state.neutralisedCount ?? 0,
+        'betternet.duration_ms': Date.now() - state.startTime,
+      });
+      state.trace = null;
+      await flushAiqaSpans();
     }
   } // ./performAnalysis
 

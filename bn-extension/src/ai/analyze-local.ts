@@ -5,9 +5,21 @@
 import { getLocalModel } from './model-catalog.js';
 import { getOffscreenLocalBackend } from './local-model-backend.js';
 import type { LocalModelBackend } from './local-model-backend.js';
+import { traceStep, setAttributes } from '../tracing/tracer-hook.js';
+import type { TraceHandle } from '../tracing/tracer-hook.js';
 import { logit } from '../utils/logger.js';
 
 const MAX_TEXT_CHARS = 1200;
+const MAX_NEW_TOKENS = 256;
+
+/** GenAI attributes for an on-device model call, so AIQA groups it with remote LLM spans. */
+function localModelAttributes(modelId: string, pipeline: string) {
+	return {
+		'gen_ai.operation.name': pipeline,
+		'gen_ai.system': 'local',
+		'gen_ai.request.model': modelId,
+	};
+}
 
 function truncate(text: string) {
 	if (!text || text.length <= MAX_TEXT_CHARS) return text || '';
@@ -24,6 +36,8 @@ export interface AnalyzeWithLocalLLMParams {
 	parseResponse: (text: string) => Record<string, unknown>;
 	fallback: () => Record<string, unknown>;
 	localBackend?: LocalModelBackend | null;
+	/** Parent AIQA span; the model call becomes a child of it. */
+	trace?: TraceHandle | null;
 }
 
 /**
@@ -39,6 +53,7 @@ export async function analyzeWithLocalLLM(params: AnalyzeWithLocalLLMParams) {
 		parseResponse,
 		fallback,
 		localBackend,
+		trace,
 	} = params;
 
 	const model = getLocalModel(modelId);
@@ -54,12 +69,19 @@ export async function analyzeWithLocalLLM(params: AnalyzeWithLocalLLMParams) {
 
 	try {
 		if (model.pipeline === 'zero-shot-classification' && candidateLabels?.length) {
-			const result = await backend.zeroShot({
-				modelId: model.id,
-				text: truncate(context.text || ''),
-				candidateLabels,
-				multiLabel,
-			});
+			const result = await traceStep(
+				'local.zero_shot',
+				{ parent: trace, attributes: localModelAttributes(model.id, 'zero-shot-classification') },
+				(span) => {
+					setAttributes(span, { 'gen_ai.request.label_count': candidateLabels.length });
+					return backend.zeroShot({
+						modelId: model.id,
+						text: truncate(context.text || ''),
+						candidateLabels,
+						multiLabel,
+					});
+				}
+			);
 
 			if (result?.error) throw new Error(result.error);
 			if (!result?.labels?.length) throw new Error('Empty zero-shot result');
@@ -77,11 +99,14 @@ export async function analyzeWithLocalLLM(params: AnalyzeWithLocalLLMParams) {
 
 		const userContent = formatContextForPrompt(context);
 		const prompt = `${systemPrompt}\n\n${userContent}`;
-		const result = await backend.generate({
-			modelId: model.id,
-			prompt,
-			maxNewTokens: 256,
-		});
+		const result = await traceStep(
+			'local.generate',
+			{ parent: trace, attributes: localModelAttributes(model.id, 'text2text-generation') },
+			(span) => {
+				setAttributes(span, { 'gen_ai.request.max_tokens': MAX_NEW_TOKENS });
+				return backend.generate({ modelId: model.id, prompt, maxNewTokens: MAX_NEW_TOKENS });
+			}
+		);
 
 		if (result?.error) throw new Error(result.error);
 		const text = result?.text?.trim();

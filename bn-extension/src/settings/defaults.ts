@@ -68,13 +68,24 @@
     localModelId: 'flan-t5-small',
     autoAnalyze: true,
     showIndicators: true,
+    // Lowest risk band that earns a Nutrient Label: 'safe' | 'caution' | 'high-risk'.
+    // Safe chunks are unlabelled by default — a label on everything is just noise.
+    nutrientLabelMinRisk: 'caution',
     BN_OPENAI_API_KEY: '',
     BN_ANTHROPIC_API_KEY: '',
     BN_GOOGLE_API_KEY: '',
     shareAnonymous: false,
     shareUsageStats: false,
     shareFactCheckCache: false,
+    // AIQA tracing (aiqa.winterwell.com): off unless an API key is supplied.
+    aiqaTracing: false,
+    aiqaApiKey: '',
+    aiqaServerUrl: '',
+    // 0-1. Every page view makes a trace, so sample down if AIQA gets noisy.
+    aiqaSamplingRate: 1,
     serverEndpoint: '',
+    // Reuse the server's cached analysis for a page instead of analysing it locally. No service yet.
+    useServerCache: false,
     excludedSites: [],
     domainOverrides: {},
     modules: defaultModuleState(),

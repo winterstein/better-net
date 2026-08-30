@@ -59,6 +59,7 @@ copyRecursive(srcDir, distDir, [
   'background/background.ts',
   'content/content.ts',
   'offscreen/offscreen.ts',
+  'offscreen/inference-worker.ts',
   'options/options.ts',
   'popup/popup.ts',
   'settings/defaults.ts',
@@ -148,6 +149,21 @@ await build({
   loader: { '.ts': 'ts', '.txt': 'text' },
   bundle: true,
   outfile: path.join(distDir, 'offscreen', 'offscreen.js'),
+  format: 'esm',
+  platform: 'browser',
+  target: 'es2020',
+  minify: false,
+  sourcemap: false,
+  logLevel: 'info',
+});
+
+// Bundle the inference worker (ESM: ONNX loads its jsep runtime via dynamic import)
+console.log('Bundling inference worker...');
+await build({
+  entryPoints: [path.join(srcDir, 'offscreen', 'inference-worker.ts')],
+  loader: { '.ts': 'ts', '.txt': 'text' },
+  bundle: true,
+  outfile: path.join(distDir, 'offscreen', 'inference-worker.js'),
   format: 'esm',
   platform: 'browser',
   target: 'es2020',

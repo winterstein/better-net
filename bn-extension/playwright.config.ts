@@ -15,6 +15,11 @@ export default defineConfig({
       timeout: 30_000,
     },
     {
+      name: 'popup',
+      testMatch: '**/popup-blocking.spec.ts',
+      timeout: 60_000,
+    },
+    {
       name: 'e2e',
       testMatch: '**/fixtures.spec.ts',
       dependencies: ['smoke'],

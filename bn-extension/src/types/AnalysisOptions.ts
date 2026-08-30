@@ -1,5 +1,6 @@
 import type { LLMClient } from '../ai/llm-client.js';
 import type { LocalModelBackend } from '../ai/local-model-backend.js';
+import type { TraceHandle } from '../tracing/tracer-hook.js';
 
 /**
  * Analysis options for configuring analyzers
@@ -25,5 +26,7 @@ export interface AnalysisOptions {
 	llmClient?: LLMClient;
 	/** Optional local model backend (extension offscreen). */
 	localBackend?: LocalModelBackend | null;
+	/** Parent AIQA span for this analysis; child spans hang off it (tracing/tracer-hook.ts). */
+	trace?: TraceHandle | null;
 }
 

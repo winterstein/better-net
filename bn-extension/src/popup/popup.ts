@@ -2,6 +2,9 @@
 
 import { findAnalysisByModule } from '../types/AspectAnalysis.js';
 import { chunkProblemScore } from '../types/ChunkAnalysis.js';
+import { createPopupLog, runStep } from './popup-diagnostics.js';
+
+const log = createPopupLog();
 
 const FEATURE_DISPLAY = {
   factChecker: { name: 'Fact Checker', description: 'Claims checked against fact-check sources' },
@@ -11,30 +14,76 @@ const FEATURE_DISPLAY = {
   clickUnbait: { name: 'Click Unbait', description: 'Honest summaries on clickbait links' },
 };
 
-const STORAGE_TIMEOUT_MS = 8_000;
-const MESSAGE_TIMEOUT_MS = 5_000;
+// The popup renders its shell before awaiting anything, so these bound how
+// long we wait for *data* only — never how long the user stares at a spinner.
+const TABS_TIMEOUT_MS = 2_000;
+const STORAGE_TIMEOUT_MS = 4_000;
+const MESSAGE_TIMEOUT_MS = 3_000;
+const POLL_INTERVAL_MS = 1_000;
+/** If the popup is not interactive by now, say so instead of spinning. */
+const READY_WATCHDOG_MS = 2_500;
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> {
-  return Promise.race([
-    promise,
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
-  ]);
-}
-
-function runtimeSendMessage(message) {
-  return withTimeout(
-    new Promise((resolve) => {
-      chrome.runtime.sendMessage(message, (response) => {
-        if (chrome.runtime.lastError) {
-          resolve(null);
-          return;
-        }
-        resolve(response ?? null);
-      });
-    }),
-    MESSAGE_TIMEOUT_MS
+async function runtimeSendMessage(message) {
+  const step = await runStep(
+    `runtime.sendMessage ${message?.type}`,
+    () =>
+      new Promise((resolve) => {
+        chrome.runtime.sendMessage(message, (response) => {
+          if (chrome.runtime.lastError) {
+            log.warn(
+              `sendMessage ${message?.type} lastError:`,
+              chrome.runtime.lastError.message
+            );
+            resolve(null);
+            return;
+          }
+          resolve(response ?? null);
+        });
+      }),
+    MESSAGE_TIMEOUT_MS,
+    log
   );
+  return step.value;
 }
+
+/** Last-resort UI, so a broken popup is never a blank rectangle. */
+function showFatalError(message) {
+  try {
+    document.getElementById('loading')?.classList.add('hidden');
+    document.getElementById('analysis-container')?.classList.remove('hidden');
+    document.getElementById('progress-section')?.classList.add('hidden');
+    document.getElementById('results-section')?.classList.add('hidden');
+    document.getElementById('error-section')?.classList.remove('hidden');
+    const errorEl = document.getElementById('error-message');
+    if (errorEl) errorEl.textContent = message;
+  } catch (error) {
+    log.error('could not render fatal error UI:', error);
+  }
+}
+
+/** Mirror popup problems into the service worker console (survives popup close). */
+function reportToBackground(type, detail) {
+  try {
+    chrome.runtime.sendMessage({ type, ...detail }, () => {
+      void chrome.runtime.lastError;
+    });
+  } catch (error) {
+    log.warn(`could not report ${type} to background:`, error);
+  }
+}
+
+window.addEventListener('error', (event) => {
+  log.error('uncaught error:', event.message, `${event.filename}:${event.lineno}`);
+  reportToBackground('POPUP_ERROR', { message: `uncaught: ${event.message}` });
+  showFatalError('BetterNet popup hit an error. See the popup console for details.');
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  log.error('unhandled promise rejection:', event.reason);
+  reportToBackground('POPUP_ERROR', {
+    message: `unhandled rejection: ${String(event.reason)}`,
+  });
+});
 
 class PopupController {
   [key: string]: any;
@@ -43,28 +92,72 @@ class PopupController {
     this.currentTabId = null;
     this.currentUrl = null;
     this.updateInterval = null;
+    this.storageListenerAttached = false;
     this.adPreviewActive = false;
+    this.ready = false;
+    this.watchdog = null;
+    this.startWatchdog();
     this.init();
   }
 
+  /** A popup that never paints reads as "clicking did nothing" — break that silence. */
+  startWatchdog() {
+    this.watchdog = setTimeout(() => {
+      if (this.ready) return;
+      log.warn(`popup still not interactive after ${READY_WATCHDOG_MS}ms`);
+      reportToBackground('POPUP_ERROR', { message: 'popup init watchdog fired' });
+      showFatalError(
+        'BetterNet is taking longer than usual to open. Press Retry, or reload the extension if this keeps happening.'
+      );
+    }, READY_WATCHDOG_MS);
+  }
+
+  markReady(where) {
+    if (this.ready) return;
+    this.ready = true;
+    clearTimeout(this.watchdog);
+    this.watchdog = null;
+    log.info(`popup interactive (${where}) after ${log.sinceOpen()}ms`);
+  }
+
   async init() {
+    log.info('init start; document.readyState =', document.readyState);
     try {
       await this.initPopup();
+      log.info(`init complete after ${log.sinceOpen()}ms`);
     } catch (error) {
-      console.error('[BetterNet] Popup init failed:', error);
+      log.error('init failed:', error);
+      reportToBackground('POPUP_ERROR', {
+        message: `init failed: ${error?.message ?? error}`,
+      });
       this.showError('Popup failed to load. Try reloading the extension.');
+    } finally {
+      this.markReady('init finished');
     }
   }
 
   async initPopup() {
-    // Settings works even when the active tab cannot be analyzed
-    document.getElementById('settings-btn')?.addEventListener('click', () => {
-      chrome.runtime.openOptionsPage();
-    });
+    // Paint the shell before awaiting anything. A slow or hung chrome.* call
+    // must never leave the user staring at a spinner.
+    this.wireStaticControls();
+    this.showIdleAnalysis();
+    this.markReady('shell rendered');
 
-    // Get current active tab
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tabsStep = await runStep(
+      'tabs.query',
+      () => chrome.tabs.query({ active: true, currentWindow: true }),
+      TABS_TIMEOUT_MS,
+      log
+    );
+
+    if (!tabsStep.ok) {
+      this.showError('Could not read the active tab. Close and reopen BetterNet.');
+      return;
+    }
+
+    const tabs = tabsStep.value || [];
     if (tabs.length === 0) {
+      log.warn('no active tab in the current window');
       this.showNoTab();
       return;
     }
@@ -72,50 +165,55 @@ class PopupController {
     this.currentTabId = tabs[0].id;
     const url = tabs[0].url;
     this.currentUrl = url;
+    log.info('active tab', this.currentTabId, url);
+
+    reportToBackground('POPUP_OPENED', {
+      tabId: this.currentTabId,
+      url,
+      openMs: log.sinceOpen(),
+    });
 
     // Check if URL is valid (not chrome://, etc.)
     if (!url || url.startsWith('chrome://') || url.startsWith('chrome-extension://')) {
+      log.info('tab is not analyzable:', url);
       this.showMessage('This page cannot be analyzed.');
       return;
     }
 
     // Display URL
-    document.getElementById('current-url').textContent = this.truncateUrl(url);
+    const urlEl = document.getElementById('current-url');
+    if (urlEl) urlEl.textContent = this.truncateUrl(url);
 
-    // Set up retry button
-    document.getElementById('retry-btn')?.addEventListener('click', () => {
-      this.retryAnalysis();
-    });
-
-    // Set up exclude toggle button
-    document.getElementById('exclude-toggle-btn')?.addEventListener('click', () => {
-      this.toggleSiteExclusion();
-    });
-
-    document.getElementById('chunks-toggle')?.addEventListener('click', () => {
-      this.toggleChunksList();
-    });
-
-    // Check and update exclusion status
-    await this.updateExclusionStatus();
-
-    // Load current analysis status
-    await this.loadAnalysisStatus();
+    // Independent of each other — run together so a slow one cannot delay the other
+    await Promise.all([this.updateExclusionStatus(), this.loadAnalysisStatus()]);
 
     // Set up real-time updates
     this.setupUpdates();
 
     // Request analysis if not already started
-    this.ensureAnalysisStarted();
-
-    this.dismissLoadingIfNeeded();
+    void this.ensureAnalysisStarted();
   }
 
-  dismissLoadingIfNeeded() {
-    const loadingEl = document.getElementById('loading');
-    if (loadingEl && !loadingEl.classList.contains('hidden')) {
-      this.showIdleAnalysis();
-    }
+  /** Button wiring only — no awaits, so the popup is clickable immediately. */
+  wireStaticControls() {
+    // Settings works even when the active tab cannot be analyzed
+    document.getElementById('settings-btn')?.addEventListener('click', () => {
+      log.info('opening options page');
+      chrome.runtime.openOptionsPage();
+    });
+
+    document.getElementById('retry-btn')?.addEventListener('click', () => {
+      log.info('retry clicked');
+      void this.retryAnalysis();
+    });
+
+    document.getElementById('exclude-toggle-btn')?.addEventListener('click', () => {
+      void this.toggleSiteExclusion();
+    });
+
+    document.getElementById('chunks-toggle')?.addEventListener('click', () => {
+      this.toggleChunksList();
+    });
   }
 
   showIdleAnalysis() {
@@ -128,11 +226,14 @@ class PopupController {
 
   async loadAnalysisStatus() {
     const storageKey = `analysis_${this.currentTabId}`;
-    const data = await withTimeout(
-      chrome.storage.local.get(storageKey) as Promise<Record<string, unknown>>,
-      STORAGE_TIMEOUT_MS
+    const stored = await runStep(
+      'storage.local.get(analysis)',
+      () => chrome.storage.local.get(storageKey) as Promise<Record<string, unknown>>,
+      STORAGE_TIMEOUT_MS,
+      log
     );
 
+    const data = stored.value;
     if (data?.[storageKey]) {
       this.updateUI(data[storageKey]);
       return;
@@ -157,10 +258,20 @@ class PopupController {
       return;
     }
 
+    log.debug('no analysis status yet for tab', this.currentTabId);
     this.showIdleAnalysis();
   }
 
   setupUpdates() {
+    this.setupStorageListener();
+    this.startPolling();
+  }
+
+  setupStorageListener() {
+    // Attach once — retryAnalysis() re-enters setupUpdates()
+    if (this.storageListenerAttached) return;
+    this.storageListenerAttached = true;
+
     // Listen for storage updates (from background script)
     chrome.storage.onChanged.addListener((changes, areaName) => {
       if (areaName === 'local') {
@@ -171,33 +282,68 @@ class PopupController {
       }
       // Update exclusion status when excludedSites changes
       if (areaName === 'sync' && changes.excludedSites) {
-        this.updateExclusionStatus();
+        void this.updateExclusionStatus();
       }
     });
+  }
 
-    // Also poll for updates (backup mechanism)
+  /** Poll as a backup for the storage listener. */
+  startPolling() {
+    if (this.updateInterval) return;
+    log.debug(`polling analysis status every ${POLL_INTERVAL_MS}ms`);
     this.updateInterval = setInterval(() => {
-      this.loadAnalysisStatus();
+      void this.loadAnalysisStatus();
       if (!document.getElementById('results-section')?.classList.contains('hidden')) {
         void this.appendAdBlockerResultItem();
       }
-    }, 1000);
+    }, POLL_INTERVAL_MS);
+  }
+
+  /** Content script unreachable — say so instead of spinning on "Analyzing page…". */
+  showStalledNotice(message) {
+    const results = document.getElementById('results-section');
+    if (results && !results.classList.contains('hidden')) return;
+    log.warn('stalled:', message);
+    const stage = document.getElementById('current-stage');
+    if (stage) stage.textContent = message;
+  }
+
+  /**
+   * Stop polling once there is nothing left to wait for. Idle polling keeps the
+   * service worker awake and slows the storage reads the next popup depends on.
+   */
+  stopPolling(reason) {
+    if (!this.updateInterval) return;
+    clearInterval(this.updateInterval);
+    this.updateInterval = null;
+    log.debug('polling stopped:', reason);
   }
 
   async ensureAnalysisStarted() {
     // Check if analysis is already running
     const storageKey = `analysis_${this.currentTabId}`;
-    const data = await chrome.storage.local.get(storageKey);
-    
+    const stored = await runStep(
+      'storage.local.get(before trigger)',
+      () => chrome.storage.local.get(storageKey),
+      STORAGE_TIMEOUT_MS,
+      log
+    );
+    const data = stored.value || {};
+
     if (!data[storageKey] || data[storageKey].status === 'not_started') {
       // Trigger analysis via content script
-      try {
-        await chrome.tabs.sendMessage(this.currentTabId, {
-          type: 'TRIGGER_ANALYSIS'
-        });
-      } catch (error) {
-        // Content script might not be loaded, try sending message anyway
-        console.log('Could not send message to content script:', error);
+      log.info('triggering analysis on tab', this.currentTabId);
+      const trigger = await runStep(
+        'tabs.sendMessage(TRIGGER_ANALYSIS)',
+        () => chrome.tabs.sendMessage(this.currentTabId, { type: 'TRIGGER_ANALYSIS' }),
+        MESSAGE_TIMEOUT_MS,
+        log
+      );
+      if (!trigger.ok) {
+        // Content script might not be loaded on this page
+        this.showStalledNotice(
+          'BetterNet could not reach this page. Reload the tab, then reopen BetterNet.'
+        );
       }
     }
   }
@@ -220,11 +366,13 @@ class PopupController {
     errorSection.classList.add('hidden');
 
     if (data.status === 'error') {
+      this.stopPolling('analysis error');
       this.showError(data.error || 'Analysis failed');
       return;
     }
 
     if (data.status === 'excluded') {
+      this.stopPolling('site excluded');
       progressSection.classList.add('hidden');
       resultsSection.classList.add('hidden');
       errorSection.classList.remove('hidden');
@@ -261,6 +409,7 @@ class PopupController {
 
     if (data.status === 'completed' && data.result) {
       // Show final results
+      this.stopPolling('analysis complete');
       progressSection.classList.add('hidden');
       resultsSection.classList.remove('hidden');
       this.displayResults(data.result);
@@ -610,6 +759,7 @@ class PopupController {
   }
 
   showError(message) {
+    log.warn('showError:', message);
     const errorSection = document.getElementById('error-section');
     const analysisEl = document.getElementById('analysis-container');
     const loadingEl = document.getElementById('loading');
@@ -622,8 +772,9 @@ class PopupController {
   }
 
   showNoTab() {
-    document.getElementById('loading').classList.add('hidden');
-    document.getElementById('no-tab').classList.remove('hidden');
+    log.warn('showNoTab — no analyzable tab');
+    document.getElementById('loading')?.classList.add('hidden');
+    document.getElementById('no-tab')?.classList.remove('hidden');
   }
 
   showMessage(message) {
@@ -639,6 +790,15 @@ class PopupController {
   }
 
   async retryAnalysis() {
+    log.info('retrying analysis for tab', this.currentTabId);
+    if (!this.currentTabId) {
+      // Watchdog/tab-query failure path: start over rather than retry nothing
+      this.ready = false;
+      this.startWatchdog();
+      await this.init();
+      return;
+    }
+
     // Clear existing analysis
     const storageKey = `analysis_${this.currentTabId}`;
     await chrome.storage.local.remove(storageKey);
@@ -646,6 +806,7 @@ class PopupController {
     // Trigger new analysis
     await this.ensureAnalysisStarted();
     await this.loadAnalysisStatus();
+    this.startPolling();
   }
 
   truncateUrl(url) {
@@ -682,17 +843,21 @@ class PopupController {
   }
 
   async isSiteExcluded(url) {
+    let hostname = '';
     try {
-      const urlObj = new URL(url);
-      const hostname = urlObj.hostname;
-      
-      const settings = await chrome.storage.sync.get({ excludedSites: [] });
-      const excludedSites = settings.excludedSites || [];
-      
-      return excludedSites.includes(hostname);
+      hostname = new URL(url).hostname;
     } catch {
       return false;
     }
+
+    const settings = await runStep(
+      'storage.sync.get(excludedSites)',
+      () => chrome.storage.sync.get({ excludedSites: [] }),
+      STORAGE_TIMEOUT_MS,
+      log
+    );
+    const excludedSites = settings.value?.excludedSites || [];
+    return excludedSites.includes(hostname);
   }
 
   async toggleSiteExclusion() {
@@ -762,16 +927,21 @@ class PopupController {
   }
 
   cleanup() {
-    if (this.updateInterval) {
-      clearInterval(this.updateInterval);
+    this.stopPolling('popup closing');
+    if (this.watchdog) {
+      clearTimeout(this.watchdog);
+      this.watchdog = null;
     }
   }
 }
 
 // Initialize popup controller
+log.info('popup script loaded');
 const popupController = new PopupController();
 
-// Cleanup on popup close
-window.addEventListener('beforeunload', () => {
+// `pagehide`, not `beforeunload`: a slow popup teardown makes Chrome drop the
+// *next* toolbar click, which the user sees as "clicking does nothing".
+window.addEventListener('pagehide', () => {
+  log.info(`popup closing after ${log.sinceOpen()}ms`);
   popupController.cleanup();
 });

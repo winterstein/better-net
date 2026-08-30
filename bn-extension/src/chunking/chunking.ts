@@ -14,6 +14,8 @@ import { extractChunksReddit } from './chunking-reddit.js';
 import { extractChunksThreads } from './chunking-threads.js';
 import { extractChunksBluesky } from './chunking-bluesky.js';
 import { finalizeChunks } from './chunk-tags.js';
+import { NOOP_STEP_RECORDER } from '../tracing/trace-steps.js';
+import type { StepRecorder } from '../tracing/trace-steps.js';
 
 /**
  * Extract content chunks from HTML/DOM
@@ -27,6 +29,7 @@ import { finalizeChunks } from './chunk-tags.js';
  * @param {number} options.minTextLength - Minimum text length for a chunk (default: 100)
  * @param {number} options.maxChunks - Maximum number of chunks to return (default: 50)
  * @param {boolean} options.includeAds - Whether to include likely advertisements (default: false)
+ * @param {StepRecorder} options.recorder - AIQA step recorder (tracing/trace-steps.ts)
  * @returns {Array<Object>} Array of content chunks with xpath field
  */
 export async function extractChunks(source, url, options: any = {}) {
@@ -36,7 +39,8 @@ export async function extractChunks(source, url, options: any = {}) {
     strategy = 'auto',
     minTextLength = 100,
     maxChunks = 50,
-    includeAds = false
+    includeAds = false,
+    recorder = NOOP_STEP_RECORDER
   } = options;
 
   const chunkingOptions = {
@@ -55,7 +59,15 @@ export async function extractChunks(source, url, options: any = {}) {
   if (platform && strategy === 'auto') {
     try {
       console.log('[BetterNet] [CHUNKING] Using custom chunker for platform:', platform);
-      const customChunks = await extractChunksFromPlatform(source, url, platform, chunkingOptions);
+      const customChunks = await recorder.step(
+        'betternet.chunk.platform',
+        { 'betternet.chunk.strategy': 'platform', 'betternet.chunk.platform': platform },
+        async (step) => {
+          const found = await extractChunksFromPlatform(source, url, platform, chunkingOptions);
+          step.annotate({ 'betternet.chunk.count': found?.length ?? 0 });
+          return found;
+        }
+      );
       if (customChunks && customChunks.length > 0) {
         console.log('[BetterNet] [CHUNKING] Custom chunker found', customChunks.length, 'chunks');
         return finalizeChunks(customChunks, { platform, url });
@@ -72,7 +84,15 @@ export async function extractChunks(source, url, options: any = {}) {
   if (strategy === 'llm' || strategy === 'auto') {
     try {
       console.log('[BetterNet] [CHUNKING] Trying LLM chunking...');
-      const llmChunks = await extractChunksLLM(source, chunkingOptions);
+      const llmChunks = await recorder.step(
+        'betternet.chunk.llm',
+        { 'betternet.chunk.strategy': 'llm' },
+        async (step) => {
+          const found = await extractChunksLLM(source, chunkingOptions);
+          step.annotate({ 'betternet.chunk.count': found?.length ?? 0 });
+          return found;
+        }
+      );
       if (llmChunks && llmChunks.length > 0) {
         console.log('[BetterNet] [CHUNKING] LLM chunking found', llmChunks.length, 'chunks');
         return finalizeChunks(llmChunks, { url });
@@ -88,7 +108,15 @@ export async function extractChunks(source, url, options: any = {}) {
   // Fall back to regex/selector-based chunking
   if (strategy === 'regex' || strategy === 'auto' || strategy === 'llm') {
     console.log('[BetterNet] [CHUNKING] Using regex/selector-based chunking...');
-    const regexChunks = extractChunksRegex(source, url, chunkingOptions);
+    const regexChunks = await recorder.step(
+      'betternet.chunk.regex',
+      { 'betternet.chunk.strategy': 'regex' },
+      (step) => {
+        const found = extractChunksRegex(source, url, chunkingOptions);
+        step.annotate({ 'betternet.chunk.count': found.length });
+        return found;
+      }
+    );
     console.log('[BetterNet] [CHUNKING] Regex chunking found', regexChunks.length, 'chunks');
     return finalizeChunks(regexChunks, { url });
   }

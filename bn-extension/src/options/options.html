@@ -71,6 +71,12 @@
             <span class="setting-description">Show nutrient labels on analysed page chunks</span>
           </div>
 
+          <div class="setting-item">
+            <label for="nutrient-label-min-risk"><strong>Label content rated</strong></label>
+            <span class="setting-description">Which risk levels get a nutrient label. Safe content is unlabelled by default.</span>
+            <select id="nutrient-label-min-risk"></select>
+          </div>
+
           <h3 class="subsection-title">API keys</h3>
 
           <div class="setting-item">
@@ -138,6 +144,13 @@
             <span class="setting-description">bn-server base URL for feedback, cached analysis, and updates (e.g. http://localhost:3001)</span>
             <input type="url" id="server-endpoint" placeholder="https://api.betternet.org" autocomplete="off">
           </div>
+          <div class="setting-item">
+            <label class="checkbox-label">
+              <input type="checkbox" id="use-server-cache">
+              <span><strong>Use server cache</strong></span>
+            </label>
+            <span class="setting-description">Fetch cached analysis from the server endpoint to speed up analysis. Not yet available.</span>
+          </div>
           <p class="placeholder-note">Account sync and subscription management are not yet available.</p>
         </section>
 
@@ -168,6 +181,32 @@
               <span><strong>Contribute to shared fact-check cache</strong></span>
             </label>
             <span class="setting-description">Help others by sharing fact-check results (claims only)</span>
+          </div>
+
+          <div class="setting-item">
+            <label class="checkbox-label">
+              <input type="checkbox" id="aiqa-tracing">
+              <span><strong>Send AIQA traces</strong></span>
+            </label>
+            <span class="setting-description">Trace page analysis, chunking and AI calls to AIQA (aiqa.winterwell.com) for quality analysis. Traces include chunk text sent to AI models. Needs an API key.</span>
+          </div>
+
+          <div class="setting-item">
+            <label for="aiqa-api-key"><strong>AIQA API key</strong></label>
+            <span class="setting-description">Tracing stays off until this is set.</span>
+            <input type="password" id="aiqa-api-key" placeholder="aiqa-..." autocomplete="off">
+          </div>
+
+          <div class="setting-item">
+            <label for="aiqa-server-url"><strong>AIQA server</strong></label>
+            <span class="setting-description">Leave blank for the default (https://server-aiqa.winterwell.com).</span>
+            <input type="url" id="aiqa-server-url" placeholder="https://server-aiqa.winterwell.com" autocomplete="off">
+          </div>
+
+          <div class="setting-item">
+            <label for="aiqa-sampling-rate"><strong>Trace sampling</strong></label>
+            <span class="setting-description">Fraction of page analyses to trace, 0 to 1. Lower this if AIQA gets noisy.</span>
+            <input type="number" id="aiqa-sampling-rate" min="0" max="1" step="0.05">
           </div>
         </section>
 

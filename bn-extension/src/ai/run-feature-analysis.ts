@@ -35,7 +35,7 @@ export async function runFeatureAnalysis(params: FeatureAnalysisParams) {
 		mockResults,
 	} = params;
 
-	const { mode = 'local', config = {}, llmClient, localBackend } = options;
+	const { mode = 'local', config = {}, llmClient, localBackend, trace } = options;
 	const context = buildContext(chunk, pageMetadata);
 
 	if (mode === 'heuristic') {
@@ -51,6 +51,7 @@ export async function runFeatureAnalysis(params: FeatureAnalysisParams) {
 			parseResponse: parseAIResponse,
 			fallback: () => heuristicFallback(context),
 			localBackend,
+			trace,
 		});
 	}
 
@@ -65,7 +66,7 @@ export async function runFeatureAnalysis(params: FeatureAnalysisParams) {
 				{ role: 'system', content: getPrompt(promptId) },
 				{ role: 'user', content: formatContextForPrompt(context) },
 			],
-			{ traceName: `${promptId}.${mode}` }
+			{ traceName: `${promptId}.${mode}`, trace }
 		);
 		return parseAIResponse(text);
 	} catch (error) {

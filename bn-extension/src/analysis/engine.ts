@@ -3,6 +3,7 @@
  */
 
 import { ANALYSIS_FEATURES, ANALYSIS_FEATURE_IDS } from '../features/registry.js';
+import { traceStep, setAttributes } from '../tracing/tracer-hook.js';
 import { logit } from '../utils/logger.js';
 import { completeAspectAnalysis } from '../types/AspectAnalysis.js';
 import type { AspectAnalysis } from '../types/AspectAnalysis.js';
@@ -45,8 +46,21 @@ async function analyzeChunk(
   for (const feature of ANALYSIS_FEATURES) {
     if (!enabledFeatures.includes(feature.id)) continue;
     tasks.push(
-      feature
-        .analyze(chunk, pageMetadata, analysisOptions)
+      traceStep(
+        `betternet.feature.${feature.id}`,
+        { parent: analysisOptions.trace, attributes: { 'betternet.feature': feature.id } },
+        (span) =>
+          feature
+            .analyze(chunk, pageMetadata, { ...analysisOptions, trace: span })
+            .then((result: Partial<AspectAnalysis>) => {
+              setAttributes(span, {
+                'betternet.problem_score': result.problemScore ?? 0,
+                'betternet.confidence': result.confidence ?? 0,
+                'betternet.flag_count': result.flags?.length ?? 0,
+              });
+              return result;
+            })
+      )
         .then((result: Partial<AspectAnalysis>) => {
           analyses.push(completeAspectAnalysis(feature.id, result));
         })
@@ -98,7 +112,11 @@ export async function analyzeChunksParallel(
     const batch = chunks.slice(i, i + maxConcurrency);
     const batchResults = await Promise.all(
       batch.map(async (chunk) => {
-        const result = await analyzeChunk(chunk, pageMetadata, analysisOptions);
+        const result = await traceStep(
+          'betternet.analyze_chunk',
+          { parent: analysisOptions.trace, attributes: chunkAttributes(chunk) },
+          (span) => analyzeChunk(chunk, pageMetadata, { ...analysisOptions, trace: span })
+        );
         if (onAnalysis) onAnalysis(chunk, result);
         return result;
       })
@@ -107,4 +125,14 @@ export async function analyzeChunksParallel(
   }
 
   return results;
+}
+
+/** Span attributes identifying a chunk. Text length only, never the text itself. */
+function chunkAttributes(chunk: Chunk) {
+  return {
+    'betternet.chunk.id': String(chunk.id ?? chunk.fingerprint ?? ''),
+    'betternet.chunk.xpath': chunk.xpath ?? '',
+    'betternet.chunk.text_length': chunk.text?.length ?? 0,
+    'betternet.chunk.tags': (chunk.tags ?? []).join(','),
+  };
 }

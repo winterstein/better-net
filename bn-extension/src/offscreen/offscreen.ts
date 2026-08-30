@@ -1,59 +1,85 @@
 /**
- * Offscreen document: loads transformers.js pipelines and runs inference.
+ * Offscreen document: thin proxy between the background service worker and the
+ * inference worker.
+ *
+ * Deliberately does no heavy work. Every same-origin extension page (popup,
+ * options, this document) shares one renderer main thread, so running ONNX
+ * inference here blocked the toolbar popup from painting — clicking the badge
+ * appeared to do nothing. All model work lives in inference-worker.ts.
  */
 
-import { pipeline, env } from '@huggingface/transformers';
-import { LOCAL_MODELS, getLocalModel } from '../ai/model-catalog.js';
-import {
-  applyDownloadProgressEvent,
-  type FileByteProgress,
-} from '../ai/download-progress.js';
+import { LOCAL_MODELS } from '../ai/model-catalog.js';
 
 const LOG = '[BN:local-model]';
 
 const WASM_BASE = chrome.runtime.getURL('wasm/');
-env.allowLocalModels = false;
-env.useBrowserCache = true;
-
-/** Configure ONNX WASM for MV3 offscreen (no CDN, no proxy worker, single-threaded). */
-function configureOnnxWasm() {
-  const wasm = env.backends?.onnx?.wasm;
-  if (!wasm) {
-    console.error(LOG, 'offscreen: env.backends.onnx.wasm missing');
-    return;
-  }
-  wasm.wasmPaths = {
-    mjs: WASM_BASE + 'ort-wasm-simd-threaded.jsep.mjs',
-    wasm: WASM_BASE + 'ort-wasm-simd-threaded.jsep.wasm',
-  };
-  // Proxy workers cannot load extension WASM reliably; transformers.js defaults to false.
-  wasm.proxy = false;
-  // Extension pages are not cross-origin isolated — threaded WASM fails with ErrorEvent.
-  wasm.numThreads = 1;
-  console.log(LOG, 'offscreen: ONNX wasm configured', {
-    mjs: wasm.wasmPaths.mjs,
-    wasm: wasm.wasmPaths.wasm,
-    proxy: wasm.proxy,
-    numThreads: wasm.numThreads,
-  });
-}
-configureOnnxWasm();
-
-/** @type {Map<string, unknown>} */
-const pipelines = new Map();
+const WORKER_URL = chrome.runtime.getURL('offscreen/inference-worker.js');
 
 /** @type {Map<string, { status: string, progress?: number, error?: string }>} */
 const modelState = new Map();
 
-/** Per-model file byte totals while a download is in flight. */
-const downloadFiles = new Map<string, Map<string, FileByteProgress>>();
-
 /** @type {chrome.runtime.Port | null} */
 let backgroundPort = null;
+
+// --- inference worker ------------------------------------------------------
+
+/** @type {Worker | null} */
+let worker = null;
+let nextRequestId = 1;
+const pendingWorkerRequests = new Map();
+
+function handleWorkerMessage(event) {
+  const { id, result, error, type, modelId, patch } = event.data || {};
+
+  if (type === 'STATE') {
+    setModelState(modelId, patch);
+    return;
+  }
+
+  const pending = pendingWorkerRequests.get(id);
+  if (!pending) return;
+  pendingWorkerRequests.delete(id);
+  if (error) pending.reject(new Error(error));
+  else pending.resolve(result);
+}
+
+function startWorker() {
+  // Module worker: ONNX loads its jsep runtime with a dynamic import(), which
+  // classic workers cannot do.
+  worker = new Worker(WORKER_URL, { type: 'module' });
+  worker.addEventListener('message', handleWorkerMessage);
+  worker.addEventListener('error', (event) => {
+    console.error(LOG, 'offscreen: inference worker error', event.message);
+    for (const [id, pending] of pendingWorkerRequests) {
+      pending.reject(new Error(event.message || 'inference worker failed'));
+      pendingWorkerRequests.delete(id);
+    }
+  });
+  console.log(LOG, 'offscreen: inference worker started', WORKER_URL);
+  return callWorker('INIT', { wasmBase: WASM_BASE });
+}
+
+function callWorker(action, payload = {}) {
+  if (!worker) {
+    return Promise.reject(new Error('inference worker not started'));
+  }
+  const id = nextRequestId++;
+  return new Promise((resolve, reject) => {
+    pendingWorkerRequests.set(id, { resolve, reject });
+    worker.postMessage({ id, action, ...payload });
+  });
+}
+
+// --- model state (owned here, synced to the background) --------------------
 
 function setModelState(modelId, patch) {
   const prev = modelState.get(modelId) || { status: 'idle' };
   const next = { ...prev, ...patch };
+  // New files can temporarily lower the download ratio — keep the UI monotonic.
+  if (patch?.monotonic) {
+    next.progress = Math.max(prev.progress ?? 0, patch.progress ?? 0);
+    delete next.monotonic;
+  }
   modelState.set(modelId, next);
   console.log(LOG, 'offscreen: state', modelId, next);
   // Offscreen documents cannot use chrome.storage — sync via port to background.
@@ -67,177 +93,51 @@ function setModelState(modelId, patch) {
   }
 }
 
-function reportProgress(modelId, progress) {
-  let files = downloadFiles.get(modelId);
-  if (!files) {
-    files = new Map();
-    downloadFiles.set(modelId, files);
-  }
-  const estimated = getLocalModel(modelId)?.sizeBytes ?? 0;
-  const pct = applyDownloadProgressEvent(files, progress, estimated);
-  if (pct == null) return;
-
-  const prevPct = modelState.get(modelId)?.progress ?? 0;
-  // Keep UI monotonic within a download (new files can temporarily lower the ratio).
-  setModelState(modelId, {
-    status: 'downloading',
-    progress: Math.max(prevPct, pct),
-  });
-}
-
-/** Release in-memory ONNX sessions. WASM heaps rarely shrink; prefer a fresh offscreen doc for large loads. */
-async function disposePipelines() {
-  const entries = [...pipelines.entries()];
-  pipelines.clear();
-  for (const [id, pipe] of entries) {
-    try {
-      const disposable = pipe as { dispose?: () => Promise<void> | void };
-      await disposable.dispose?.();
-      console.log(LOG, 'offscreen: disposed pipeline', id);
-    } catch (err) {
-      console.warn(LOG, 'offscreen: dispose failed', id, err);
-    }
-  }
-}
-
-async function getPipeline(modelId) {
-  if (pipelines.has(modelId)) return pipelines.get(modelId);
-
-  // One resident model: free others before allocating a new WASM session buffer.
-  await disposePipelines();
-
-  const spec = getLocalModel(modelId);
-  console.log(LOG, 'offscreen: loading pipeline', modelId, spec.huggingFaceId);
-  // Keep last download % while the pipeline finishes initializing.
-  setModelState(modelId, { status: 'loading' });
-
-  const pipe = await pipeline(spec.pipeline as import('@huggingface/transformers').PipelineType, spec.huggingFaceId, {
-    progress_callback: (p) => reportProgress(modelId, p),
-    ...(spec.pipelineOptions || {}),
-  });
-
-  pipelines.set(modelId, pipe);
-  downloadFiles.delete(modelId);
-  setModelState(modelId, { status: 'ready', progress: 100, error: undefined });
-  console.log(LOG, 'offscreen: pipeline ready', modelId);
-  return pipe;
-}
-
-async function zeroShot({ modelId, text, candidateLabels, multiLabel }) {
-  const pipe = await getPipeline(modelId);
-  const output = await pipe(text, candidateLabels, { multi_label: multiLabel });
-  return {
-    labels: output.labels,
-    scores: output.scores,
-  };
-}
-
-const GENERATIVE_PIPELINES = new Set(['text2text-generation', 'text-generation']);
-
-function extractGeneratedText(outputs, prompt) {
-  const first = Array.isArray(outputs) ? outputs[0] : outputs;
-  const generated = first?.generated_text;
-  if (typeof generated === 'string') {
-    if (prompt && generated.startsWith(prompt)) {
-      return generated.slice(prompt.length).trim();
-    }
-    return generated.trim();
-  }
-  if (Array.isArray(generated)) {
-    const last = generated.at(-1);
-    if (last?.content != null) return String(last.content).trim();
-  }
-  return '';
-}
-
-async function generate({ modelId, prompt, maxNewTokens }) {
-  const spec = getLocalModel(modelId);
-  if (!GENERATIVE_PIPELINES.has(spec.pipeline)) {
-    throw new Error(`Model ${modelId} does not support text generation`);
-  }
-  const pipe = await getPipeline(modelId);
-  const opts = { max_new_tokens: maxNewTokens ?? 256, do_sample: false };
-  const outputs =
-    spec.pipeline === 'text-generation'
-      ? await pipe([{ role: 'user', content: prompt }], opts)
-      : await pipe(prompt, opts);
-  return { text: extractGeneratedText(outputs, prompt) };
-}
-
-async function removeModel(modelId) {
-  const pipe = pipelines.get(modelId);
-  pipelines.delete(modelId);
-  if (pipe) {
-    try {
-      await (pipe as { dispose?: () => Promise<void> | void }).dispose?.();
-    } catch (err) {
-      console.warn(LOG, 'offscreen: dispose on remove failed', modelId, err);
-    }
-  }
-  setModelState(modelId, { status: 'not_installed', progress: 0, error: undefined });
-  try {
-    const keys = await caches.keys();
-    await Promise.all(keys.map((k) => caches.delete(k)));
-  } catch {
-    // Cache API may be limited in offscreen; model files may remain in IndexedDB until cleared
-  }
-}
-
-function startDownload(modelId) {
-  if (!modelId) {
-    return Promise.reject(new Error('modelId required'));
-  }
-  console.log(LOG, 'offscreen: startDownload', modelId);
-  downloadFiles.set(modelId, new Map());
-  setModelState(modelId, { status: 'downloading', progress: 0, error: undefined });
-  return getPipeline(modelId).catch((err) => {
-    const msg = formatOnnxError(err);
-    console.error(LOG, 'offscreen: download failed', modelId, msg, err);
-    downloadFiles.delete(modelId);
-    setModelState(modelId, { status: 'error', error: msg });
-    throw err;
-  });
-}
-
+/**
+ * Main-thread heap plus the worker's resident models. The models themselves
+ * live in the worker's isolate, so `performance.memory` here no longer counts
+ * their weights — it reports this document, not the ONNX sessions.
+ */
 async function getMemoryStats() {
   const perfMem = (performance as Performance & {
     memory?: { usedJSHeapSize: number; totalJSHeapSize: number; jsHeapSizeLimit: number };
   }).memory;
+
+  let fromWorker: Record<string, unknown> = { loadedModelIds: [] };
+  try {
+    fromWorker = (await callWorker('GET_MEMORY')) as Record<string, unknown>;
+  } catch (err) {
+    console.warn(LOG, 'offscreen: worker memory query failed', err);
+  }
+
   return {
-    jsHeapUsedBytes: perfMem?.usedJSHeapSize ?? null,
-    jsHeapTotalBytes: perfMem?.totalJSHeapSize ?? null,
-    jsHeapLimitBytes: perfMem?.jsHeapSizeLimit ?? null,
-    loadedModelIds: [...pipelines.keys()],
+    jsHeapUsedBytes: fromWorker.jsHeapUsedBytes ?? perfMem?.usedJSHeapSize ?? null,
+    jsHeapTotalBytes: fromWorker.jsHeapTotalBytes ?? perfMem?.totalJSHeapSize ?? null,
+    jsHeapLimitBytes: fromWorker.jsHeapLimitBytes ?? perfMem?.jsHeapSizeLimit ?? null,
+    loadedModelIds: fromWorker.loadedModelIds ?? [],
   };
 }
 
 async function handleOffscreenAction(action, message) {
   switch (action) {
+    // Answered on this thread so a health check never waits behind inference.
     case 'PING':
-      return { ok: true };
-    case 'DOWNLOAD': {
-      const { modelId } = message;
-      if (!modelId) return { error: 'modelId required' };
-      startDownload(modelId).catch((err) => {
-        console.error(LOG, 'offscreen: background download task failed', modelId, err);
-      });
-      return { ok: true, started: true, modelId };
-    }
-    case 'REMOVE':
-      await removeModel(message.modelId);
       return { ok: true };
     case 'GET_STATUS':
       return { models: Object.fromEntries(modelState), catalog: LOCAL_MODELS };
     case 'GET_MEMORY':
       return getMemoryStats();
+    case 'DOWNLOAD':
+    case 'REMOVE':
     case 'ZERO_SHOT':
-      return zeroShot(message);
     case 'GENERATE':
-      return generate(message);
+      return callWorker(action, message);
     default:
       return { error: `Unknown action: ${action}` };
   }
 }
+
+// --- background port -------------------------------------------------------
 
 function replyOnPort(port, requestId, result) {
   if (!port || requestId == null) return;
@@ -284,6 +184,9 @@ function connectToBackground() {
   }
 }
 
+startWorker().catch((err) => {
+  console.error(LOG, 'offscreen: inference worker init failed', err);
+});
 connectToBackground();
 
 // Legacy broadcast path (background should use port; log if this still fires)
@@ -299,20 +202,5 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     .catch((err) => sendResponse({ error: err.message }));
   return true;
 });
-
-function formatOnnxError(err) {
-  if (err instanceof ErrorEvent) {
-    return err.message || err.type || 'WebAssembly failed to load (check extension wasm/ files)';
-  }
-  const msg = err?.message || String(err);
-  if (/failed to allocate a buffer|Can't create a session/i.test(msg)) {
-    return (
-      'Not enough memory to load this model on-device. ' +
-      'Close other tabs, delete unused local models, retry, or use MobileBERT. ' +
-      `(${msg})`
-    );
-  }
-  return msg;
-}
 
 console.log(LOG, 'offscreen: script loaded, wasm base', WASM_BASE);

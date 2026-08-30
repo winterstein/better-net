@@ -2,6 +2,8 @@
  * ESM settings helpers (options page uses settings/defaults.js IIFE).
  */
 
+import { DEFAULT_NUTRIENT_LABEL_MIN_RISK } from '../types/RiskLevel.js';
+
 export const MODULES = [
   { id: 'adBlocker', name: 'Ad Blocker' },
   { id: 'cookieCutter', name: 'Cookie Cutter' },
@@ -37,6 +39,13 @@ export function mergeSettings(stored: any = {}) {
   return {
     analysisMode: 'local',
     localModelId: 'flan-t5-small',
+    showIndicators: true,
+    // Keep in step with settings/defaults.ts (duplicated for bundling, see AGENTS.md).
+    nutrientLabelMinRisk: DEFAULT_NUTRIENT_LABEL_MIN_RISK,
+    aiqaTracing: false,
+    aiqaApiKey: '',
+    aiqaServerUrl: '',
+    aiqaSamplingRate: 1,
     excludedSites: [],
     domainOverrides: {},
     ...stored,

@@ -3,6 +3,7 @@
 import type { AspectAnalysis } from '../types/AspectAnalysis.js';
 import type { ChunkAnalysis } from '../types/ChunkAnalysis.js';
 import { chunkProblemScore } from '../types/ChunkAnalysis.js';
+import { riskLevelForScore } from '../types/RiskLevel.js';
 
 export interface TrafficLight {
   color: string;
@@ -27,13 +28,9 @@ const ANALYSIS_LABELS: Record<string, string> = {
 };
 
 export function getTrafficLight(score: number): TrafficLight {
-  if (score >= 0.7) {
-    return { color: '#f44336', border: '#d32f2f', label: 'High Risk' };
-  }
-  if (score >= 0.4) {
-    return { color: '#ff9800', border: '#f57c00', label: 'Caution' };
-  }
-  return { color: '#4CAF50', border: '#388e3c', label: 'Safe' };
+  // Bands live in RiskLevel.ts so the label and the display threshold agree.
+  const { color, border, label } = riskLevelForScore(score);
+  return { color, border, label };
 }
 
 export function calculateNutritionData(analyses: AspectAnalysis[]): NutritionData {
