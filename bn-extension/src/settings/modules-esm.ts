@@ -46,6 +46,8 @@ export function mergeSettings(stored: any = {}) {
     aiqaApiKey: '',
     aiqaServerUrl: '',
     aiqaSamplingRate: 1,
+    consoleLogging: false,
+    demoMode: true, // TODO: set to false for production
     excludedSites: [],
     domainOverrides: {},
     ...stored,

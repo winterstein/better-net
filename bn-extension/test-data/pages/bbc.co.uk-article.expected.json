@@ -1,0 +1,8 @@
+{
+  "url": "https://www.bbc.co.uk/news/articles/c7v80n7mz2jo",
+  "note": "News article: the story must arrive as one chunk, with the sidebar teasers alongside it. Captured 2026-08-31.",
+  "chunks": { "min": 5, "max": 50 },
+  "mustChunk": ["economic inactivity crisis"],
+  "mustNotAppear": ["Image source,", "Attribution"],
+  "primaryChunk": { "contains": "economic inactivity crisis", "minLength": 2000 }
+}

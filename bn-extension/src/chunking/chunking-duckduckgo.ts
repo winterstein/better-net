@@ -5,6 +5,7 @@
 
 import { isElementHidden, generateXPath } from './chunking-utils.js';
 import { inferAdvert, TAG } from './chunk-tags.js';
+import { logit } from '../utils/logger.js';
 
 /**
  * Extract chunks from DuckDuckGo Search results
@@ -19,7 +20,7 @@ export function extractChunksDuckDuckGo(source: Document | Element | string, url
 	// Convert HTML string to DOM if needed
 	const doc = typeof source === 'string' ? parseHTML(source) : source;
 	if (!doc) {
-		console.warn('[BetterNet] [CHUNKING] [DuckDuckGo] Failed to parse document');
+		logit('warn', '[BetterNet] [CHUNKING] [DuckDuckGo] Failed to parse document');
 		return [];
 	}
 
@@ -67,7 +68,7 @@ export function extractChunksDuckDuckGo(source: Document | Element | string, url
 		// Use article tags as primary selector (stable semantic HTML)
 		// Prefer articles with data-testid="result" but fall back to any article in results area
 		let resultArticles = doc.querySelectorAll('article[data-testid="result"]');
-		console.log('[BetterNet] [CHUNKING] [DuckDuckGo] Found', resultArticles.length, 'articles with data-testid="result"');
+		logit('log','[BetterNet] [CHUNKING] [DuckDuckGo] Found', resultArticles.length, 'articles with data-testid="result"');
 
 		// If no results with data-testid, try all articles (DuckDuckGo uses article tags for results)
 		if (resultArticles.length === 0) {
@@ -75,14 +76,14 @@ export function extractChunksDuckDuckGo(source: Document | Element | string, url
 			const resultsContainer = doc.querySelector('[data-testid="links"], #links, .results, main');
 			if (resultsContainer) {
 				resultArticles = resultsContainer.querySelectorAll('article');
-				console.log('[BetterNet] [CHUNKING] [DuckDuckGo] Found', resultArticles.length, 'articles in results container');
+				logit('log','[BetterNet] [CHUNKING] [DuckDuckGo] Found', resultArticles.length, 'articles in results container');
 			}
 		}
 		if (resultArticles.length === 0) {
 			// Last resort: all articles on page
 			resultArticles = doc.querySelectorAll('article');
 			const docSource = (doc as Document).documentElement?.outerHTML ?? '';
-			console.log('[BetterNet] [CHUNKING] [DuckDuckGo] Found', resultArticles.length, 'total articles on page', doc, docSource);
+			logit('log','[BetterNet] [CHUNKING] [DuckDuckGo] Found', resultArticles.length, 'total articles on page', doc, docSource);
 		}
 
 		for (const element of resultArticles) {
@@ -98,17 +99,17 @@ export function extractChunksDuckDuckGo(source: Document | Element | string, url
 				if (chunk.text.length >= minTextLength) {
 					chunks.push(chunk);
 				} else {
-					console.log('[BetterNet] [CHUNKING] [DuckDuckGo] Chunk text too short:', chunk.text.length, 'chars (min:', minTextLength, ')');
+					logit('log','[BetterNet] [CHUNKING] [DuckDuckGo] Chunk text too short:', chunk.text.length, 'chars (min:', minTextLength, ')');
 				}
 			} else {
-				console.log('[BetterNet] [CHUNKING] [DuckDuckGo] Failed to extract chunk from element');
+				logit('log','[BetterNet] [CHUNKING] [DuckDuckGo] Failed to extract chunk from element');
 			}
 		}
 
 		// Also check for cards (fallback for older pages)
 		const cardClass = '.module--carousel__item.has-image';
 		const cards = doc.querySelectorAll(cardClass);
-		console.log('[BetterNet] [CHUNKING] [DuckDuckGo] Found', cards.length, 'cards');
+		logit('log','[BetterNet] [CHUNKING] [DuckDuckGo] Found', cards.length, 'cards');
 		for (const element of cards) {
 			const chunk = extractDDGChunk(element, linkRegex, url, { includeAds });
 			if (chunk && chunk.text && chunk.text.length >= minTextLength) {
@@ -117,7 +118,7 @@ export function extractChunksDuckDuckGo(source: Document | Element | string, url
 		}
 	}
 
-	console.log('[BetterNet] [CHUNKING] [DuckDuckGo] Extracted', chunks.length, 'chunks before filtering');
+	logit('log','[BetterNet] [CHUNKING] [DuckDuckGo] Extracted', chunks.length, 'chunks before filtering');
 
 	// Filter out ads unless explicitly included
 	const filteredChunks = includeAds

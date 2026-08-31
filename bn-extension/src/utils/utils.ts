@@ -2,6 +2,8 @@
  * Utility functions for content script
  */
 
+import { logit } from './logger.js';
+
 export { hash } from './hash.js';
 
 /**
@@ -105,7 +107,7 @@ export function findElementByXPath(xpath) {
         }
       } catch (xpathError) {
         // If XPath evaluation fails, fall back to manual parsing
-        console.warn('[BetterNet] [CONTENT] XPath evaluation failed, trying manual parsing:', xpathError.message);
+        logit('warn','[BetterNet] [CONTENT] XPath evaluation failed, trying manual parsing:', xpathError.message);
       }
     }
 
@@ -118,7 +120,7 @@ export function findElementByXPath(xpath) {
     
     for (const part of parts) {
       if (!element) {
-        console.warn('[BetterNet] [CONTENT] Element is null/undefined at part:', part);
+        logit('warn','[BetterNet] [CONTENT] Element is null/undefined at part:', part);
         return null;
       }
 
@@ -130,7 +132,7 @@ export function findElementByXPath(xpath) {
         // Parse tag[index] format
         const match = part.match(/^(\w+)(?:\[(\d+)\])?$/);
         if (!match) {
-          console.warn('[BetterNet] [CONTENT] Could not parse xpath part:', part);
+          logit('warn','[BetterNet] [CONTENT] Could not parse xpath part:', part);
           continue;
         }
 
@@ -146,7 +148,7 @@ export function findElementByXPath(xpath) {
             node => node.nodeType === Node.ELEMENT_NODE
           );
         } else {
-          console.warn('[BetterNet] [CONTENT] Element has no children property:', element);
+          logit('warn','[BetterNet] [CONTENT] Element has no children property:', element);
           return null;
         }
 
@@ -158,7 +160,7 @@ export function findElementByXPath(xpath) {
         if (matchingChildren[index]) {
           element = matchingChildren[index];
         } else {
-          console.warn('[BetterNet] [CONTENT] Could not find child at index', index, 'for tag', tagName, 'in', element, 'matching children:', matchingChildren.length);
+          logit('warn','[BetterNet] [CONTENT] Could not find child at index', index, 'for tag', tagName, 'in', element, 'matching children:', matchingChildren.length);
           return null;
         }
       }
@@ -166,7 +168,7 @@ export function findElementByXPath(xpath) {
 
     return element;
   } catch (error) {
-    console.error('Error finding element by xpath:'+xpath, error);
+    logit('error', 'Error finding element by xpath:'+xpath, error);
     return null;
   }
 }

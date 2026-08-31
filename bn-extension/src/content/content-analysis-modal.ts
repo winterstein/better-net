@@ -4,6 +4,7 @@ import type { AspectAnalysis } from '../types/AspectAnalysis.js';
 import type { ChunkAnalysis } from '../types/ChunkAnalysis.js';
 import { chunkProblemScore } from '../types/ChunkAnalysis.js';
 import { riskLevelForScore } from '../types/RiskLevel.js';
+import { logit } from '../utils/logger.js';
 
 export interface TrafficLight {
   color: string;
@@ -294,6 +295,9 @@ export function showContentAnalysisModal(analysisResults: Partial<ChunkAnalysis>
   } = analysisResults;
   const problemScore = chunkProblemScore(analysisResults);
   const canFeedback = feedbackEnabled && fingerprint && url;
+  if ( !canFeedback ) {
+    logit('log', 'Content Analysis modal: Feedback is disabled: feedbackEnabled: '+feedbackEnabled+' fingerprint:'+fingerprint+' url:'+url);
+  }
   const nutritionData = calculateNutritionData(analyses);
   const trafficLight = getTrafficLight(problemScore);
   const modalTitle = title

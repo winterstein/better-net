@@ -41,7 +41,7 @@ export async function waitForPopupReady(page: Page, timeoutMs = 15_000) {
 
 export async function waitForOptionsReady(page: Page, timeoutMs = 15_000) {
   await expect(page.locator('h1.top-bar-title')).toHaveText('better:net', { timeout: timeoutMs });
-  await expect(page.locator('#nav-list li')).toHaveCount(5, { timeout: timeoutMs });
+  await expect(page.locator('#nav-list li')).toHaveCount(6, { timeout: timeoutMs });
   await expect(page.locator('#analysis-mode')).toBeVisible({ timeout: timeoutMs });
   await expect(page.locator('#page-ai-model')).toBeVisible({ timeout: timeoutMs });
   await expect(page.locator('.status-message.error')).toHaveCount(0, { timeout: timeoutMs });

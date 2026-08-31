@@ -632,7 +632,7 @@ class PopupController {
       await this.appendAdBlockerResultItem();
     } catch (error) {
       this.showStatusMessage('Could not update ad preview on this tab', 'error');
-      console.log('Ad preview toggle failed:', error);
+      log.warn('Ad preview toggle failed:', error);
     }
   }
 
@@ -646,7 +646,7 @@ class PopupController {
         xpath,
       });
     } catch (error) {
-      console.log('Could not highlight chunk:', error);
+      log.warn('Could not highlight chunk:', error);
     }
   }
 
@@ -834,11 +834,13 @@ class PopupController {
     if (isExcluded) {
       toggleBtn.classList.add('excluded');
       toggleIcon.textContent = '🔓';
-      toggleText.textContent = 'Included';
+      toggleText.textContent = 'Include';
+      toggleBtn.title = 'Currently excluded. Click to include this site in better:net analysis.';
     } else {
       toggleBtn.classList.remove('excluded');
       toggleIcon.textContent = '🔒';
       toggleText.textContent = 'Exclude';
+      toggleBtn.title = 'Click to exclude this site from better:net analysis.';
     }
   }
 
@@ -896,7 +898,7 @@ class PopupController {
         });
       } catch (error) {
         // Content script might not be loaded
-        console.log('Could not notify content script:', error);
+        log.warn('Could not notify content script:', error);
       }
     } catch (error) {
       this.showStatusMessage('Error updating exclusion: ' + error.message, 'error');

@@ -122,6 +122,33 @@ test.describe('extension smoke', () => {
     await page.close();
   });
 
+  // The settings page renders from defaults first and re-renders when the storage read
+  // lands. An edit made in that window used to be reverted, and Save then wrote the old
+  // value back — the user set "Everything, including Safe" and still got no labels.
+  test('a settings edit survives the storage-read re-render', async ({ context, extensionId }) => {
+    const page = await context.newPage();
+    await page.goto(extensionUrl(extensionId, 'options/options.html'), {
+      waitUntil: 'domcontentloaded',
+    });
+    await waitForOptionsReady(page);
+
+    await page.locator('#nutrient-label-min-risk').selectOption('safe');
+    await page.locator('#auto-analyze').uncheck();
+    // What the delayed storage read does once it resolves.
+    await page.evaluate(() => (window as any).BN_SETTINGS_CONTROLLER.renderSettingsUi());
+
+    await expect(page.locator('#nutrient-label-min-risk')).toHaveValue('safe');
+    await expect(page.locator('#auto-analyze')).not.toBeChecked();
+
+    await page.locator('#save-btn').click();
+    await expect
+      .poll(() => page.evaluate(() => chrome.storage.sync.get('nutrientLabelMinRisk')
+        .then((s: any) => s.nutrientLabelMinRisk)), { timeout: 10_000 })
+      .toBe('safe');
+
+    await page.close();
+  });
+
   test('popup settings button opens options page', async ({ context, extensionId }) => {
     const popupPage = await context.newPage();
     const errors = collectPageErrors(popupPage);

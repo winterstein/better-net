@@ -1,0 +1,63 @@
+/**
+ * X (twitter.com / x.com) chunker tests.
+ *
+ * X renders generated class names, so the generic chunker returned 0 chunks on a post
+ * permalink and the demo label had nothing to attach to. Markup below mirrors the
+ * `data-testid` hooks X exposes.
+ */
+
+import assert from 'node:assert/strict';
+import { Window } from 'happy-dom';
+
+const URL_ = 'https://x.com/drhossamsamy65/status/2047310606361899350';
+
+const HTML = `<!DOCTYPE html><html><body><div id="react-root"><main role="main">
+  <div data-testid="cellInnerDiv">
+    <article data-testid="tweet" role="article">
+      <div data-testid="User-Name"><span>Dr.Sam Youssef Ph.D.,Ph.D.,DPT.</span><span>@drhossamsamy65</span></div>
+      <time datetime="2026-04-23T13:44:20.000Z">Apr 23</time>
+      <div data-testid="tweetText">Study: Bill Gates’ Lab Grown Meat Causes Cancer in Humans
+        <a href="https://t.co/W22BflKQpQ">thepeoplesvoice.tv/study-bill-gate…</a> via
+        <a href="/realtpv">@realtpv</a></div>
+      <div data-testid="card.wrapper">Study: Bill Gates’ Lab Grown Meat Causes Cancer in Humans thepeoplesvoice.tv</div>
+    </article>
+  </div>
+  <div data-testid="cellInnerDiv">
+    <div data-testid="placementTracking">
+      <article data-testid="tweet" role="article">
+        <div data-testid="User-Name"><span>Acme Insurance</span><span>@acme</span></div>
+        <div data-testid="tweetText">Switch today and save on your car insurance with Acme, the smarter way to cover your vehicle.</div>
+      </article>
+    </div>
+  </div>
+</main></div></body></html>`;
+
+const w = new Window({ url: URL_ });
+(globalThis as any).window = w as any;
+(globalThis as any).document = w.document as any;
+w.document.write(HTML);
+
+const { extractChunks } = await import('../src/chunking/chunking.js');
+const chunks = await extractChunks(w.document as any, URL_, {});
+
+assert.equal(chunks.length, 1, 'one post chunk, promoted post excluded');
+const [post] = chunks;
+assert.ok(post.text.includes('Lab Grown Meat Causes Cancer'), 'post text captured');
+assert.ok(post.text.includes('@drhossamsamy65'), 'author captured — the demo matches on the handle');
+assert.ok(post.text.length >= 100, 'above the chunker minTextLength');
+assert.ok(post.xpath?.includes('article'), `xpath points at the post: ${post.xpath}`);
+assert.ok(post.tags.includes('post'), 'tagged post');
+
+// The canned demo analysis must recognise this chunk
+const { demoResultsForChunks } = await import('../src/analysis/demo-analysis.js');
+const [result] = demoResultsForChunks(URL_, chunks);
+assert.ok(result, 'demo entry matches the live X chunk');
+assert.equal(result.chunk.xpath, post.xpath, 'label is placed on the real element');
+assert.equal(result.analysis.summary.overallRisk, 'high');
+
+// Promoted posts are available when ads are wanted
+const withAds = await extractChunks(w.document as any, URL_, { includeAds: true });
+assert.equal(withAds.length, 2);
+assert.ok(withAds.some((c) => c.tags.includes('advert')), 'placementTracking tags an advert');
+
+console.log('✅ X chunker tests passed');

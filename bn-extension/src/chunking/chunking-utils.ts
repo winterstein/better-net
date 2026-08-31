@@ -79,3 +79,49 @@ export function isElementHidden(element) {
   return false;
 }
 
+
+/**
+ * Text that exists only for screen readers. BBC renders "Attribution", "Comments" and
+ * "Video, 00:01:03" this way; sighted users never see it, and pulling it into chunk text
+ * corrupts both the analysis prompt and the fact-check query.
+ * Class names are the usual conventions, not one site's markup.
+ */
+export const SCREEN_READER_ONLY_SELECTOR = [
+  '.visually-hidden',
+  '.visuallyhidden',
+  '.visually-hidden-focusable',
+  '.sr-only',
+  '.screen-reader-text',
+  '.screen-reader-only',
+  '.a11y-hidden',
+  '.hidden-visually',
+  '[aria-hidden="true"]',
+].join(', ');
+
+/** Never part of the readable content of a chunk. */
+export const NON_CONTENT_SELECTOR = [
+  'script',
+  'style',
+  'noscript',
+  'template',
+  'svg',
+  SCREEN_READER_ONLY_SELECTOR,
+].join(', ');
+
+export function isScreenReaderOnly(element: Element): boolean {
+  return !!element?.matches?.(SCREEN_READER_ONLY_SELECTOR);
+}
+
+/**
+ * Element text as a sighted reader sees it: screen-reader-only spans dropped. BBC teasers
+ * carry a hidden copy of the headline ("Video, 00:01:03<headline>"), which otherwise lands
+ * in the chunk twice.
+ */
+export function visibleText(element: Element): string {
+  if (!element) return '';
+  const clean = (text: string) => (text || '').replace(/\s+/g, ' ').trim();
+  if (!element.querySelector?.(NON_CONTENT_SELECTOR)) return clean(element.textContent);
+  const clone = element.cloneNode(true) as Element;
+  clone.querySelectorAll(NON_CONTENT_SELECTOR).forEach((el) => el.remove());
+  return clean(clone.textContent);
+}

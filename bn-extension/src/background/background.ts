@@ -3,6 +3,7 @@ Coordinates page analysis and manages state
 */ 
 
 import { analyzeChunksParallel, enabledFeaturesFromSettings } from '../analysis/engine.js';
+import { demoChunks, demoResultsForChunks, findDemoPage } from '../analysis/demo-analysis.js';
 import { ANALYSIS_FEATURE_IDS } from '../features/registry.js';
 import {
 	completeAspectAnalysis,
@@ -12,7 +13,7 @@ import type { AspectAnalysis } from '../types/AspectAnalysis.js';
 import { chunkProblemScore } from '../types/ChunkAnalysis.js';
 import { mergeSettings } from '../settings/modules-esm.js';
 import { getGoogleFactCheckKey, getOpenAIKey, getAnthropicKey, initializeChromeStorage } from '../utils/env-utils.js';
-import { logit, setTabId } from '../utils/logger.js';
+import { logit, setTabId, setConsoleLogging } from '../utils/logger.js';
 import { setupModelManager } from './model-manager.js';
 import { setupUpdateManager } from './update-manager.js';
 import { setupFeedbackManager, handleSubmitFeedback } from './feedback-manager.js';
@@ -44,10 +45,22 @@ function earliestStart(state): number {
 // Test that service worker loaded
 try {
   logit('log', '[BetterNet] Background service worker loaded');
-  console.log('[BetterNet] Service worker initialization complete');
+  logit('log', '[BetterNet] Service worker initialization complete');
 } catch (error) {
   console.error('[BetterNet] Service worker initialization error:', error);
   console.error('[BetterNet] Error stack:', error.stack);
+}
+
+/** Demo mode is a recording aid: on for now, so the URLs in analysis/demo-analysis.ts
+ *  serve canned results. Turn it off with `chrome.storage.sync.set({ demoMode: false })`,
+ *  and change the default before production. */
+async function isDemoModeEnabled(): Promise<boolean> {
+  try {
+    const { demoMode } = await chrome.storage.sync.get({ demoMode: true }); // TODO: set to false for production
+    return !!demoMode;
+  } catch {
+    return true;
+  }
 }
 
 class AnalysisManager {
@@ -57,7 +70,7 @@ class AnalysisManager {
     try {
       this.activeAnalyses = new Map(); // tabId -> analysis state
       this.setupListeners();
-      console.log('[BetterNet] AnalysisManager initialized successfully');
+      logit('log', '[BetterNet] AnalysisManager initialized successfully');
     } catch (error) {
       console.error('[BetterNet] AnalysisManager constructor error:', error);
       console.error('[BetterNet] Error stack:', error.stack);
@@ -118,7 +131,7 @@ class AnalysisManager {
         }
       });
 
-      console.log('[BetterNet] Listeners setup complete');
+      logit('log', '[BetterNet] Listeners setup complete');
     } catch (error) {
       console.error('[BetterNet] Error setting up listeners:', error);
       console.error('[BetterNet] Error stack:', error.stack);
@@ -177,7 +190,8 @@ class AnalysisManager {
       // survives the popup closing, unlike the popup's own console.
       case 'POPUP_OPENED': {
         const popupTab = message.tabId ?? tabId;
-        console.log(
+        logit(
+          'log',
           `[BetterNet][popup] opened for tab ${popupTab} in ${message.openMs ?? '?'}ms`,
           message.url ?? ''
         );
@@ -279,6 +293,11 @@ class AnalysisManager {
     }
 
     if (!chunks || chunks.length === 0) {
+      // A demo URL that would not chunk (a feed behind a login, say) still has canned chunks.
+      chunks = (await isDemoModeEnabled()) ? demoChunks(url) : [];
+    }
+
+    if (!chunks || chunks.length === 0) {
       logit('warn', '[BetterNet] [ANALYZE_CHUNKS] No chunks provided');
       this.broadcastUpdate(tabId, {
         status: 'no_chunks',
@@ -365,6 +384,7 @@ class AnalysisManager {
       
       const stored = await chrome.storage.sync.get(null);
       const settings = mergeSettings(stored);
+      setConsoleLogging(!!settings.consoleLogging);
       const enabledFeatures = enabledFeaturesFromSettings(
         settings,
         pageMetadata.domain
@@ -430,25 +450,41 @@ class AnalysisManager {
 		});
 	  };
       
+      const demoPage = settings.demoMode ? findDemoPage(state.url) : undefined;
+      const demoResults = demoPage ? demoResultsForChunks(state.url, state.chunks) : [];
+      if (demoPage) {
+        logit(
+          'log',
+          '[BetterNet] [PERFORM_ANALYSIS] Demo mode:',
+          demoPage.title,
+          `— matched ${demoResults.length} of ${state.chunks.length} page chunks`
+        );
+      }
+
       logit('log', '[BetterNet] [PERFORM_ANALYSIS] Analyzing chunks in parallel...');
-      const chunkResults = await analyzeChunksParallel(
-        state.chunks,
-        pageMetadata,
-        {
-          mode: settings.analysisMode,
-          config: {
-            apiKey: openaiKey,
-            openaiKey: openaiKey,
-            anthropicKey: anthropicKey,
-            googleFactCheckKey: googleFactCheckKey,
-            localModelId: settings.localModelId || 'flan-t5-small',
-          },
-          maxConcurrency: 5,
-          enabledFeatures,
-          trace: state.trace,
-        },
-        onAnalysis
-      );
+      const chunkResults = demoPage
+        ? demoResults.map(({ chunk, analysis }) => {
+            onAnalysis(chunk, analysis);
+            return analysis;
+          })
+        : await analyzeChunksParallel(
+            state.chunks,
+            pageMetadata,
+            {
+              mode: settings.analysisMode,
+              config: {
+                apiKey: openaiKey,
+                openaiKey: openaiKey,
+                anthropicKey: anthropicKey,
+                googleFactCheckKey: googleFactCheckKey,
+                localModelId: settings.localModelId || 'flan-t5-small',
+              },
+              maxConcurrency: 5,
+              enabledFeatures,
+              trace: state.trace,
+            },
+            onAnalysis
+          );
       
       logit('log', '[BetterNet] [PERFORM_ANALYSIS] Analysis complete:', {
         chunksAnalyzed: chunkResults.length
@@ -723,7 +759,7 @@ setupFeedbackManager();
 let analysisManager;
 try {
   analysisManager = new AnalysisManager();
-  console.log('[BetterNet] AnalysisManager created successfully');
+  logit('log', '[BetterNet] AnalysisManager created successfully');
 } catch (error) {
   console.error('[BetterNet] Failed to create AnalysisManager:', error);
   console.error('[BetterNet] Error stack:', error.stack);
@@ -744,7 +780,7 @@ chrome.runtime.onInstalled.addListener((details) => {
 
 // Handle service worker startup (for debugging)
 chrome.runtime.onStartup?.addListener(() => {
-  console.log('[BetterNet] Service worker started');
+  logit('log', '[BetterNet] Service worker started');
 });
 
 // Global error handler for unhandled promise rejections

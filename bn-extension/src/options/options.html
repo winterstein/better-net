@@ -139,18 +139,6 @@
             <span class="setting-description">Sign-in and sync coming soon. Stored locally for now.</span>
             <input type="email" id="account-email" placeholder="you@example.com" autocomplete="email">
           </div>
-          <div class="setting-item">
-            <label for="server-endpoint"><strong>Server endpoint</strong></label>
-            <span class="setting-description">bn-server base URL for feedback, cached analysis, and updates (e.g. http://localhost:3001)</span>
-            <input type="url" id="server-endpoint" placeholder="https://api.betternet.org" autocomplete="off">
-          </div>
-          <div class="setting-item">
-            <label class="checkbox-label">
-              <input type="checkbox" id="use-server-cache">
-              <span><strong>Use server cache</strong></span>
-            </label>
-            <span class="setting-description">Fetch cached analysis from the server endpoint to speed up analysis. Not yet available.</span>
-          </div>
           <p class="placeholder-note">Account sync and subscription management are not yet available.</p>
         </section>
 
@@ -172,7 +160,7 @@
               <input type="checkbox" id="share-usage-stats">
               <span><strong>Share usage statistics</strong></span>
             </label>
-            <span class="setting-description">Which modules are used and error rates</span>
+            <span class="setting-description">Which modules are used and error rates. Does not share any browsing information.</span>
           </div>
 
           <div class="setting-item">
@@ -180,7 +168,15 @@
               <input type="checkbox" id="share-factcheck-cache">
               <span><strong>Contribute to shared fact-check cache</strong></span>
             </label>
-            <span class="setting-description">Help others by sharing fact-check results (claims only)</span>
+            <span class="setting-description">Help others by sharing fact-check results. <!-- TODO A sensitive data filter is applied to remove any personal information. --></span>
+          </div>
+
+          <div class="setting-item">
+            <label class="checkbox-label">
+              <input type="checkbox" id="use-server-cache">
+              <span><strong>Use server cache</strong></span>
+            </label>
+            <span class="setting-description">Fetch cached analysis from the server endpoint to speed up analysis. Not yet available. Endpoint is under Advanced.</span>
           </div>
 
           <div class="setting-item">
@@ -188,8 +184,30 @@
               <input type="checkbox" id="aiqa-tracing">
               <span><strong>Send AIQA traces</strong></span>
             </label>
-            <span class="setting-description">Trace page analysis, chunking and AI calls to AIQA (aiqa.winterwell.com) for quality analysis. Traces include chunk text sent to AI models. Needs an API key.</span>
+            <span class="setting-description">Trace page analysis, chunking and AI calls to AIQA (aiqa.winterwell.com) for quality analysis. Traces include chunk text sent to AI models. API key and sampling are under Advanced.</span>
           </div>
+        </section>
+
+        <!-- Advanced -->
+        <section id="page-advanced" class="page hidden" data-page="advanced">
+          <h2>Advanced</h2>
+          <p class="page-lead">Developer and diagnostics settings.</p>
+
+          <div class="setting-item">
+            <label class="checkbox-label">
+              <input type="checkbox" id="console-logging">
+              <span><strong>Console logging</strong></span>
+            </label>
+            <span class="setting-description">Write diagnostic messages to the browser console. Off by default.</span>
+          </div>
+
+          <div class="setting-item">
+            <label for="server-endpoint"><strong>Server endpoint</strong></label>
+            <span class="setting-description">bn-server base URL for feedback, cached analysis, and updates (e.g. http://localhost:3001)</span>
+            <input type="url" id="server-endpoint" placeholder="https://api.betternet.org" autocomplete="off">
+          </div>
+
+          <h3 class="subsection-title">AIQA tracing</h3>
 
           <div class="setting-item">
             <label for="aiqa-api-key"><strong>AIQA API key</strong></label>

@@ -1,0 +1,14 @@
+{
+  "url": "https://thepeoplesvoice.tv/study-bill-gates-lab-grown-meat-causes-cancer-in-humans/",
+  "note": "Fake-news article used by the demo dataset (src/analysis/demo-analysis.ts): the story plus its fabricated celebrity sidebar teasers. Captured 2026-08-31.",
+  "chunks": { "min": 10, "max": 50 },
+  "mustChunk": [
+    "lab-grown meat causes cancer",
+    "Denzel Washington",
+    "Alicia Silverstone"
+  ],
+  "primaryChunk": {
+    "contains": "lab-grown meat causes cancer",
+    "minLength": 2000
+  }
+}

@@ -5,6 +5,7 @@
 import { extractChunks } from '../chunking/chunking.js';
 import { createStepRecorder } from '../tracing/trace-steps.js';
 import { findElementByXPath, waitForContentRender } from '../utils/utils.js';
+import { isConsoleLoggingEnabled, logit, setConsoleLogging } from '../utils/logger.js';
 import { partitionChunks } from '../ad-blocker/detect-chunk.js';
 import {
   initAdBlocker,
@@ -27,6 +28,36 @@ import {
   DEFAULT_NUTRIENT_LABEL_MIN_RISK,
   shouldShowNutrientLabel,
 } from '../types/RiskLevel.js';
+
+/**
+ * Waiting for `load` is not enough on a single-page app: x.com renders its post tree after
+ * the content script runs, so the first pass sees an empty DOM and we chunked nothing at
+ * all there. Chunk again on a backoff until content appears (~7.5s worst case).
+ */
+const CHUNK_RETRY_DELAYS_MS = [0, 500, 1000, 2000, 4000];
+
+async function extractChunksWhenRendered(url, chunkOptions, recorder) {
+  let chunks = [];
+  for (let attempt = 0; attempt < CHUNK_RETRY_DELAYS_MS.length; attempt++) {
+    const delay = CHUNK_RETRY_DELAYS_MS[attempt];
+    if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+    chunks = await recorder.step(
+      'betternet.chunk_page',
+      { 'betternet.chunk.attempt': attempt + 1 },
+      (step) => extractChunks(document, url, { ...chunkOptions, recorder: step })
+    );
+    logit('log',
+      '[BetterNet] [CONTENT] Extracted',
+      chunks.length,
+      'chunks (attempt',
+      attempt + 1,
+      'of',
+      CHUNK_RETRY_DELAYS_MS.length + ')'
+    );
+    if (chunks.length) break;
+  }
+  return chunks;
+}
 
 class PageAnalyzer {
   [key: string]: any;
@@ -114,12 +145,13 @@ class PageAnalyzer {
       const settings = mergeSettings(await chrome.storage.sync.get(null));
       this.showIndicators = settings.showIndicators !== false;
       this.nutrientLabelMinRisk = settings.nutrientLabelMinRisk;
-      console.log(
+      setConsoleLogging(!!settings.consoleLogging);
+      logit('log',
         '[BetterNet] [CONTENT] Nutrient Labels:',
         this.showIndicators ? `from ${this.nutrientLabelMinRisk} upwards` : 'off'
       );
     } catch (error) {
-      console.warn('[BetterNet] [CONTENT] Could not read label settings:', error);
+      logit('warn','[BetterNet] [CONTENT] Could not read label settings:', error);
     }
   }
 
@@ -192,17 +224,17 @@ class PageAnalyzer {
 
   async analyzePage() {
     if (this.isAnalyzing) {
-      console.log('[BetterNet] [CONTENT] Analysis already in progress, skipping');
+      logit('log','[BetterNet] [CONTENT] Analysis already in progress, skipping');
       return;
     }
 
     const url = window.location.href;
-    console.log('[BetterNet] [CONTENT] Starting page analysis for:', url);
+    logit('log','[BetterNet] [CONTENT] Starting page analysis for:', url);
 
     // Check if site is excluded
     const isExcluded = await this.isSiteExcluded(url);
     if (isExcluded) {
-      console.log('[BetterNet] [CONTENT] Site is excluded, skipping analysis');
+      logit('log','[BetterNet] [CONTENT] Site is excluded, skipping analysis');
       // Don't analyze excluded sites
       return;
     }
@@ -210,24 +242,25 @@ class PageAnalyzer {
     this.isAnalyzing = true;
 
     // Extract page content for metadata
-    console.log('[BetterNet] [CONTENT] Extracting page content...');
+    logit('log','[BetterNet] [CONTENT] Extracting page content...');
     const content = this.extractContent();
-    console.log('[BetterNet] [CONTENT] Content extracted:', {
+    logit('log','[BetterNet] [CONTENT] Content extracted:', {
       title: content.title,
       textLength: content.text?.length || 0,
       htmlLength: content.html?.length || 0
     });
 
     // Wait for JavaScript to render content before extracting chunks
-    console.log('[BetterNet] [CONTENT] Waiting for page content to render...');
+    logit('log','[BetterNet] [CONTENT] Waiting for page content to render...');
     await waitForContentRender(3000, 200);
-    console.log('[BetterNet] [CONTENT] Content render wait complete');
+    logit('log','[BetterNet] [CONTENT] Content render wait complete');
 
     // Extract chunks in content script (has DOM access)
-    console.log('[BetterNet] [CONTENT] Extracting chunks from page...');
+    logit('log','[BetterNet] [CONTENT] Extracting chunks from page...');
     try {
       const hostname = new URL(url).hostname;
       const settings = mergeSettings((await chrome.storage.sync.get(null)) as unknown as Record<string, unknown>);
+      setConsoleLogging(!!settings.consoleLogging);
       const blockPageAds = shouldBlockPageAds(settings, hostname);
 
       // Chunking is timed here and sent to the background, which owns the AIQA
@@ -240,27 +273,14 @@ class PageAnalyzer {
         includeAds: blockPageAds,
       };
 
-      let chunks = await recorder.step('betternet.chunk_page', { 'betternet.chunk.attempt': 1 }, (step) =>
-        extractChunks(document, url, { ...chunkOptions, recorder: step })
-      );
-      console.log('[BetterNet] [CONTENT] Extracted', chunks.length, 'chunks');
-
-      // If no chunks found, wait a bit more and retry (for slow-loading pages)
-      if (chunks.length === 0) {
-        console.log('[BetterNet] [CONTENT] No chunks found, waiting for additional content...');
-        await waitForContentRender(2000, 200);
-        chunks = await recorder.step('betternet.chunk_page', { 'betternet.chunk.attempt': 2 }, (step) =>
-          extractChunks(document, url, { ...chunkOptions, recorder: step })
-        );
-        console.log('[BetterNet] [CONTENT] Retry extracted', chunks.length, 'chunks');
-      }
+      let chunks = await extractChunksWhenRendered(url, chunkOptions, recorder);
 
       let adsHidden = 0;
       if (blockPageAds) {
         const { adChunks, contentChunks } = partitionChunks(chunks, url);
         adsHidden = blockAdsFromChunks(adChunks, url);
         chunks = contentChunks;
-        console.log(
+        logit('log',
           '[BetterNet] [CONTENT] Ad blocker:',
           adsHidden,
           'hidden,',
@@ -270,7 +290,7 @@ class PageAnalyzer {
       }
 
       // Send chunks to background for analysis
-      console.log('[BetterNet] [CONTENT] Sending chunks to background for analysis');
+      logit('log','[BetterNet] [CONTENT] Sending chunks to background for analysis');
       chrome.runtime.sendMessage({
         type: 'ANALYZE_CHUNKS',
         url,
@@ -285,13 +305,13 @@ class PageAnalyzer {
         }
       }, (response) => {
         if (chrome.runtime.lastError) {
-          console.error('[BetterNet] [CONTENT] Error sending message:', chrome.runtime.lastError.message);
+          logit('error','[BetterNet] [CONTENT] Error sending message:', chrome.runtime.lastError.message);
         } else {
-          console.log('[BetterNet] [CONTENT] Chunks sent successfully');
+          logit('log','[BetterNet] [CONTENT] Chunks sent successfully');
         }
       });
     } catch (error) {
-      console.error('[BetterNet] [CONTENT] Error extracting chunks:', error);
+      logit('error','[BetterNet] [CONTENT] Error extracting chunks:', error);
       this.isAnalyzing = false;
     }
   }
@@ -397,7 +417,7 @@ class PageAnalyzer {
   }
 
   handleMessage(message, sender, sendResponse) {
-    console.log('[BetterNet] [CONTENT] Received message:', message.type, message.data, sender);
+    logit('log','[BetterNet] [CONTENT] Received message:', message.type, message.data, sender);
 
     switch (message.type) {
       case 'BG_LOG':
@@ -412,7 +432,7 @@ class PageAnalyzer {
         return false;
 
       case 'ANALYSIS_COMPLETE':
-        console.log('[BetterNet] [CONTENT] Handling analysis complete');
+        logit('log','[BetterNet] [CONTENT] Handling analysis complete');
         this.handleAnalysisComplete(message.result);
         return false;
 
@@ -447,9 +467,9 @@ class PageAnalyzer {
   }
 
   handleBackgroundLog(message) {
-    // Log background messages to page console
+    if (!isConsoleLoggingEnabled()) return;
     const { level, message: logMessage, args } = message;
-    const logMethod = console[level] || console.log;
+    const logMethod = typeof console[level] === 'function' ? console[level] : console['log'];
 
     // Format the message nicely
     if (args && args.length > 0) {
@@ -497,7 +517,7 @@ class PageAnalyzer {
     if (!xpath) return;
     const element = findElementByXPath(xpath) as Element | null;
     if (!element) {
-      console.warn('[BetterNet] [CONTENT] Could not find element for highlight:', xpath);
+      logit('warn','[BetterNet] [CONTENT] Could not find element for highlight:', xpath);
       return;
     }
     element.classList.add('betternet-chunk-highlight');
@@ -516,19 +536,19 @@ class PageAnalyzer {
   }
 
   handleChunkAnalysisUpdate(data) {
-    console.log('[BetterNet] [CONTENT] handleChunkAnalysisUpdate called, xpath:', data.xpath);
+    logit('log','[BetterNet] [CONTENT] handleChunkAnalysisUpdate called, xpath:', data.xpath);
     // Handle per-chunk analysis updates
     const { xpath, combinedResults } = data;
     if (!xpath || !combinedResults) {
-      console.warn('[BetterNet] [CONTENT] Missing xpath or combinedResults:', { xpath: !!xpath, combinedResults: !!combinedResults });
+      logit('warn','[BetterNet] [CONTENT] Missing xpath or combinedResults:', { xpath: !!xpath, combinedResults: !!combinedResults });
       return;
     }
 
     // Find the element by xpath
-    console.log('[BetterNet] [CONTENT] Finding element by xpath:', xpath);
+    logit('log','[BetterNet] [CONTENT] Finding element by xpath:', xpath);
     const element = findElementByXPath(xpath);
     if (!element) {
-      console.warn('[BetterNet] [CONTENT] Could not find element for xpath:', xpath);
+      logit('warn','[BetterNet] [CONTENT] Could not find element for xpath:', xpath);
       return;
     }
 
@@ -540,13 +560,13 @@ class PageAnalyzer {
 
     const score = combinedResults.summary?.problemScore ?? 0;
     if (!this.shouldLabelChunk(combinedResults)) {
-      console.log(
+      logit('log',
         `[BetterNet] [CONTENT] No label for chunk (score ${score}, threshold ${this.nutrientLabelMinRisk})`
       );
       return;
     }
 
-    console.log('[BetterNet] [CONTENT] Element found, adding badge. Score:', score);
+    logit('log','[BetterNet] [CONTENT] Element found, adding badge. Score:', score);
     this.addBadgeToChunk(element, combinedResults, xpath);
   }
 

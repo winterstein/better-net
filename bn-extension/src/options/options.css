@@ -141,6 +141,8 @@ body {
 .setting-item input[type="text"],
 .setting-item input[type="password"],
 .setting-item input[type="email"],
+.setting-item input[type="url"],
+.setting-item input[type="number"],
 .setting-item select {
   width: 100%;
   max-width: 480px;

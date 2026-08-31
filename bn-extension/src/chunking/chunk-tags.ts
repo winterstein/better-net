@@ -24,7 +24,17 @@ export const TAG = {
   OTHER: 'other',
 };
 
-const AD_TEXT_KEYWORDS = ['advertisement', 'sponsored', 'promoted'];
+/** Labels an ad unit puts on itself. Matched as a label, never as prose — see
+ *  isLikelyAdFromChunkText. */
+const AD_LABEL_RE = /^(advertisement|sponsored|promoted)\b/i;
+/** Longest chunk that can plausibly be an ad unit. Anything longer is an article: a story
+ *  that happens to say "heavily promoted by ..." must not be hidden. */
+const MAX_AD_UNIT_TEXT = 400;
+/** A label stands alone ("Sponsored", "Advertisement — scroll to continue"), so a segment
+ *  much longer than this is a sentence that starts with the word, not a label. */
+const MAX_AD_LABEL_SEGMENT = 40;
+/** Separators an ad label usually sits behind. */
+const AD_LABEL_SEPARATORS = /[\n\r\u00b7\u2022|\u2013\u2014:]+/;
 
 /**
  * @param {object | null | undefined} chunk
@@ -72,11 +82,21 @@ function isLikelyAdFromChunkMetadata(chunk) {
 }
 
 /**
+ * Ad units label themselves: "Sponsored", "ADVERTISEMENT", "Promoted post". Articles only
+ * mention those words mid-sentence, so match the label shape — a short segment that opens
+ * with the keyword, in a chunk short enough to be an ad slot. A plain substring search here
+ * hid whole news stories (any article containing "promoted" or "sponsored").
  * @param {object} chunk
  */
 function isLikelyAdFromChunkText(chunk) {
-  const text = (chunk.text || '').toLowerCase();
-  return AD_TEXT_KEYWORDS.some((keyword) => text.includes(keyword));
+  const text = (chunk.text || '').trim();
+  if (!text || text.length > MAX_AD_UNIT_TEXT) return false;
+  return text
+    .split(AD_LABEL_SEPARATORS)
+    .some((segment) => {
+      const label = segment.trim();
+      return !!label && label.length <= MAX_AD_LABEL_SEGMENT && AD_LABEL_RE.test(label);
+    });
 }
 
 /**

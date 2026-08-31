@@ -11,10 +11,24 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const testDataDir = path.join(__dirname, '..', 'test-data');
 
+/**
+ * Snapshots store the chunk's *inner* HTML, so the element it came from (usually
+ * `<article>`) was being dropped — the rebuilt page then had no article for the chunker to
+ * find, and the story got split at its headings instead. Put the recorded element back.
+ */
+function wrapInRecordedElement(chunk) {
+  const html = chunk.html || '';
+  const tag = chunk.metadata?.elementType;
+  if (!tag || html.trim().toLowerCase().startsWith(`<${tag}`)) return html;
+  const classes = (chunk.metadata.classes || []).join(' ');
+  const id = chunk.metadata.id ? ` id="${chunk.metadata.id}"` : '';
+  return `<${tag}${id}${classes ? ` class="${classes}"` : ''}>${html}</${tag}>`;
+}
+
 function buildHtml(chunks, baseName) {
   const canonical = chunks[0]?.url || '';
   const title = baseName.replace(/\./g, ' / ');
-  const body = chunks.map((c) => c.html).join('\n');
+  const body = chunks.map(wrapInRecordedElement).join('\n');
   return `<!DOCTYPE html>
 <html lang="en">
 <head>

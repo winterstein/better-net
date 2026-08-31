@@ -1,0 +1,16 @@
+{
+  "url": "https://www.bbc.co.uk/",
+  "note": "Homepage: teaser lists, no main article. Captured 2026-08-31. Every string here is BBC's own visually-hidden markup ('Attribution', 'Comments', 'Video, 00:01:03') which a sighted reader never sees.",
+  "chunks": { "min": 20, "max": 50 },
+  "mustChunk": [
+    "Mel Stride and Priti Patel replaced in major Tory reshuffle",
+    "Dolly Parton laid to rest alongside husband in Nashville",
+    "Barcola joins Liverpool from PSG in £123m move"
+  ],
+  "mustNotAppear": [
+    "Attribution",
+    "AttributionPolitics",
+    "Comments1083",
+    "Video, 00:01:03"
+  ]
+}

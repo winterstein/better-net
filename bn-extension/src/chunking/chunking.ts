@@ -13,6 +13,10 @@ import { extractChunksFacebook } from './chunking-facebook.js';
 import { extractChunksReddit } from './chunking-reddit.js';
 import { extractChunksThreads } from './chunking-threads.js';
 import { extractChunksBluesky } from './chunking-bluesky.js';
+import { extractChunksX } from './chunking-x.js';
+import { extractHeadlineChunks } from './chunking-headlines.js';
+import { findElementByXPath } from '../utils/utils.js';
+import { logit } from '../utils/logger.js';
 import { finalizeChunks } from './chunk-tags.js';
 import { NOOP_STEP_RECORDER } from '../tracing/trace-steps.js';
 import type { StepRecorder } from '../tracing/trace-steps.js';
@@ -33,13 +37,16 @@ import type { StepRecorder } from '../tracing/trace-steps.js';
  * @returns {Array<Object>} Array of content chunks with xpath field
  */
 export async function extractChunks(source, url, options: any = {}) {
-  console.log('[BetterNet] [CHUNKING] Starting chunk extraction, URL:', url);
+  logit('log','[BetterNet] [CHUNKING] Starting chunk extraction, URL:', url);
   
   const {
     strategy = 'auto',
     minTextLength = 100,
     maxChunks = 50,
     includeAds = false,
+    // Teaser links (ticker, sidebar, related posts) are below minTextLength but are
+    // exactly the fake headlines we want to label. See chunking-headlines.ts.
+    includeHeadlines = true,
     recorder = NOOP_STEP_RECORDER
   } = options;
 
@@ -49,16 +56,20 @@ export async function extractChunks(source, url, options: any = {}) {
     includeAds
   };
 
-  console.log('[BetterNet] [CHUNKING] Options:', chunkingOptions);
+  logit('log','[BetterNet] [CHUNKING] Options:', chunkingOptions);
 
   // If strategy=auto - Do we have a custom chunker for this page?
   // Detect platform and use custom chunker if available
-  const platform = detectPlatform(source, url);
-  console.log('[BetterNet] [CHUNKING] Detected platform:', platform);
+  // Host alone, deliberately: this used to also require a DOM marker, but those markers
+  // were hashed CSS class names (`.wLL07_0Xnd1QZpzpfR4W`) that change whenever the site is
+  // redeployed, so DuckDuckGo results quietly fell through to the generic chunker. Guessing
+  // wrong is cheap — the platform chunker finds nothing and we fall through below.
+  const platform = detectPlatform(url);
+  logit('log','[BetterNet] [CHUNKING] Detected platform:', platform);
   
   if (platform && strategy === 'auto') {
     try {
-      console.log('[BetterNet] [CHUNKING] Using custom chunker for platform:', platform);
+      logit('log','[BetterNet] [CHUNKING] Using custom chunker for platform:', platform);
       const customChunks = await recorder.step(
         'betternet.chunk.platform',
         { 'betternet.chunk.strategy': 'platform', 'betternet.chunk.platform': platform },
@@ -69,13 +80,13 @@ export async function extractChunks(source, url, options: any = {}) {
         }
       );
       if (customChunks && customChunks.length > 0) {
-        console.log('[BetterNet] [CHUNKING] Custom chunker found', customChunks.length, 'chunks');
-        return finalizeChunks(customChunks, { platform, url });
+        logit('log','[BetterNet] [CHUNKING] Custom chunker found', customChunks.length, 'chunks');
+        return finalizeChunks(withHeadlines(customChunks, source, url, includeHeadlines, maxChunks), { platform, url });
       } else {
-        console.log('[BetterNet] [CHUNKING] Custom chunker returned no chunks, falling back');
+        logit('log','[BetterNet] [CHUNKING] Custom chunker returned no chunks, falling back');
       }
     } catch (error) {
-      console.warn('[BetterNet] [CHUNKING] Custom chunker for', platform, 'failed, falling back:', error);
+      logit('warn','[BetterNet] [CHUNKING] Custom chunker for', platform, 'failed, falling back:', error);
       // Fall through to other strategies
     }
   }
@@ -83,7 +94,7 @@ export async function extractChunks(source, url, options: any = {}) {
   // Try LLM strategy first if requested or auto
   if (strategy === 'llm' || strategy === 'auto') {
     try {
-      console.log('[BetterNet] [CHUNKING] Trying LLM chunking...');
+      logit('log','[BetterNet] [CHUNKING] Trying LLM chunking...');
       const llmChunks = await recorder.step(
         'betternet.chunk.llm',
         { 'betternet.chunk.strategy': 'llm' },
@@ -94,20 +105,20 @@ export async function extractChunks(source, url, options: any = {}) {
         }
       );
       if (llmChunks && llmChunks.length > 0) {
-        console.log('[BetterNet] [CHUNKING] LLM chunking found', llmChunks.length, 'chunks');
-        return finalizeChunks(llmChunks, { url });
+        logit('log','[BetterNet] [CHUNKING] LLM chunking found', llmChunks.length, 'chunks');
+        return finalizeChunks(withHeadlines(llmChunks, source, url, includeHeadlines, maxChunks), { url });
       } else {
-        console.log('[BetterNet] [CHUNKING] LLM chunking returned no chunks, falling back');
+        logit('log','[BetterNet] [CHUNKING] LLM chunking returned no chunks, falling back');
       }
     } catch (error) {
-      console.warn('[BetterNet] [CHUNKING] LLM chunking failed, falling back to regex:', error);
+      logit('warn','[BetterNet] [CHUNKING] LLM chunking failed, falling back to regex:', error);
       // Fall through to regex strategy
     }
   }
 
   // Fall back to regex/selector-based chunking
   if (strategy === 'regex' || strategy === 'auto' || strategy === 'llm') {
-    console.log('[BetterNet] [CHUNKING] Using regex/selector-based chunking...');
+    logit('log','[BetterNet] [CHUNKING] Using regex/selector-based chunking...');
     const regexChunks = await recorder.step(
       'betternet.chunk.regex',
       { 'betternet.chunk.strategy': 'regex' },
@@ -117,70 +128,79 @@ export async function extractChunks(source, url, options: any = {}) {
         return found;
       }
     );
-    console.log('[BetterNet] [CHUNKING] Regex chunking found', regexChunks.length, 'chunks');
-    return finalizeChunks(regexChunks, { url });
+    logit('log','[BetterNet] [CHUNKING] Regex chunking found', regexChunks.length, 'chunks');
+    return finalizeChunks(withHeadlines(regexChunks, source, url, includeHeadlines, maxChunks), { url });
   }
 
   // Unknown strategy - default to regex
-  console.warn('[BetterNet] [CHUNKING] Unknown chunking strategy:', strategy, ', using regex');
+  logit('warn','[BetterNet] [CHUNKING] Unknown chunking strategy:', strategy, ', using regex');
   const fallbackChunks = extractChunksRegex(source, url, chunkingOptions);
-  console.log('[BetterNet] [CHUNKING] Fallback regex chunking found', fallbackChunks.length, 'chunks');
-  return finalizeChunks(fallbackChunks, { url });
+  logit('log','[BetterNet] [CHUNKING] Fallback regex chunking found', fallbackChunks.length, 'chunks');
+  return finalizeChunks(withHeadlines(fallbackChunks, source, url, includeHeadlines, maxChunks), { url });
+}
+
+/**
+ * Add the page's teaser headlines to whatever the main chunker found. Passing the chunk
+ * text through means a link inside an article is not chunked a second time.
+ */
+function withHeadlines(chunks, source, url, includeHeadlines, maxChunks) {
+  if (!includeHeadlines) return chunks;
+  try {
+    const covered = chunkCoverage(chunks);
+    const headlines = extractHeadlineChunks(source, url, {
+      coveredElements: covered.elements,
+      coveredText: covered.unresolvedText,
+      maxHeadlines: Math.max(0, maxChunks - chunks.length),
+    });
+    if (headlines.length) {
+      logit('log','[BetterNet] [CHUNKING] Headline chunks found:', headlines.length);
+    }
+    return [...chunks, ...headlines];
+  } catch (error) {
+    logit('warn','[BetterNet] [CHUNKING] Headline chunking failed:', error);
+    return chunks;
+  }
+}
+
+/**
+ * What the main chunker already covers. Position beats text: a sidebar teaser repeating an
+ * in-article heading is its own chunk, while a link inside the story is not. Chunks whose
+ * xpath will not resolve fall back to text matching.
+ */
+function chunkCoverage(chunks) {
+  const elements = [];
+  const unresolvedText = [];
+  for (const chunk of chunks) {
+    let element = null;
+    if (chunk?.xpath) {
+      try {
+        element = findElementByXPath(chunk.xpath);
+      } catch {
+        element = null;
+      }
+    }
+    if (element) elements.push(element);
+    else if (chunk?.text) unresolvedText.push(chunk.text);
+  }
+  return { elements, unresolvedText };
 }
 
 /**
  * Detect which platform we're on based on URL and DOM structure
  */
-function detectPlatform(source, url) {
+function detectPlatform(url: string): string | null {
   if (!url) return null;
 
   const urlLower = url.toLowerCase();
-  const doc = typeof source === 'string' ? parseHTML(source) : source;
-  if (!doc) return null;
 
   // Google
-  if (urlLower.includes('google.com/search') || urlLower.includes('google.com/webhp')) {
-    // Check for Google-specific elements
-    if (doc.querySelector('.tjvcx.GvPZzd.cHaqb') || doc.querySelector('.WlydOe') || doc.querySelector('.MgQdud')) {
-      return 'google';
-    }
-  }
-
-  // DuckDuckGo
-  if (urlLower.includes('duckduckgo.com')) {
-    if (doc.querySelector('.wLL07_0Xnd1QZpzpfR4W') || doc.querySelector('.SnptgjT2zdOhGYfNng6g')) {
-      return 'duckduckgo';
-    }
-  }
-
-  // Facebook
-  if (urlLower.includes('facebook.com') || urlLower.includes('fb.com')) {
-    if (doc.querySelector('.x1e56ztr.xtvhhri') || doc.querySelector('[data-pagelet]')) {
-      return 'facebook';
-    }
-  }
-
-  // Reddit
-  if (urlLower.includes('reddit.com')) {
-    if (doc.querySelector('.post-link') || doc.querySelector('shreddit-post') || 
-        doc.querySelector('.styled-outbound-link') || doc.getElementById('header-bottom-left')) {
-      return 'reddit';
-    }
-  }
-
-  // Threads
-  if (urlLower.includes('threads.net')) {
-    if (doc.querySelector('.x1j9u4d2') || doc.querySelector('.x1lliihq.x193iq5w.x6ikm8r.x10wlt62.xlyipyv.xuxw1ft')) {
-      return 'threads';
-    }
-  }
-
-  // Bluesky
-  if (urlLower.includes('bsky.app') || urlLower.includes('bluesky.social')) {
-    if (doc.querySelector('[data-testid="post"]') || doc.querySelector('article[data-testid="feedItem"]')) {
-      return 'bluesky';
-    }
-  }
+  if (urlLower.includes('google.com/search') || urlLower.includes('google.com/webhp')) return 'google';
+  if (urlLower.includes('duckduckgo.com')) return 'duckduckgo';
+  if (urlLower.includes('facebook.com') || urlLower.includes('fb.com')) return 'facebook';
+  if (urlLower.includes('reddit.com')) return 'reddit';
+  if (urlLower.includes('threads.net')) return 'threads';
+  if (urlLower.includes('x.com') || urlLower.includes('twitter.com')) return 'x';
+  if (urlLower.includes('bsky.app') || urlLower.includes('bluesky.social')) return 'bluesky';
 
   return null;
 }
@@ -202,6 +222,8 @@ async function extractChunksFromPlatform(source: Document | Element | string, ur
       return extractChunksThreads(source, url, options);
     case 'bluesky':
       return extractChunksBluesky(source, url, options);
+    case 'x':
+      return extractChunksX(source, url, options);
     default:
       return null;
   }

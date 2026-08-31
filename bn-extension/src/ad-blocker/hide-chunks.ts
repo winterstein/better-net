@@ -43,6 +43,7 @@ function hideElements(elements) {
     if (!el?.setAttribute || el.getAttribute(BN_BLOCKED_ATTR)) continue;
     el.setAttribute(BN_BLOCKED_ATTR, '1');
     el.style.setProperty('display', 'none', 'important');
+    console.log('AdBlocker: hiding', el.tagName, el.className, el.textContent);
     blocked++;
   }
   return blocked;

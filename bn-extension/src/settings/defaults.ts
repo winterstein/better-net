@@ -83,9 +83,14 @@
     aiqaServerUrl: '',
     // 0-1. Every page view makes a trace, so sample down if AIQA gets noisy.
     aiqaSamplingRate: 1,
+    // Diagnostic console output via utils/logger.ts logit(). Off unless Advanced is on.
+    consoleLogging: false,
     serverEndpoint: '',
     // Reuse the server's cached analysis for a page instead of analysing it locally. No service yet.
     useServerCache: false,
+    // Product-demo recordings: serve the canned results in analysis/demo-analysis.ts
+    // for the demo URLs instead of running the pipeline. Other pages are unaffected.
+    demoMode: true, // TODO: set to false for production
     excludedSites: [],
     domainOverrides: {},
     modules: defaultModuleState(),
@@ -98,6 +103,7 @@
     { id: 'off-list', label: 'Off-List' },
     { id: 'account', label: 'Account' },
     { id: 'data-sharing', label: 'Data Sharing' },
+    { id: 'advanced', label: 'Advanced' },
   ];
 
   function normalizeDomain(site) {

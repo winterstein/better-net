@@ -2,6 +2,7 @@
 
 import { LOCAL_MODELS, formatBytes } from '../ai/model-catalog.js';
 import { DEFAULT_NUTRIENT_LABEL_MIN_RISK, RISK_LEVELS } from '../types/RiskLevel.js';
+import { logit, setConsoleLogging } from '../utils/logger.js';
 
 const LOG = '[BN:local-model]';
 const STORAGE_TIMEOUT_MS = 8_000;
@@ -25,7 +26,7 @@ async function readSyncSettings(): Promise<Record<string, unknown>> {
 }
 
 async function sendExtensionMessage(message) {
-  console.log(LOG, 'options → background', message);
+  logit('log', LOG, 'options → background', message);
   return withTimeout(
     new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(message, (response) => {
@@ -33,7 +34,7 @@ async function sendExtensionMessage(message) {
           reject(new Error(chrome.runtime.lastError.message));
           return;
         }
-        console.log(LOG, 'options ← background', response);
+        logit('log', LOG, 'options ← background', response);
         resolve(response ?? null);
       });
     }),
@@ -59,6 +60,11 @@ class SettingsController {
     this.localModelPollTimer = null;
     this.localModelsUiReady = false;
     this.uiReady = false;
+    // Controls the user has already edited. The storage read lands after the page is
+    // usable, and re-rendering from stored values would silently revert those edits —
+    // then Save would write the old value back.
+    this.editedControls = new Set();
+    this.editedModules = {};
     document.getElementById('nav-toggle')?.addEventListener('click', (e) => {
       e.preventDefault();
       this.toggleNav();
@@ -67,6 +73,11 @@ class SettingsController {
   }
 
   setupEventListeners() {
+    // Capture phase, on document: the modules list is re-created on every render, so
+    // per-element listeners would be lost with it.
+    for (const type of ['change', 'input']) {
+      document.addEventListener(type, (e) => this.rememberEdit(e.target as Element), true);
+    }
     document.getElementById('save-btn')?.addEventListener('click', () => this.saveSettings());
     document.getElementById('reset-btn')?.addEventListener('click', () => this.resetSettings());
     document.getElementById('add-excluded-site-btn')?.addEventListener('click', () =>
@@ -95,7 +106,33 @@ class SettingsController {
     });
   }
 
+  /** Note an edited control so a later re-render does not overwrite it. */
+  rememberEdit(target: Element | null) {
+    if (!target) return;
+    const id = (target as HTMLElement).id;
+    if (id) this.editedControls.add(id);
+
+    const card = target.closest?.('.module-card') as HTMLElement | null;
+    const moduleId = card?.dataset.moduleId;
+    if (!moduleId) return;
+    const input = target as HTMLInputElement;
+    const key = input.hasAttribute('data-module-enable')
+      ? 'enabled'
+      : input.dataset.moduleOpt;
+    if (!key) return;
+    this.editedModules[moduleId] = { ...this.editedModules[moduleId], [key]: input.checked };
+  }
+
+  /** Unsaved module toggles survive the re-render that follows the storage read. */
+  applyEditedModules() {
+    const edited = Object.entries(this.editedModules) as [string, Record<string, boolean>][];
+    for (const [moduleId, changes] of edited) {
+      this.settings.modules[moduleId] = { ...this.settings.modules[moduleId], ...changes };
+    }
+  }
+
   renderSettingsUi() {
+    this.applyEditedModules();
     this.buildNav();
     this.buildModulesList();
     this.applySettingsToForm();
@@ -154,7 +191,7 @@ class SettingsController {
     }
     this.updateLocalModelsVisibility();
     void this.refreshLocalModelStatus().catch((err) => {
-      console.warn('[BetterNet] Local model status refresh failed:', err);
+      logit('warn', '[BetterNet] Local model status refresh failed:', err);
     });
   }
 
@@ -316,7 +353,7 @@ class SettingsController {
   renderLocalModelsList(stateMap = {}) {
     if (!this.settings) return;
     const container = document.getElementById('local-models-list');
-    console.log(LOG, 'renderLocalModelsList', stateMap);
+    logit('log', LOG, 'renderLocalModelsList', stateMap);
     this.syncLocalModelSelect(stateMap);
     this.updateLocalModelPoll(stateMap);
 
@@ -385,7 +422,7 @@ class SettingsController {
         btn.className = 'btn btn-small';
         btn.textContent = state.status === 'error' ? 'Retry download' : 'Download';
         btn.addEventListener('click', () => {
-          console.log(LOG, 'Download button clicked', model.id, 'state=', state.status);
+          logit('log', LOG, 'Download button clicked', model.id, 'state=', state.status);
           this.downloadLocalModel(model.id);
         });
         actions.appendChild(btn);
@@ -404,7 +441,7 @@ class SettingsController {
   }
 
   async downloadLocalModel(modelId) {
-    console.log(LOG, 'downloadLocalModel()', modelId);
+    logit('log', LOG, 'downloadLocalModel()', modelId);
     this.showStatus('Starting download…', 'success');
     try {
       const res = await sendExtensionMessage({
@@ -419,10 +456,10 @@ class SettingsController {
       }
       if (res.error) throw new Error(res.error);
       if (!res.started && !res.ok) {
-        console.warn(LOG, 'unexpected download response', res);
+        logit('warn', LOG, 'unexpected download response', res);
         throw new Error('Download did not start');
       }
-      console.log(LOG, 'download started', res);
+      logit('log', LOG, 'download started', res);
       this.showStatus('Downloading in background — keep this browser open', 'success');
       await this.refreshLocalModelStatus();
     } catch (err) {
@@ -475,7 +512,7 @@ class SettingsController {
     if (updateHash) location.hash = pageId;
     if (pageId === 'ai-model') {
       void this.refreshLocalModelStatus().catch((err) => {
-        console.warn('[BetterNet] Local model status refresh failed:', err);
+        logit('warn', '[BetterNet] Local model status refresh failed:', err);
       });
     }
 
@@ -559,16 +596,20 @@ class SettingsController {
     const analysisMode = document.getElementById('analysis-mode') as HTMLSelectElement | null;
     if (!analysisMode) return;
 
-    analysisMode.value = s.analysisMode;
+    if (!this.editedControls.has('analysis-mode')) analysisMode.value = s.analysisMode;
     const localModelId = document.getElementById('local-model-id') as HTMLSelectElement | null;
-    if (localModelId) localModelId.value = s.localModelId || 'flan-t5-small';
+    if (localModelId && !this.editedControls.has('local-model-id')) {
+      localModelId.value = s.localModelId || 'flan-t5-small';
+    }
     this.updateLocalModelsVisibility();
 
     const setChecked = (id: string, checked: boolean) => {
+      if (this.editedControls.has(id)) return;
       const el = document.getElementById(id) as HTMLInputElement | null;
       if (el) el.checked = checked;
     };
     const setValue = (id: string, value: string) => {
+      if (this.editedControls.has(id)) return;
       const el = document.getElementById(id) as HTMLInputElement | HTMLSelectElement | null;
       if (el) el.value = value;
     };
@@ -590,6 +631,8 @@ class SettingsController {
     setValue('aiqa-api-key', s.aiqaApiKey || '');
     setValue('aiqa-server-url', s.aiqaServerUrl || '');
     setValue('aiqa-sampling-rate', String(s.aiqaSamplingRate ?? 1));
+    setChecked('console-logging', !!s.consoleLogging);
+    setConsoleLogging(!!s.consoleLogging);
   }
 
   readFormIntoSettings() {
@@ -624,6 +667,7 @@ class SettingsController {
       aiqaApiKey: document.getElementById('aiqa-api-key').value.trim(),
       aiqaServerUrl: document.getElementById('aiqa-server-url').value.trim(),
       aiqaSamplingRate: clampSamplingRate(document.getElementById('aiqa-sampling-rate').value),
+      consoleLogging: document.getElementById('console-logging').checked,
       modules,
       excludedSites: this.settings.excludedSites,
       domainOverrides: this.settings.domainOverrides,
@@ -773,6 +817,9 @@ class SettingsController {
     try {
       await chrome.storage.sync.set(settings);
       this.settings = this.mergeSettings(settings);
+      this.editedControls.clear();
+      this.editedModules = {};
+      setConsoleLogging(!!this.settings.consoleLogging);
       this.showStatus('Settings saved', 'success');
     } catch (error) {
       this.showStatus('Error saving: ' + error.message, 'error');
@@ -784,6 +831,9 @@ class SettingsController {
     await chrome.storage.sync.clear();
     await chrome.storage.sync.set(this.defaults);
     this.settings = this.mergeSettings(this.defaults);
+    this.editedControls.clear();
+    this.editedModules = {};
+    setConsoleLogging(!!this.settings.consoleLogging);
     this.buildModulesList();
     this.applySettingsToForm();
     this.renderOffList();
@@ -808,4 +858,6 @@ class SettingsController {
   }
 }
 
-new SettingsController();
+// Exposed for e2e tests (and console debugging): the storage-read re-render is
+// otherwise unreachable from outside.
+(window as any).BN_SETTINGS_CONTROLLER = new SettingsController();
