@@ -1,0 +1,15 @@
+{
+  "url": "https://x.com/realMaalouf/status/2094452781843100052",
+  "note": "Post permalink with replies. Saved from a logged-in browser 2026-08-31, so it still contains a nutrient label from a previous analysis — which is what a re-analysis after an SPA navigation sees. 'Safe ×' is that badge; it must never be read back as page content.",
+  "chunks": { "min": 5, "max": 25 },
+  "mustChunk": [
+    "Out of 50 million Muslims in Europe",
+    "is there any actual data supporting this"
+  ],
+  "mustNotAppear": [
+    "To view keyboard shortcuts",
+    "View keyboard shortcuts",
+    "Safe ×"
+  ],
+  "primaryChunk": { "contains": "Out of 50 million Muslims in Europe", "minLength": 100 }
+}

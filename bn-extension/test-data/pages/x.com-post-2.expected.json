@@ -1,0 +1,14 @@
+{
+  "url": "https://x.com/drhossamsamy65/status/2047310606361899350",
+  "note": "Step 1 of the demo (src/analysis/demo-analysis.ts): the post sharing the fake lab-grown-meat article, saved from x.com 2026-09-01. Only the post is chunked — the trends sidebar and 'who to follow' are not stories.",
+  "chunks": { "min": 1, "max": 25 },
+  "mustChunk": [
+    "Study: Bill Gates’ Lab Grown Meat Causes Cancer in Humans",
+    "@drhossamsamy65"
+  ],
+  "mustNotAppear": [
+    "To view keyboard shortcuts",
+    "Who to follow",
+    "Trending now"
+  ]
+}

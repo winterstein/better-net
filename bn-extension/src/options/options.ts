@@ -632,6 +632,7 @@ class SettingsController {
     setValue('aiqa-server-url', s.aiqaServerUrl || '');
     setValue('aiqa-sampling-rate', String(s.aiqaSamplingRate ?? 1));
     setChecked('console-logging', !!s.consoleLogging);
+    setChecked('show-chunk-overlay', !!s.showChunkOverlay);
     setConsoleLogging(!!s.consoleLogging);
   }
 
@@ -668,6 +669,7 @@ class SettingsController {
       aiqaServerUrl: document.getElementById('aiqa-server-url').value.trim(),
       aiqaSamplingRate: clampSamplingRate(document.getElementById('aiqa-sampling-rate').value),
       consoleLogging: document.getElementById('console-logging').checked,
+      showChunkOverlay: document.getElementById('show-chunk-overlay').checked,
       modules,
       excludedSites: this.settings.excludedSites,
       domainOverrides: this.settings.domainOverrides,

@@ -20,6 +20,13 @@
 - **Click Unbait (unravel)**: clickbait-scored chunks → fetch destination → `[honest summary] original title` rewrite (truncate + hover) + nutrient label; module toggle / Off-List via analysis pipeline
 - Popup: expand page chunks list; click chunk to highlight on page
 - **Nutrient Label threshold**: Settings -> AI Model -> *Label content rated* picks the lowest risk band that earns a label (Safe / Caution / High Risk). Default Caution, so safe chunks are unlabelled. Bands live in `src/types/RiskLevel.ts` and drive both the traffic light and the threshold; changes apply to open tabs without a reload
+- **Chunk overlay** (debug aid, Settings -> Advanced -> *Show chunk overlay*): draws a
+  transparent coloured box with `#index chunk-id` over every chunk the page produced, so
+  chunking can be seen rather than inferred from console text — wrong element, a box round a
+  whole page region, two chunks over one headline, a teaser never chunked. Colour is a hash
+  of the chunk id, so a box keeps its colour across redraws; hover gives tags and xpath;
+  `pointer-events: none` so the page stays usable. Toggling applies to the open page without
+  a reload. `src/content/chunk-overlay.ts`
 - **Toolbar badge**: per-tab progress (`…` while analyzing, count when done); popup shows stage detail (no on-page “Analyzing page…” overlay)
 - **Local models**: Settings → AI Model lists each catalog model with downloaded badge, progress while fetching, and **Delete download**; download starts async (offscreen) so the button is not blocked by multi‑minute HF fetches
 - **Settings** (`options/`): AI Model (incl. local models), Modules, Off-List, Account, Data Sharing (incl. server cache + AIQA tracing toggles), Advanced (console logging, server endpoint, AIQA API key / server / sampling). Diagnostic `logit()` output is off unless Advanced → Console logging is on
@@ -35,12 +42,18 @@
   `trace-steps.ts` (content-script step timer, keeps OTel out of that bundle).
   See `aiqa-client-request.md` for the browser-support changes wanted in `aiqa-client`.
 - **Demo dataset** (`src/analysis/demo-analysis.ts`): canned url -> chunks + `ChunkAnalysis` for
-  product-demo recordings. Two real, live URLs forming one story — an X post sharing a fake
+  product-demo recordings. Three real, live URLs: two forming one story — an X post sharing a fake
   news link, and the article it links to ("Study: Bill Gates' Lab Grown Meat Causes Cancer in
   Humans", The People's Voice, plus its two fabricated celebrity sidebar teasers) — all High Risk,
   every verdict citing a published fact-check
-  (Lead Stories, Full Fact, Health Feedback). URLs last checked live 2026-08-31; recheck
-  before recording. `renderDemoPage()` emits an offline mirror. Wired into background
+  (Lead Stories, Full Fact, Health Feedback) — plus a standalone third example, an X post
+  carrying a fabricated statistic with nothing linked ("Out of 50 million Muslims in Europe,
+  40 million are on welfare", 259k views in a day), debunked by dpa and Newtral: no dataset
+  records religion alongside welfare receipt across Europe, and the number traces to a TV
+  presenter's aside in 2012 that a 2013 European Parliament question repeated as fact. Its
+  label distinguishes the roughly-right population figure from the invented one. Verified
+  end-to-end against the real saved page (`test-data/pages/x.com-post.html`) rather than
+  hand-written chunk text. URLs last checked live 2026-09-01; recheck before recording. `renderDemoPage()` emits an offline mirror. Wired into background
   `performAnalysis`: with `demoMode: true` in `chrome.storage.sync`, a matching URL serves the
   canned analysis (keeping each live chunk's xpath so labels land in the right place; one entry
   labels every instance of a repeated headline) instead
@@ -54,6 +67,31 @@
 
 ## Recent fixes
 
+- **No label on live x.com — three separate causes**, all found from one saved page and a
+  console trace:
+  1. *Canned demo chunks carried the offline mirror's xpath.* When the live chunker finds
+     nothing (x.com had not rendered on the first attempt), the background stands in the
+     canned chunks — whose xpath is `/html/body/main/article[1]`, a DOM only
+     `renderDemoPage()` produces. On the live site the label and the popup's highlight both
+     aimed at an element that does not exist. Canned chunks now carry an xpath only on the
+     mirror, so a missing element is visible rather than silent.
+  2. *SPA navigation never re-analysed.* `observeNavigation()` had `// this.analyzePage()`
+     commented out, so clicking a post from the x.com timeline — the path a demo takes —
+     produced no analysis at all. Re-analysis now runs, debounced by 800ms so the view has
+     swapped in, clearing the previous page's labels first.
+  3. *A navigation was then dropped by the in-progress guard.* `analyzePage()` skipped
+     whenever `isAnalyzing`, and an analysis can run for minutes on the local model, so the
+     page the reader is now looking at was skipped while the page they had left finished.
+     A navigation now supersedes; results are stamped with the page they belong to and the
+     content script ignores any that arrive for a page it has left
+- **X: our own labels were being chunked as content.** A page saved from a live session shows
+  it: `"…View keyboard shortcuts Safe ×"` arrived as chunk text. After an SPA navigation the
+  previous run's nutrient labels are still in the DOM, so re-analysis read them back.
+  `OWN_UI_SELECTOR` (in `chunking-utils.ts`) excludes them everywhere
+- **X's "To view keyboard shortcuts" heading was chunked as a story.** It uses the clip-rect
+  visually-hidden pattern (`position:absolute; clip:rect(1px,1px,1px,1px)`, 1px box) with
+  hashed class names we cannot enumerate, so `isElementHidden` now detects that *shape*.
+  Covers Bootstrap `.sr-only`, GOV.UK and X alike
 - **Chunking on index pages was unusable**: `splitBySemanticBoundaries` collected text from
   container elements *and* their descendants, so every string was counted once per nesting
   level — the BBC homepage came out as one 4,533-char chunk with the headline list repeated
@@ -101,13 +139,19 @@
 
 ## Test data
 
-`test-data/pages/` holds **real pages saved from the browser** plus a small
+`test-data/pages/` holds **real pages saved from the browser** (BBC home, BBC article, the
+demo fake-news article, and x.com post / profile / feed) plus a small
 `<name>.expected.json` of quality expectations (`mustChunk`, `mustNotAppear`,
 `primaryChunk`, chunk-count bounds); `test/chunking-pages.test.ts` also applies invariants to
 every page: no chunk repeating a 60-character run of itself, no empty or 20k+ chunks, and
 every chunk xpath resolving (jsdom, so `document.evaluate` works). Add one with
 `node scripts/capture-page.js <url>`; pages that block automation (x.com) are saved by hand —
-see `test-data/pages/README.md`.
+see `test-data/pages/README.md`. Everything must go through that script: a raw browser copy
+still carries the site's own scripts, which boot on load, wipe the saved markup and navigate
+away, so the page chunks to nothing and looks like a chunker bug. The test fails with that
+instruction if it finds `<script>` in a fixture. Both X demo posts are also matched against
+their saved pages in `test/demo-analysis.test.ts`, so a chunking change that stops a label
+landing on the post shows up there.
 
 The older `test-data/*.chunking.json` fixtures generate their HTML from the expected chunks,
 so the structure that breaks chunking (nav, tickers, teaser lists, screen-reader spans) is

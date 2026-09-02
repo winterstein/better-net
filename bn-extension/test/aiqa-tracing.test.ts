@@ -1,6 +1,9 @@
 /**
  * AIQA tracing: off unless enabled, and when enabled produces the analyze / chunk /
  * LLM span tree that tracing/aiqa-tracer.ts posts to the AIQA server.
+ *
+ * The wire format is OTLP/JSON on `/v1/traces` (aiqa-client's exporter); it is decoded
+ * back to flat spans here so the assertions stay about the span tree.
  */
 
 import assert from 'node:assert/strict';
@@ -26,11 +29,50 @@ function stubFetch(): { posted: Posted[] } {
 		posted.push({
 			url: String(url),
 			headers: init?.headers ?? {},
-			spans: JSON.parse(init?.body ?? '[]'),
+			spans: spansFromOtlpBody(JSON.parse(init?.body ?? '{}')),
 		});
 		return { ok: true, status: 200, statusText: 'OK', async text() { return ''; } };
 	};
 	return { posted };
+}
+
+/** OTLP AnyValue -> the plain value the span was given. */
+function fromOtlpValue(value: any): any {
+	if (!value || typeof value !== 'object') return undefined;
+	if (value.stringValue !== undefined) return value.stringValue;
+	if (value.boolValue !== undefined) return value.boolValue;
+	if (value.intValue !== undefined) return Number(value.intValue);
+	if (value.doubleValue !== undefined) return value.doubleValue;
+	if (value.arrayValue?.values) return value.arrayValue.values.map(fromOtlpValue);
+	return undefined;
+}
+
+function fromOtlpAttributes(kvs: any[] | undefined): Record<string, any> {
+	const out: Record<string, any> = {};
+	for (const kv of kvs ?? []) out[kv.key] = fromOtlpValue(kv.value);
+	return out;
+}
+
+/** One OTLP ExportTraceServiceRequest -> flat spans, keyed as the AIQA server stores them. */
+function spansFromOtlpBody(body: any): any[] {
+	const spans: any[] = [];
+	for (const resourceSpan of body?.resourceSpans ?? []) {
+		for (const scopeSpan of resourceSpan.scopeSpans ?? []) {
+			for (const span of scopeSpan.spans ?? []) {
+				spans.push({
+					name: span.name,
+					id: span.spanId,
+					trace_id: span.traceId,
+					parent_span_id: span.parentSpanId,
+					start_time: Number(span.startTimeUnixNano) / 1e6,
+					end_time: span.endTimeUnixNano === undefined ? undefined : Number(span.endTimeUnixNano) / 1e6,
+					status: span.status,
+					attributes: fromOtlpAttributes(span.attributes),
+				});
+			}
+		}
+	}
+	return spans;
 }
 
 const localBackend = {
@@ -127,7 +169,7 @@ async function recordChunkingSteps(enabled: boolean) {
 	await runAnalysis(steps);
 
 	assert.ok(posted.length > 0, 'spans should be posted');
-	assert.equal(posted[0].url, `${SERVER}/span`, 'posts to the AIQA /span endpoint');
+	assert.equal(posted[0].url, `${SERVER}/v1/traces`, 'posts to the AIQA OTLP endpoint');
 	assert.equal(posted[0].headers.Authorization, `Bearer ${API_KEY}`);
 
 	const spans = posted.flatMap((p) => p.spans);

@@ -93,9 +93,13 @@ export interface DemoPage {
 
 // --- the examples ---
 //
-// Both URLs are real and were live on 2026-08-31 (HTTP 200). The X post text is verbatim
-// from the API; the article excerpt is verbatim from the page. Verify both still load
-// before a recording — a deleted post is the one thing this file cannot fake convincingly.
+// All three URLs are real and were live on 2026-09-01 (HTTP 200). Post text is verbatim from
+// the API; the article excerpt is verbatim from the page. Verify they still load before a
+// recording — a deleted post is the one thing this file cannot fake convincingly.
+//
+// Every verdict below cites a published fact-check, and the wording is held to what that
+// fact-check actually establishes: where a claim mixes a defensible number with an invented
+// one (example 3), the label says so rather than dismissing the lot.
 //
 // Lower-risk alternative if naming an individual account is a problem for the audience:
 // https://x.com/realtpv/status/1689201644456628224 is the publisher posting its own
@@ -114,6 +118,15 @@ const PUBLISHER_PROFILE = 'https://en.wikipedia.org/wiki/The_People%27s_Voice_(w
 /** Snopes on the same genre from the same byline: an invented celebrity-cannibalism claim
  *  hung on the Epstein files. */
 const SNOPES_CELEBRITY_CLAIM = 'https://www.snopes.com/fact-check/epstein-files-dicaprio-cannibalism/';
+
+/** dpa (17 Jul 2026) on the exact "50 million / 40 million" wording: no reputable evidence,
+ *  no study confirms it, and the 80% traces to a Lebanese TV presenter's opinion. Also
+ *  records where it acquired its official veneer — an August 2013 written question to the
+ *  European Parliament from Lega Nord that repeated it without checking. */
+const DPA_WELFARE_DEBUNK = 'https://dpa-factchecking.com/netherlands/260717-99-85419/';
+/** Newtral (2 Sep 2020) rated the same claim Falso and asked Eurostat directly: it keeps no
+ *  statistics by ethnic group, so the denominator for a figure like this does not exist. */
+const NEWTRAL_WELFARE_DEBUNK = 'https://www.newtral.es/bulo-musulmanes-asistencia-social-europa/20200902/';
 
 /**
  * Example 1: a real post sharing a link to a fake news article. Posted 23 Apr 2026 by an
@@ -372,6 +385,88 @@ const SILVERSTONE_TEASER: DemoChunkSpec = {
   ],
 };
 
+/**
+ * Example 3: a fabricated statistic, posted with no source at all. Posted 31 Aug 2026 by an
+ * account with ~502k followers; 259k views, 18k likes and 6.8k reposts within a day.
+ *
+ * Worth having in the demo because it is a different failure from example 1: nothing is
+ * linked, so there is no article to open and check — the post *is* the claim. The number is
+ * also not simply invented on the spot, which is what makes it durable: a TV presenter's
+ * aside in 2012 was repeated in a 2013 European Parliament question, and has been recycled
+ * in several languages ever since.
+ *
+ * Note the population figure is roughly right (Pew: ~45.5m Muslims in Europe in 2020,
+ * counting Russia and the Balkans) — it is the 40 million that is fabricated. Saying
+ * otherwise would make our own label wrong.
+ */
+const WELFARE_STAT_POST: DemoChunkSpec = {
+  title: 'Shocking data revealed: Out of 50 million Muslims in Europe, 40 million are on welfare',
+  byline: 'Dr. Maalouf ‏',
+  source: '@realMaalouf',
+  time: '31 Aug 2026',
+  text:
+    'Shocking data revealed: Out of 50 million Muslims in Europe, 40 million are on welfare ' +
+    'and receive social benefits.',
+  markers: ['Out of 50 million Muslims in Europe', 'realMaalouf'],
+  primaryTopic: 'News and Politics',
+  statements: [
+    {
+      type: 'claim',
+      summaryText:
+        '40 of the 50 million Muslims in Europe live on welfare and receive social benefits.',
+      analyses: [
+        {
+          moduleId: 'factChecker',
+          problemScore: 0.95,
+          confidence: 0.9,
+          flags: ['false', 'unsourced-statistic'],
+          explanation:
+            'No study reports this. Producing the figure would need a dataset that records both religion and welfare receipt, comparably, across every European country — and no such dataset exists: Eurostat told Newtral it keeps no statistics by ethnic group. The EU Agency for Fundamental Rights (2024) found 63% of Muslims surveyed gave paid work as their main activity, against 75% of the general population — nothing like 80% on benefits.',
+          url: DPA_WELFARE_DEBUNK,
+        },
+      ],
+    },
+  ],
+  analyses: [
+    {
+      moduleId: 'factChecker',
+      problemScore: 0.95,
+      confidence: 0.9,
+      flags: ['false', 'unsourced-statistic'],
+      explanation:
+        'dpa checked this exact wording in July 2026 and found no reputable evidence for it. The population figure is about right; the 40 million is not a measurement of anything.',
+      url: DPA_WELFARE_DEBUNK,
+    },
+    {
+      moduleId: 'antiManipulation',
+      problemScore: 0.72,
+      confidence: 0.8,
+      flags: ['recycled-claim', 'laundered-source'],
+      explanation:
+        'The number began as a remark by a presenter on Lebanese TV in 2012 — misattributed ever since to the Egyptian researcher he was interviewing, who disagreed with him on air — and was then repeated in a 2013 written question to the European Parliament, which is where it picked up the look of an official statistic.',
+      url: NEWTRAL_WELFARE_DEBUNK,
+    },
+    {
+      moduleId: 'biasDetector',
+      problemScore: 0.8,
+      confidence: 0.75,
+      flags: ['out-group-generalisation'],
+      explanation:
+        'Assigns a single behaviour to 50 million people identified only by religion, using a statistic that does not exist.',
+      url: DPA_WELFARE_DEBUNK,
+    },
+    {
+      moduleId: 'defuseRagebait',
+      problemScore: 0.66,
+      confidence: 0.7,
+      flags: ['engagement-bait', 'out-group-blame'],
+      explanation:
+        '"Shocking data revealed" with no data attached, on a topic chosen to provoke: 259,000 views in a day.',
+      url: DPA_WELFARE_DEBUNK,
+    },
+  ],
+};
+
 const DEMO_PAGE_SPECS: DemoPageSpec[] = [
   {
     urls: [
@@ -393,6 +488,16 @@ const DEMO_PAGE_SPECS: DemoPageSpec[] = [
     note: 'Step 2: the article behind the link, plus two fabricated celebrity teasers in the sidebar. All High Risk.',
     verified: '2026-08-31',
     chunks: [FAKE_ARTICLE, DENZEL_TEASER, SILVERSTONE_TEASER],
+  },
+  {
+    urls: [
+      'https://x.com/realMaalouf/status/2094452781843100052',
+      'http://localhost:8080/demo/unsourced-statistic-post.html',
+    ],
+    title: 'X post with a fabricated statistic',
+    note: 'Standalone example: nothing is linked, so there is no article to open and check — the post is the claim. High Risk.',
+    verified: '2026-09-01',
+    chunks: [WELFARE_STAT_POST],
   },
 ];
 
@@ -508,12 +613,32 @@ export function findDemoPage(url: string): DemoPage | undefined {
   );
 }
 
+/**
+ * The offline mirror renders the DOM that `buildChunk` assumes, so its xpaths are real
+ * there. On the live site they are not: `/html/body/main/article[1]` does not exist on
+ * x.com, and handing it out put the nutrient label — and the popup's highlight — on nothing
+ * at all, silently. A canned chunk standing in for a page we could not chunk has no element
+ * to point at, and must say so rather than guess.
+ */
+function isOfflineMirror(url: string): boolean {
+  try {
+    const { hostname } = new URL(url);
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+  } catch {
+    return false;
+  }
+}
+
+function withoutMirrorXpath<T extends { xpath?: string }>(item: T, url: string): T {
+  return isOfflineMirror(url) ? item : { ...item, xpath: undefined };
+}
+
 export function demoChunks(url: string): Chunk[] {
-  return findDemoPage(url)?.chunks.map((c) => c.chunk) ?? [];
+  return findDemoPage(url)?.chunks.map((c) => withoutMirrorXpath(c.chunk, url)) ?? [];
 }
 
 export function demoAnalyses(url: string): ChunkAnalysis[] {
-  return findDemoPage(url)?.chunks.map((c) => c.analysis) ?? [];
+  return findDemoPage(url)?.chunks.map((c) => withoutMirrorXpath(c.analysis, url)) ?? [];
 }
 
 /** Letters and digits only. A live chunk carries share counters, newlines and menu text
@@ -593,12 +718,22 @@ export function demoResultsForChunks(url: string, chunks: Partial<Chunk>[] = [])
           fingerprint: live.fingerprint ?? entry.analysis.fingerprint,
           xpath: live.xpath ?? entry.analysis.xpath,
           title: live.title ?? entry.analysis.title,
+          // The page this verdict is for, not the canonical demo URL: the content script
+          // drops results belonging to a page it has navigated away from, and on the
+          // offline mirror the two differ.
+          url,
         },
       });
     }
   }
 
-  return results.length ? results : page.chunks;
+  if (results.length) return results;
+  // Nothing matched: hand back the canned chunks, minus an xpath the live DOM will not have.
+  return page.chunks.map((entry) => ({
+    ...entry,
+    chunk: withoutMirrorXpath(entry.chunk, url),
+    analysis: { ...withoutMirrorXpath(entry.analysis, url), url },
+  }));
 }
 
 function pickLiveChunks(

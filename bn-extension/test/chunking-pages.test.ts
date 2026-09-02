@@ -88,6 +88,15 @@ async function runPage(name: string) {
   console.log(`\nTesting page: ${name}`);
   const expected = JSON.parse(readFileSync(join(pagesDir, `${name}.expected.json`), 'utf-8'));
   const html = readFileSync(join(pagesDir, `${name}.html`), 'utf-8');
+
+  // A page pasted straight out of the browser still has the site's own scripts. Loaded for
+  // real they boot the site's router, wipe the saved markup and navigate away — the page
+  // then chunks to nothing for reasons that have nothing to do with the chunker.
+  check(
+    name,
+    !/<script[\s>]/i.test(html.replace(/<!--[\s\S]*?-->/g, '')),
+    'still contains <script> tags — run `node scripts/capture-page.js --file <path> ' + name + '`'
+  );
   const { chunks, document } = await chunkPage(html, expected.url);
 
   console.log(`  ${chunks.length} chunks`);

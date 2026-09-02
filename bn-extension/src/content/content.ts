@@ -24,6 +24,7 @@ import {
   showContentAnalysisModal,
 } from './content-analysis-modal.js';
 import { applyClickUnbaitFromAnalysis } from './apply-click-unbait.js';
+import { renderChunkOverlays, clearChunkOverlays } from './chunk-overlay.js';
 import {
   DEFAULT_NUTRIENT_LABEL_MIN_RISK,
   shouldShowNutrientLabel,
@@ -35,6 +36,22 @@ import {
  * all there. Chunk again on a backoff until content appears (~7.5s worst case).
  */
 const CHUNK_RETRY_DELAYS_MS = [0, 500, 1000, 2000, 4000];
+/** Same page for labelling purposes: the fragment does not change what is on screen. */
+function samePage(a: string, b: string): boolean {
+  const strip = (url: string) => {
+    try {
+      const parsed = new URL(url);
+      parsed.hash = '';
+      return parsed.href;
+    } catch {
+      return url;
+    }
+  };
+  return strip(a) === strip(b);
+}
+
+/** Long enough for the SPA to swap the view in, short enough not to feel stale. */
+const SPA_SETTLE_MS = 800;
 
 async function extractChunksWhenRendered(url, chunkOptions, recorder) {
   let chunks = [];
@@ -69,6 +86,8 @@ class PageAnalyzer {
       this.feedbackEnabled = false;
       this.showIndicators = true;
       this.nutrientLabelMinRisk = DEFAULT_NUTRIENT_LABEL_MIN_RISK;
+      this.showChunkOverlay = false;
+      this.lastChunks = [];
       this.setupListeners();
       void this.loadFeedbackSettings();
       void this.loadLabelSettings();
@@ -93,8 +112,16 @@ class PageAnalyzer {
     // Apply label settings changes without needing a page reload
     chrome.storage.onChanged.addListener((changes, areaName) => {
       if (areaName !== 'sync') return;
-      if (!changes.nutrientLabelMinRisk && !changes.showIndicators) return;
-      void this.loadLabelSettings().then(() => this.removeHiddenBadges());
+      if (!changes.nutrientLabelMinRisk && !changes.showIndicators && !changes.showChunkOverlay) {
+        return;
+      }
+      void this.loadLabelSettings().then(() => {
+        this.removeHiddenBadges();
+        // Toggling the overlay applies to the page you are looking at, without a reload —
+        // the point of it is to answer "what did the chunker just do here?".
+        if (this.showChunkOverlay) renderChunkOverlays(this.lastChunks || []);
+        else clearChunkOverlays();
+      });
     });
 
     // Listen for navigation changes (SPA support)
@@ -109,8 +136,10 @@ class PageAnalyzer {
       if (window.location.href !== lastUrl) {
         lastUrl = window.location.href;
         this.currentUrl = lastUrl;
-        // Optionally re-analyze on navigation
-        // this.analyzePage();
+        // On x.com, Facebook and Reddit most page views are this, not a load — clicking a
+        // post from the timeline used to leave the new page unanalysed and unlabelled,
+        // which is exactly the path a demo takes.
+        this.scheduleReanalysis();
       }
     };
     setInterval(checkUrl, 1000);
@@ -130,6 +159,24 @@ class PageAnalyzer {
     };
   }
 
+  /**
+   * The route changes before the new view renders, and a single navigation can fire
+   * pushState more than once, so settle first and collapse repeats. Labels from the
+   * previous page are dropped: their xpaths point into a DOM that has been replaced.
+   */
+  scheduleReanalysis() {
+    clearTimeout(this.reanalysisTimer);
+    this.reanalysisTimer = setTimeout(() => {
+      const url = window.location.href;
+      if (url === this.analysedUrl) return;
+      logit('log', '[BetterNet] [CONTENT] SPA navigation, re-analysing:', url);
+      document.querySelectorAll('.betternet-chunk-badge').forEach((badge) => badge.remove());
+      clearChunkOverlays();
+      this.dismissedChunkXpaths.clear();
+      this.analyzePage();
+    }, SPA_SETTLE_MS);
+  }
+
   async loadFeedbackSettings() {
     try {
       const stored = await chrome.storage.sync.get(null);
@@ -145,6 +192,7 @@ class PageAnalyzer {
       const settings = mergeSettings(await chrome.storage.sync.get(null));
       this.showIndicators = settings.showIndicators !== false;
       this.nutrientLabelMinRisk = settings.nutrientLabelMinRisk;
+      this.showChunkOverlay = !!settings.showChunkOverlay;
       setConsoleLogging(!!settings.consoleLogging);
       logit('log',
         '[BetterNet] [CONTENT] Nutrient Labels:',
@@ -223,12 +271,18 @@ class PageAnalyzer {
   }
 
   async analyzePage() {
-    if (this.isAnalyzing) {
-      logit('log','[BetterNet] [CONTENT] Analysis already in progress, skipping');
+    const url = window.location.href;
+    // Only a repeat of the *same* page is a no-op. A navigation must supersede whatever is
+    // still running: an analysis can take minutes, and dropping the new page because the
+    // old one had not finished left the page the user is actually looking at unanalysed.
+    if (this.isAnalyzing && url === this.analysedUrl) {
+      logit('log','[BetterNet] [CONTENT] Analysis already in progress for this page, skipping');
       return;
     }
+    if (this.isAnalyzing) {
+      logit('log','[BetterNet] [CONTENT] Superseding the analysis of', this.analysedUrl);
+    }
 
-    const url = window.location.href;
     logit('log','[BetterNet] [CONTENT] Starting page analysis for:', url);
 
     // Check if site is excluded
@@ -240,6 +294,8 @@ class PageAnalyzer {
     }
 
     this.isAnalyzing = true;
+    // What the last analysis was for, so a repeated pushState to the same route is a no-op.
+    this.analysedUrl = url;
 
     // Extract page content for metadata
     logit('log','[BetterNet] [CONTENT] Extracting page content...');
@@ -288,6 +344,13 @@ class PageAnalyzer {
           'ad chunks removed from analysis'
         );
       }
+
+      // Debug aid: the chunks exactly as sent, so the boxes match the console and the popup.
+      // Read from the settings loaded above, not the field: the constructor's load may not
+      // have resolved before the first analysis.
+      this.lastChunks = chunks;
+      this.showChunkOverlay = !!settings.showChunkOverlay;
+      if (this.showChunkOverlay) renderChunkOverlays(chunks);
 
       // Send chunks to background for analysis
       logit('log','[BetterNet] [CONTENT] Sending chunks to background for analysis');
@@ -541,6 +604,14 @@ class PageAnalyzer {
     const { xpath, combinedResults } = data;
     if (!xpath || !combinedResults) {
       logit('warn','[BetterNet] [CONTENT] Missing xpath or combinedResults:', { xpath: !!xpath, combinedResults: !!combinedResults });
+      return;
+    }
+
+    // Results for the previous route arrive after the SPA has swapped the DOM. Their
+    // xpaths resolve against markup that is no longer there, so they label the wrong thing.
+    const resultUrl = combinedResults.url;
+    if (resultUrl && !samePage(resultUrl, window.location.href)) {
+      logit('log','[BetterNet] [CONTENT] Ignoring analysis for a page we have left:', resultUrl);
       return;
     }
 

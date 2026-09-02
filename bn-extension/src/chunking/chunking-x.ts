@@ -6,7 +6,7 @@
  * exposes for its own tests, and are what every X scraper keys on.
  */
 
-import { isElementHidden, generateXPath } from './chunking-utils.js';
+import { isElementHidden, generateXPath, NON_CONTENT_SELECTOR } from './chunking-utils.js';
 import { TAG } from './chunk-tags.js';
 
 /** Post container, most specific first. */
@@ -46,7 +46,7 @@ function extractXChunk(element: Element, pageUrl) {
   if (!element || isElementHidden(element)) return null;
 
   const clone = element.cloneNode(true) as Element;
-  clone.querySelectorAll('script, style, noscript, svg').forEach((el) => el.remove());
+  clone.querySelectorAll(NON_CONTENT_SELECTOR).forEach((el) => el.remove());
 
   const postText = textOf(clone, '[data-testid="tweetText"]');
   const author = textOf(clone, '[data-testid="User-Name"]');

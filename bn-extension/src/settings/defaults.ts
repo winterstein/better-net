@@ -85,6 +85,8 @@
     aiqaSamplingRate: 1,
     // Diagnostic console output via utils/logger.ts logit(). Off unless Advanced is on.
     consoleLogging: false,
+    /** Debug aid: outline every chunk on the page. See content/chunk-overlay.ts. */
+    showChunkOverlay: false,
     serverEndpoint: '',
     // Reuse the server's cached analysis for a page instead of analysing it locally. No service yet.
     useServerCache: false,

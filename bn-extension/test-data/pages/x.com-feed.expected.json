@@ -1,0 +1,10 @@
+{
+  "url": "https://x.com/home",
+  "note": "Home timeline: X virtualises the list, so only the posts rendered at save time are present. Saved 2026-08-31.",
+  "chunks": { "min": 4, "max": 25 },
+  "mustChunk": [
+    "the French polymath Henri Bergson",
+    "In Toronto I wasn't allowed to wear trousers to school"
+  ],
+  "mustNotAppear": ["To view keyboard shortcuts", "Safe ×"]
+}

@@ -32,6 +32,12 @@ function sanitise(html) {
     el.remove();
   }
   for (const el of doc.querySelectorAll('svg')) el.replaceWith(doc.createElement('span'));
+  // Comments are not content, and a conditional comment can smuggle a <script> past the
+  // element query above (`<!--[if lt IE 9]><script ...><![endif]-->`).
+  const comments = doc.createTreeWalker(doc, 128 /* SHOW_COMMENT */);
+  const stale = [];
+  while (comments.nextNode()) stale.push(comments.currentNode);
+  for (const node of stale) node.remove();
   for (const el of doc.querySelectorAll('[srcset]')) el.removeAttribute('srcset');
   for (const img of doc.querySelectorAll('img[src^="data:"]')) img.setAttribute('src', 'data:,');
   return `<!DOCTYPE html>\n${doc.documentElement.outerHTML}`;

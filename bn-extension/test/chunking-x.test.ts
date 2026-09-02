@@ -60,4 +60,21 @@ const withAds = await extractChunks(w.document as any, URL_, { includeAds: true 
 assert.equal(withAds.length, 2);
 assert.ok(withAds.some((c) => c.tags.includes('advert')), 'placementTracking tags an advert');
 
+// Re-analysis after an SPA navigation sees the previous run's nutrient labels still in the
+// DOM. They are our own UI, not page content, and must not be read back as post text.
+const LABELLED = HTML.replace(
+  '</article>',
+  `<div class="betternet-chunk-badge"><span class="betternet-badge-text">Safe</span>` +
+    `<button class="betternet-badge-dismiss">\u00d7</button></div></article>`
+);
+const w2 = new Window({ url: URL_ });
+(globalThis as any).window = w2 as any;
+(globalThis as any).document = w2.document as any;
+w2.document.write(LABELLED);
+const relabelled = await extractChunks(w2.document as any, URL_);
+assert.ok(relabelled.length >= 1, 'still chunks a post that already carries a label');
+for (const chunk of relabelled) {
+  assert.ok(!chunk.text.includes('Safe'), `own nutrient label leaked into chunk text: ${chunk.text}`);
+}
+
 console.log('✅ X chunker tests passed');

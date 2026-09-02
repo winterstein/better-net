@@ -202,6 +202,14 @@
           </div>
 
           <div class="setting-item">
+            <label class="checkbox-label">
+              <input type="checkbox" id="show-chunk-overlay">
+              <span><strong>Show chunk overlay</strong></span>
+            </label>
+            <span class="setting-description">Draw a coloured box and id over every chunk the page was split into, to see what the chunker did. Off by default.</span>
+          </div>
+
+          <div class="setting-item">
             <label for="server-endpoint"><strong>Server endpoint</strong></label>
             <span class="setting-description">bn-server base URL for feedback, cached analysis, and updates (e.g. http://localhost:3001)</span>
             <input type="url" id="server-endpoint" placeholder="https://api.betternet.org" autocomplete="off">

@@ -1,0 +1,10 @@
+{
+  "url": "https://x.com/realMaalouf",
+  "note": "Profile timeline: each post its own chunk. Saved 2026-08-31.",
+  "chunks": { "min": 2, "max": 25 },
+  "mustChunk": [
+    "Out of 50 million Muslims in Europe",
+    "I found this map from 1950"
+  ],
+  "mustNotAppear": ["To view keyboard shortcuts", "Safe ×"]
+}

@@ -47,6 +47,8 @@ export function mergeSettings(stored: any = {}) {
     aiqaServerUrl: '',
     aiqaSamplingRate: 1,
     consoleLogging: false,
+    /** Debug aid: outline every chunk on the page. See content/chunk-overlay.ts. */
+    showChunkOverlay: false,
     demoMode: true, // TODO: set to false for production
     excludedSites: [],
     domainOverrides: {},

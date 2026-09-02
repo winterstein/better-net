@@ -36,6 +36,17 @@ own browser: open devtools on the page and run
 
 then `node scripts/capture-page.js --file ~/Downloads/page.html x.com-post`.
 
+A page saved while BetterNet is enabled contains BetterNet's own nutrient labels. That is
+kept on purpose: it is exactly the DOM a re-analysis sees after an SPA navigation, and
+`x.com-post.expected.json` asserts the badge text (`Safe ×`) never comes back as page
+content.
+
+Whichever way you save it, **run it through `capture-page.js`**. A page pasted straight out
+of the browser still carries the site's own `<script>` tags: load it and the site's router
+boots, wipes the saved markup and navigates away, so the page chunks to nothing for reasons
+that have nothing to do with the chunker. `test/chunking-pages.test.ts` fails with that
+instruction if a page still has scripts in it.
+
 Use "copy the DOM" rather than *Save Page As*: Save Page As rewrites markup and pulls in
 resources, so it no longer matches what the content script sees. **Check the saved HTML for
 anything private** — a logged-in capture carries your handle, your feed and sometimes

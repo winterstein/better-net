@@ -20,6 +20,12 @@ export default defineConfig({
       timeout: 60_000,
     },
     {
+      name: 'spa',
+      testMatch: '**/spa-navigation.spec.ts',
+      // A cold extension start costs most of a minute before the first analysis begins.
+      timeout: 180_000,
+    },
+    {
       name: 'e2e',
       testMatch: '**/fixtures.spec.ts',
       dependencies: ['smoke'],

@@ -17,16 +17,18 @@ import {
 import { riskLevelForScore } from '../src/types/RiskLevel.js';
 import { chunkProblemScore } from '../src/types/ChunkAnalysis.js';
 
-const [sharePost, fakeArticle] = DEMO_PAGES;
+const [sharePost, fakeArticle, statPost] = DEMO_PAGES;
 const POST_URL = 'https://x.com/drhossamsamy65/status/2047310606361899350';
 const ARTICLE_URL =
   'https://thepeoplesvoice.tv/study-bill-gates-lab-grown-meat-causes-cancer-in-humans/';
+const STAT_POST_URL = 'https://x.com/realMaalouf/status/2094452781843100052';
 
 // --- lookup ---
 
 assert.equal(normaliseDemoUrl('https://WWW.Example.com/a/b/?utm=x'), 'example.com/a/b');
 assert.equal(findDemoPage(POST_URL), sharePost);
 assert.equal(findDemoPage(ARTICLE_URL), fakeArticle);
+assert.equal(findDemoPage(STAT_POST_URL), statPost);
 // Tracking params and a trailing slash must not lose the match
 assert.equal(findDemoPage(POST_URL + '?s=20&t=abc'), sharePost);
 // Offline mirror, on any local port
@@ -38,6 +40,7 @@ assert.equal(findDemoPage(''), undefined);
 
 assert.equal(sharePost.chunks.length, 1, 'the X post is one chunk');
 assert.equal(fakeArticle.chunks.length, 3, 'the article plus its two sidebar teasers');
+assert.equal(statPost.chunks.length, 1, 'the fabricated-statistic post is one chunk');
 for (const page of DEMO_PAGES) {
   for (const { chunk, analysis } of page.chunks) {
     assert.equal(analysis.chunkId, chunk.fingerprint);
@@ -106,8 +109,18 @@ assert.equal(replayed.analysis.summary.overallRisk, article.analysis.summary.ove
 
 // Unrecognised chunks are dropped, not guessed at
 assert.equal(demoResultsForChunks(ARTICLE_URL, [live, { xpath: '/html/body/nav', text: 'Menu' }]).length, 1);
-// Nothing recognised at all -> fall back to the canned chunks
-assert.deepEqual(demoResultsForChunks(ARTICLE_URL, []), fakeArticle.chunks);
+// Nothing recognised at all -> fall back to the canned chunks, but without the offline
+// mirror's xpaths: on the live page they point at elements that do not exist.
+const fallback = demoResultsForChunks(ARTICLE_URL, []);
+assert.equal(fallback.length, fakeArticle.chunks.length);
+assert.deepEqual(
+  fallback.map((r) => r.analysis.title),
+  fakeArticle.chunks.map((r) => r.analysis.title)
+);
+assert.ok(fallback.every((r) => r.chunk.xpath === undefined && r.analysis.xpath === undefined));
+// Each verdict is stamped with the page it is for, so a result arriving after the reader has
+// navigated away can be told apart from one for the page on screen.
+assert.ok(fallback.every((r) => r.analysis.url === ARTICLE_URL));
 assert.deepEqual(demoResultsForChunks('https://example.com', [live]), []);
 
 // --- the sidebar teasers on the article page ---
@@ -183,6 +196,76 @@ assert.equal(
   demoAnalysisForChunk(POST_URL, { text: 'Trending now: football scores, weather warnings and travel news for the weekend ahead.' }),
   undefined
 );
+
+// --- canned chunks must not claim an xpath they cannot have ---
+//
+// buildChunk()'s xpath describes the offline mirror. When the live chunker finds nothing
+// (x.com had not rendered yet) the background stands these chunks in — and on the live site
+// `/html/body/main/article[1]` is not there, so the label and the popup's highlight both
+// aimed at nothing, with only a console warning to show for it.
+
+const cannedLive = demoChunks(POST_URL);
+assert.equal(cannedLive.length, 1);
+assert.equal(cannedLive[0].xpath, undefined, 'no mirror xpath on the live site');
+assert.equal(demoAnalyses(POST_URL)[0].xpath, undefined, 'nor on the analysis');
+
+const cannedMirror = demoChunks('http://localhost:8080/demo/shared-fake-news-post.html');
+assert.equal(
+  cannedMirror[0].xpath,
+  '/html/body/main/article[1]',
+  'the mirror renders that DOM, so there the xpath is real'
+);
+assert.ok(renderDemoPage(sharePost).includes('<article'), 'and the mirror really has an article');
+
+// --- both X examples, against the real pages saved from x.com ---
+//
+// The rest of this file matches against hand-written chunk text. These two go through the
+// actual chunker on the actual saved pages, so a chunking change that stops the label
+// landing on the post shows up here.
+
+const { JSDOM } = await import('jsdom');
+const { readFileSync } = await import('node:fs');
+const { extractChunks } = await import('../src/chunking/chunking.js');
+
+async function labelSavedPage(fixture: string, url: string) {
+  const dom = new JSDOM(
+    readFileSync(new URL(`../test-data/pages/${fixture}`, import.meta.url), 'utf-8'),
+    { url }
+  );
+  Object.assign(globalThis as any, {
+    window: dom.window,
+    document: dom.window.document,
+    DOMParser: dom.window.DOMParser,
+    Node: dom.window.Node,
+    NodeFilter: dom.window.NodeFilter,
+    getComputedStyle: dom.window.getComputedStyle.bind(dom.window),
+  });
+  const chunks = await extractChunks(dom.window.document, url);
+  return demoResultsForChunks(url, chunks);
+}
+
+for (const page of [
+  { fixture: 'x.com-post-2.html', url: POST_URL, expect: 'Lab Grown Meat Causes Cancer' },
+  { fixture: 'x.com-post.html', url: STAT_POST_URL, expect: 'Out of 50 million Muslims in Europe' },
+]) {
+  const results = await labelSavedPage(page.fixture, page.url);
+  assert.equal(results.length, 1, `${page.fixture}: exactly the post is labelled, not the replies`);
+  const [labelled] = results;
+  assert.ok(
+    labelled.chunk.text.includes(page.expect),
+    `${page.fixture}: label landed on the wrong chunk: ${labelled.chunk.text.slice(0, 80)}`
+  );
+  assert.ok(labelled.chunk.xpath, `${page.fixture}: the label has an element to attach to`);
+  assert.equal(
+    riskLevelForScore(chunkProblemScore(labelled.analysis)).id,
+    'high-risk',
+    `${page.fixture}: should be High Risk`
+  );
+  // Every verdict cites a published fact-check.
+  for (const aspect of labelled.analysis.analyses) {
+    assert.ok(aspect.url?.startsWith('https://'), `${page.fixture}: ${aspect.methodName} cites no source`);
+  }
+}
 
 // --- rendering ---
 

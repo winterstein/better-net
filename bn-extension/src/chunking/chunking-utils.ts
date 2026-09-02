@@ -71,6 +71,18 @@ export function isElementHidden(element) {
       if (style?.display === 'none' && style?.visibility === 'hidden') {
         return true;
       }
+      // The clip-rect pattern: a 1px box, clipped, positioned out of flow. Bootstrap's
+      // .sr-only, X's `r-*` utilities and GOV.UK all do this, with class names we cannot
+      // enumerate — X's "To view keyboard shortcuts, press question mark" heading was being
+      // chunked as a story. Shape is the reliable signal.
+      const tiny = parseFloat(style?.width) <= 1 && parseFloat(style?.height) <= 1;
+      const clipped =
+        (style?.clip && style.clip !== 'auto') ||
+        (style?.clipPath && style.clipPath !== 'none') ||
+        style?.overflow === 'hidden';
+      if (tiny && clipped && (style?.position === 'absolute' || style?.position === 'fixed')) {
+        return true;
+      }
     }
   } catch (e) {
     // ignore
@@ -98,6 +110,12 @@ export const SCREEN_READER_ONLY_SELECTOR = [
   '[aria-hidden="true"]',
 ].join(', ');
 
+/**
+ * Our own injected UI. After an SPA navigation the page is chunked again with the previous
+ * run's nutrient labels still in the DOM, so "Safe ×" would be read back as page content.
+ */
+export const OWN_UI_SELECTOR = '[class^="betternet-"], [class*=" betternet-"], [id^="betternet-"]';
+
 /** Never part of the readable content of a chunk. */
 export const NON_CONTENT_SELECTOR = [
   'script',
@@ -105,6 +123,7 @@ export const NON_CONTENT_SELECTOR = [
   'noscript',
   'template',
   'svg',
+  OWN_UI_SELECTOR,
   SCREEN_READER_ONLY_SELECTOR,
 ].join(', ');
 
