@@ -13,6 +13,7 @@
     "watch:chrome": "node scripts/watch.js chrome",
     "watch:firefox": "node scripts/watch.js firefox",
     "watch:edge": "node scripts/watch.js edge",
+    "build:demo": "tsx scripts/build-demo-html.ts",
     "test": "node scripts/build-fixture-html.js && tsx test/chunking.test.ts && tsx test/chunking-pages.test.ts && tsx test/chunk-tags.test.ts && tsx test/chunking-x.test.ts && tsx test/chunking-headlines.test.ts && tsx test/chunk-overlay.test.ts && tsx test/chunk-title.test.ts && tsx test/mock.factcheck-google.test.ts && tsx test/ad-blocker-facebook.test.ts && tsx test/ad-blocker-detect-chunk.test.ts && tsx test/local-inference-client.test.ts && tsx test/analyze-local.test.ts && tsx test/model-manager.test.ts && tsx test/download-progress.test.ts && tsx test/update-manager.test.ts && tsx test/feedback.test.ts && tsx test/click-unbait.test.ts && tsx test/popup-diagnostics.test.ts && tsx test/logger.test.ts && tsx test/risk-level.test.ts && tsx test/aiqa-tracing.test.ts && tsx test/demo-analysis.test.ts",
     "test:e2e": "npm run build && node scripts/build-fixture-html.js && playwright test --project=smoke --project=popup --project=e2e",
     "test:e2e:smoke": "npm run build && playwright test --project=smoke --project=popup",

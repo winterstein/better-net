@@ -3,7 +3,13 @@ Coordinates page analysis and manages state
 */ 
 
 import { analyzeChunksParallel, enabledFeaturesFromSettings } from '../analysis/engine.js';
-import { demoChunks, demoResultsForChunks, findDemoPage } from '../analysis/demo-analysis.js';
+import { beginDestinationBudget } from '../features/click-unbait/fetch-destination.js';
+import {
+  demoChunks,
+  demoLinkResultsForChunks,
+  demoResultsForChunks,
+  findDemoPage,
+} from '../analysis/demo-analysis.js';
 import { ANALYSIS_FEATURE_IDS } from '../features/registry.js';
 import {
 	completeAspectAnalysis,
@@ -24,11 +30,29 @@ import {
 	flushAiqaSpans,
 	recordRelayedSteps,
 } from '../tracing/aiqa-tracer.js';
-import { startSpan, endSpan } from '../tracing/tracer-hook.js';
+import { startSpan, endSpan, setAttributes } from '../tracing/tracer-hook.js';
 
 /** Chunks labelled below safe (caution / high-risk). */
 function isNeutralisedScore(score) {
   return score != null && score >= 0.4;
+}
+
+/**
+ * AIQA shows a trace's `input` / `output` attributes as its headline pair (aiqa-client
+ * sets them from a wrapped function's arguments and return value). For a page analysis
+ * that is the page we were given, and the verdict we reached.
+ */
+function traceInput(pageMetadata): string {
+  return [pageMetadata.domain, pageMetadata.title].filter(Boolean).join(': ');
+}
+
+function traceOutput(summary, state): string {
+  return JSON.stringify({
+    overall: summary.overall,
+    score: Math.round((summary.score ?? 0) * 100) / 100,
+    chunks: state.chunks.length,
+    neutralised: state.neutralisedCount ?? 0,
+  });
 }
 
 /**
@@ -395,6 +419,7 @@ class AnalysisManager {
       state.trace = startSpan('betternet.analyze_page', {
         startTime: earliestStart(state),
         attributes: {
+          input: traceInput(pageMetadata),
           'betternet.url': state.url,
           'betternet.domain': pageMetadata.domain,
           'betternet.chunk_count': state.chunks.length,
@@ -453,38 +478,67 @@ class AnalysisManager {
       const demoPage = settings.demoMode ? findDemoPage(state.url) : undefined;
       const demoResults = demoPage ? demoResultsForChunks(state.url, state.chunks) : [];
       if (demoPage) {
+        // Say which of the two happened. The fallback also returns results, so a plain
+        // count read as a match and hid the fact that nothing could be labelled.
+        const canned = demoResults.some((r) => r.canned);
         logit(
           'log',
           '[BetterNet] [PERFORM_ANALYSIS] Demo mode:',
           demoPage.title,
-          `— matched ${demoResults.length} of ${state.chunks.length} page chunks`
+          canned
+            ? `— no page chunk matched, falling back to ${demoResults.length} canned chunk(s); the page cannot be labelled`
+            : `— matched ${demoResults.length} of ${state.chunks.length} page chunks`
         );
       }
 
+      // A canned headline can turn up as a link on a page we have no demo entry for — which
+      // is the whole of the click-unbait example. Serve those chunks from the dataset and let
+      // the pipeline handle the rest of the page as normal.
+      const demoLinks =
+        settings.demoMode && !demoPage ? demoLinkResultsForChunks(state.url, state.chunks) : [];
+      if (demoLinks.length) {
+        logit(
+          'log',
+          '[BetterNet] [PERFORM_ANALYSIS] Demo mode: matched',
+          demoLinks.length,
+          'demo headline link(s) on this page'
+        );
+      }
+      const demoLinkChunks = new Set(demoLinks.map(({ chunk }) => chunk));
+      const serveDemo = ({ chunk, analysis }) => {
+        onAnalysis(chunk, analysis);
+        return analysis;
+      };
+
+      // Click Unbait fetches destination pages. Reset the per-page allowance here, so a
+      // feed of clickbait costs a bounded number of outbound requests rather than one per
+      // flagged chunk.
+      beginDestinationBudget(state.url);
+
       logit('log', '[BetterNet] [PERFORM_ANALYSIS] Analyzing chunks in parallel...');
       const chunkResults = demoPage
-        ? demoResults.map(({ chunk, analysis }) => {
-            onAnalysis(chunk, analysis);
-            return analysis;
-          })
-        : await analyzeChunksParallel(
-            state.chunks,
-            pageMetadata,
-            {
-              mode: settings.analysisMode,
-              config: {
-                apiKey: openaiKey,
-                openaiKey: openaiKey,
-                anthropicKey: anthropicKey,
-                googleFactCheckKey: googleFactCheckKey,
-                localModelId: settings.localModelId || 'flan-t5-small',
+        ? demoResults.map(serveDemo)
+        : [
+            ...demoLinks.map(serveDemo),
+            ...(await analyzeChunksParallel(
+              state.chunks.filter((chunk) => !demoLinkChunks.has(chunk)),
+              pageMetadata,
+              {
+                mode: settings.analysisMode,
+                config: {
+                  apiKey: openaiKey,
+                  openaiKey: openaiKey,
+                  anthropicKey: anthropicKey,
+                  googleFactCheckKey: googleFactCheckKey,
+                  localModelId: settings.localModelId || 'flan-t5-small',
+                },
+                maxConcurrency: 5,
+                enabledFeatures,
+                trace: state.trace,
               },
-              maxConcurrency: 5,
-              enabledFeatures,
-              trace: state.trace,
-            },
-            onAnalysis
-          );
+              onAnalysis
+            )),
+          ];
       
       logit('log', '[BetterNet] [PERFORM_ANALYSIS] Analysis complete:', {
         chunksAnalyzed: chunkResults.length
@@ -554,6 +608,7 @@ class AnalysisManager {
       state.neutralisedCount = chunkResults.filter((cr) =>
         isNeutralisedScore(chunkProblemScore(cr))
       ).length;
+      setAttributes(state.trace, { output: traceOutput(summary, state) });
       
       const chunkByKey = new Map(
         state.chunks.map((c) => [c.id ?? c.fingerprint ?? c.xpath, c])

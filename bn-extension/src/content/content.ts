@@ -2,7 +2,7 @@
 // Extracts page content and coordinates analysis
 
 // Import chunking (will be bundled by esbuild)
-import { extractChunks } from '../chunking/chunking.js';
+import { extractChunks, looksUnrendered } from '../chunking/chunking.js';
 import { createStepRecorder } from '../tracing/trace-steps.js';
 import { findElementByXPath, waitForContentRender } from '../utils/utils.js';
 import { isConsoleLoggingEnabled, logit, setConsoleLogging } from '../utils/logger.js';
@@ -71,7 +71,13 @@ async function extractChunksWhenRendered(url, chunkOptions, recorder) {
       'of',
       CHUNK_RETRY_DELAYS_MS.length + ')'
     );
-    if (chunks.length) break;
+    // A count above zero is not the same as a rendered page: x.com's loading screen yields
+    // one teaser chunk of site furniture, which used to end the backoff on the first
+    // attempt and leave the post itself unchunked and unlabelled.
+    if (!looksUnrendered(chunks, url)) break;
+    if (chunks.length) {
+      logit('log','[BetterNet] [CONTENT] Only page furniture so far, waiting for the app to render');
+    }
   }
   return chunks;
 }
@@ -489,8 +495,15 @@ class PageAnalyzer {
         return false;
 
       case 'ANALYSIS_UPDATE':
-        if (message.data.type === 'analysisUpdate' && message.data.xpath) {
-          this.handleChunkAnalysisUpdate(message.data);
+        if (message.data.type === 'analysisUpdate') {
+          // No xpath means the verdict belongs to no element on this page — a canned demo
+          // chunk standing in for a page we could not chunk. Nothing to label, but say so:
+          // dropping it silently here is what made a missing Nutrient Label undiagnosable.
+          if (!message.data.xpath) {
+            logit('warn','[BetterNet] [CONTENT] Analysis result has no xpath, nothing to label');
+          } else {
+            this.handleChunkAnalysisUpdate(message.data);
+          }
         }
         return false;
 

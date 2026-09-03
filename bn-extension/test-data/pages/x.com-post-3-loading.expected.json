@@ -1,0 +1,9 @@
+{
+  "url": "https://x.com/realMaalouf/status/2094452781843100052",
+  "note": "The same post caught mid-load: <main> holds only a spinner. Saved from the ANALYZE_CHUNKS payload of a run that produced no Nutrient Label. The only text on the page is X's screen-reader heading, which the headline chunker turned into a chunk — one junk chunk ended the render backoff on attempt 1, so the post was never chunked. A page in this state must chunk to nothing, so the caller retries.",
+  "chunks": { "min": 0, "max": 0 },
+  "mustNotAppear": [
+    "To view keyboard shortcuts",
+    "View keyboard shortcuts"
+  ]
+}

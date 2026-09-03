@@ -186,6 +186,19 @@ function chunkCoverage(chunks) {
 }
 
 /**
+ * A page that has not rendered yet, dressed up as a result. On an SPA the platform chunker
+ * finds nothing and the headline chunker picks up whatever furniture is on screen, so a
+ * result made only of teasers means "too early" rather than "chunked", and the caller
+ * should wait and chunk again. Restricted to sites we have a platform chunker for: on an
+ * ordinary news homepage the teasers really are the content.
+ */
+export function looksUnrendered(chunks, url: string): boolean {
+  if (!chunks?.length) return true;
+  if (!detectPlatform(url)) return false;
+  return chunks.every((chunk) => chunk?.metadata?.headline);
+}
+
+/**
  * Detect which platform we're on based on URL and DOM structure
  */
 function detectPlatform(url: string): string | null {

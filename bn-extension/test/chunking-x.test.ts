@@ -7,6 +7,7 @@
  */
 
 import assert from 'node:assert/strict';
+import { looksUnrendered } from '../src/chunking/chunking.js';
 import { Window } from 'happy-dom';
 
 const URL_ = 'https://x.com/drhossamsamy65/status/2047310606361899350';
@@ -76,5 +77,20 @@ assert.ok(relabelled.length >= 1, 'still chunks a post that already carries a la
 for (const chunk of relabelled) {
   assert.ok(!chunk.text.includes('Safe'), `own nutrient label leaked into chunk text: ${chunk.text}`);
 }
+
+/**
+ * The retry guard. x.com's loading screen yields one headline chunk of site furniture, and
+ * a truthy count used to end the content script's render backoff on attempt 1 — so the post
+ * was never chunked and never labelled. See test-data/pages/x.com-post-3-loading.html.
+ */
+const furniture = [{ metadata: { headline: true } }];
+const realPost = [{ metadata: { platform: 'x' } }];
+
+assert.equal(looksUnrendered([], URL_), true, 'no chunks at all is not rendered');
+assert.equal(looksUnrendered(furniture, URL_), true, 'teasers only, on a platform we chunk');
+assert.equal(looksUnrendered([...furniture, ...realPost], URL_), false, 'a real post is enough');
+assert.equal(looksUnrendered(realPost, URL_), false);
+// Off-platform, teasers are the content: a news homepage must not be retried five times.
+assert.equal(looksUnrendered(furniture, 'https://bbc.co.uk/news'), false);
 
 console.log('✅ X chunker tests passed');

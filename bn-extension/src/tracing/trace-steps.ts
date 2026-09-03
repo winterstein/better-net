@@ -8,19 +8,12 @@
  * tracing/aiqa-tracer.ts (recordRelayedSteps).
  */
 
-import type { TraceAttributes } from './tracer-hook.js';
+import type { TraceAttributes, TraceStep } from './tracer-hook.js';
 
 export type StepAttributes = TraceAttributes;
 
-/** Wire form of RelayedStep in aiqa-tracer.ts. */
-export interface TraceStep {
-	name: string;
-	/** Epoch ms. */
-	start: number;
-	end: number;
-	attributes?: StepAttributes;
-	children?: TraceStep[];
-}
+/** Wire form replayed by aiqa-tracer.ts (recordRelayedSteps). */
+export type { TraceStep };
 
 /**
  * Records timed steps into a tree. Disabled recorders (tracing off) do nothing but

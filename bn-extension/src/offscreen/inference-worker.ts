@@ -14,6 +14,7 @@
 
 import { pipeline, env } from '@huggingface/transformers';
 import { getLocalModel } from '../ai/model-catalog.js';
+import type { TraceStep } from '../tracing/tracer-hook.js';
 import {
   applyDownloadProgressEvent,
   type FileByteProgress,
@@ -115,12 +116,55 @@ async function getPipeline(modelId) {
   return pipe;
 }
 
+/**
+ * Time one stage of an inference request into `steps`, for AIQA.
+ *
+ * The background's `local.*` span can only see the messaging round-trip, which also
+ * covers port hops and a first-call model load; these steps are what the model
+ * actually spent. Always recorded — two Date.now() calls, and the worker has no way
+ * to know whether tracing is on. Replayed by tracing/aiqa-tracer.ts.
+ */
+async function timeStep<T>(
+  steps: TraceStep[],
+  name: string,
+  attributes: TraceStep['attributes'],
+  fn: () => Promise<T>
+): Promise<T> {
+  const step: TraceStep = { name, start: Date.now(), end: 0, attributes: { ...attributes } };
+  steps.push(step);
+  try {
+    return await fn();
+  } finally {
+    step.end = Date.now();
+  }
+}
+
+/** Load the pipeline as a timed step, flagged so a cache hit is distinguishable. */
+function loadPipelineStep(steps: TraceStep[], modelId: string) {
+  const cached = pipelines.has(modelId);
+  return timeStep(steps, 'local.load_model', { 'betternet.model.cached': cached }, () =>
+    getPipeline(modelId)
+  );
+}
+
 async function zeroShot({ modelId, text, candidateLabels, multiLabel }) {
-  const pipe = await getPipeline(modelId);
-  const output = await pipe(text, candidateLabels, { multi_label: multiLabel });
+  const traceSteps: TraceStep[] = [];
+  const pipe = await loadPipelineStep(traceSteps, modelId);
+  const output = await timeStep<{ labels: string[]; scores: number[] }>(
+    traceSteps,
+    'local.infer',
+    {
+      'gen_ai.operation.name': 'zero-shot-classification',
+      'gen_ai.request.model': modelId,
+      'betternet.input.chars': text?.length ?? 0,
+      'betternet.label_count': candidateLabels?.length ?? 0,
+    },
+    () => pipe(text, candidateLabels, { multi_label: multiLabel })
+  );
   return {
     labels: output.labels,
     scores: output.scores,
+    traceSteps,
   };
 }
 
@@ -147,13 +191,24 @@ async function generate({ modelId, prompt, maxNewTokens }) {
   if (!GENERATIVE_PIPELINES.has(spec.pipeline)) {
     throw new Error(`Model ${modelId} does not support text generation`);
   }
-  const pipe = await getPipeline(modelId);
+  const traceSteps: TraceStep[] = [];
+  const pipe = await loadPipelineStep(traceSteps, modelId);
   const opts = { max_new_tokens: maxNewTokens ?? 256, do_sample: false };
-  const outputs =
-    spec.pipeline === 'text-generation'
-      ? await pipe([{ role: 'user', content: prompt }], opts)
-      : await pipe(prompt, opts);
-  return { text: extractGeneratedText(outputs, prompt) };
+  const outputs = await timeStep(
+    traceSteps,
+    'local.infer',
+    {
+      'gen_ai.operation.name': spec.pipeline,
+      'gen_ai.request.model': modelId,
+      'gen_ai.request.max_tokens': opts.max_new_tokens,
+      'betternet.input.chars': prompt?.length ?? 0,
+    },
+    () =>
+      spec.pipeline === 'text-generation'
+        ? pipe([{ role: 'user', content: prompt }], opts)
+        : pipe(prompt, opts)
+  );
+  return { text: extractGeneratedText(outputs, prompt), traceSteps };
 }
 
 async function removeModel(modelId) {

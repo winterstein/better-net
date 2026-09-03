@@ -5,72 +5,134 @@
  */
 
 import { runFeatureAnalysis } from '../../ai/run-feature-analysis.js';
-import { createLLMClient } from '../../ai/llm-client.js';
+import { createLLMClient, isRemoteProvider } from '../../ai/llm-client.js';
 import { getPrompt } from '../../ai/prompt-manager.js';
 import {
 	isZeroShotPayload,
 	problemScoreFromZeroShotPayload,
 } from '../zero-shot-score.js';
+import { canGenerate, getLocalModel } from '../../ai/model-catalog.js';
+import { getOffscreenLocalBackend } from '../../ai/local-model-backend.js';
+import { traceStep, setAttributes, recordSteps } from '../../tracing/tracer-hook.js';
+import { contentTokens, isFurnitureUrl, pickBestLink } from '../../chunking/headline-link.js';
 import { fetchDestinationText } from './fetch-destination.js';
+import type { DestinationContent } from './fetch-destination.js';
+import type { ChunkLink } from '../../types/Chunk.js';
 import { formatUnbaitTitle } from './format-unbait-title.js';
+import { CLICKBAIT_THRESHOLD, describeSignals, namedSignals, scoreClickbait } from './clickbait-signals.js';
 
 const PROMPT_ID = 'click-unbait';
 const UNRAVEL_PROMPT_ID = 'click-unbait-unravel';
 
-const ZERO_SHOT_LABELS = [
-	'withholding information to force a click',
-	'describing the article clearly',
-];
+/** Re-exported so callers of this feature have one import, not two. */
+export { CLICKBAIT_THRESHOLD };
 
-/** Act on chunks at or above this clickbait problem score. */
-export const CLICKBAIT_THRESHOLD = 0.4;
+/** Long enough to say something; short enough to sit in front of a headline. */
+const MIN_SUMMARY_CHARS = 12;
+const MAX_SUMMARY_CHARS = 70;
 
-export async function analyzeChunk(chunk, pageMetadata: any = {}, options: any = {}) {
-	const detection = await runFeatureAnalysis({
+/** How much of the summary may be words the headline already used before it is an echo. */
+const MAX_HEADLINE_OVERLAP = 0.6;
+
+/** Article text sent to an on-device model. Small models degrade on longer inputs. */
+const LOCAL_SUMMARY_CHARS = 1800;
+
+/** Article text sent to a remote model, which can take more of it. */
+const REMOTE_SUMMARY_CHARS = 2500;
+
+/**
+ * Headline this chunk is really about. The scorer reads a headline, not a page: on a feed
+ * chunk the surrounding text is other stories.
+ */
+function headlineOf(chunk: any, pageMetadata: any = {}): string {
+	return (
+		String(chunk?.title || '').trim() ||
+		String(chunk?.metadata?.heading || '').trim() ||
+		firstLinkText(chunk?.links) ||
+		firstLine(chunk?.text || '') ||
+		String(pageMetadata?.title || '').trim()
+	);
+}
+
+interface Detection {
+	problemScore?: number;
+	confidence?: number;
+	flags?: string[];
+	explanation?: string;
+	metadata?: Record<string, unknown>;
+}
+
+/**
+ * Detection. Deliberately *not* routed through the on-device model.
+ *
+ * Measured on real headlines, both local options are worse than the signal scorer here.
+ * MobileBERT zero-shot with this feature's label pair is anti-correlated: it scored a plain
+ * BBC headline ("Storm Eowyn: Thousands without power across Northern Ireland") at 0.52 and
+ * Upworthy's "Harvard psychiatrist reveals 'the fastest way to change your life'" at 0.15.
+ * FLAN-T5-Small, the shipped default, answers the JSON detection prompt by repeating the
+ * headline back, which parses to the 0.2 default and never crosses the threshold. So local
+ * and heuristic modes use `scoreClickbait`; the on-device model still earns its keep on the
+ * summary, which is a task it can actually do.
+ */
+async function detectClickbait(
+	chunk,
+	pageMetadata: any,
+	options: any,
+	headline: string
+): Promise<Detection> {
+	const { mode = 'local', llmClient } = options;
+	const useRemoteLLM = isRemoteProvider(mode) || !!llmClient;
+
+	if (!useRemoteLLM) return analyzeWithHeuristics(headline);
+
+	return runFeatureAnalysis({
 		chunk,
 		pageMetadata,
 		options,
 		promptId: PROMPT_ID,
-		zeroShotLabels: ZERO_SHOT_LABELS,
+		// Unused: this path is only reached for a remote client. Kept non-empty so the
+		// shared signature stays honest about what a zero-shot caller would pass.
+		zeroShotLabels: [],
 		buildContext: (c, meta) => ({
 			text: c.text || '',
-			title: (c as any).title || meta.title || '',
+			title: headline || (meta.title as string) || '',
 			links: normalizeLinks(c.links),
 			url: meta.url || '',
 			domain: meta.domain || '',
 		}),
 		formatContextForPrompt,
-		parseAIResponse,
-		heuristicFallback: analyzeWithHeuristics,
-		mockResults: getMockResults,
+		parseAIResponse: (text: string) => parseAIResponse(text, headline),
+		heuristicFallback: () => analyzeWithHeuristics(headline),
+		mockResults: () => analyzeWithHeuristics(headline),
 	});
+}
+
+export async function analyzeChunk(chunk, pageMetadata: any = {}, options: any = {}) {
+	const originalTitle = headlineOf(chunk, pageMetadata);
+	const detection = await detectClickbait(chunk, pageMetadata, options, originalTitle);
 
 	if (!isClickbaitDetection(detection)) {
 		return detection;
 	}
 
 	const flags = uniqueFlags([...(detection.flags || []), 'clickbait']);
-	const originalTitle =
-		String((chunk as any).title || '').trim() ||
-		firstLinkText(chunk.links) ||
-		firstLine(chunk.text || '');
 
-	const destUrl = pickDestinationUrl(chunk.links, pageMetadata.url);
+	const destUrl = pickDestinationUrl(chunk, pageMetadata.url, originalTitle);
 	if (!destUrl || !originalTitle) {
 		return {
 			...detection,
 			flags,
-			explanation: detection.explanation || 'Clickbait detected; no link to unravel.',
+			explanation: withReason(detection.explanation, 'no link on this chunk to unravel'),
 		};
 	}
 
 	const fetchFn = options.fetchDestination ?? fetchDestinationText;
-	const dest = await fetchFn(destUrl);
+	const dest = await fetchFn(destUrl, { trace: options.trace, pageUrl: pageMetadata.url });
 	if (!dest) {
 		return {
 			...detection,
 			flags,
-			explanation: detection.explanation || 'Clickbait detected; destination fetch failed.',
+			explanation: withReason(detection.explanation, 'could not read the destination page'),
 			metadata: { destinationUrl: destUrl, originalTitle },
 		};
 	}
@@ -80,7 +142,10 @@ export async function analyzeChunk(chunk, pageMetadata: any = {}, options: any =
 		return {
 			...detection,
 			flags,
-			explanation: detection.explanation || 'Clickbait detected; no summary available.',
+			explanation: withReason(
+				detection.explanation,
+				'the destination gave nothing the headline had not already said'
+			),
 			metadata: { destinationUrl: destUrl, originalTitle },
 		};
 	}
@@ -116,35 +181,47 @@ export function isClickbaitDetection(detection: {
 	return (detection.problemScore ?? 0) >= CLICKBAIT_THRESHOLD;
 }
 
+/**
+ * Where this headline actually goes.
+ *
+ * The chunker resolves this from the DOM where it can (`chunk.primaryLink`); the link list
+ * is the fallback for chunkers that only collect one. Either way the link has to earn it by
+ * matching the headline — the old "first http link in the chunk" rule fetched
+ * `google.com/preferences` on a results page and the *next* card's story on a grid, then
+ * prepended a confident summary of it. Returning null is the good outcome when unsure.
+ */
 export function pickDestinationUrl(
-	links: unknown,
-	pageUrl?: string
+	chunk: { primaryLink?: { url?: string } | null; links?: unknown },
+	pageUrl?: string,
+	headline?: string
 ): string | null {
-	const list = normalizeLinks(links);
-	for (const link of list) {
-		const resolved = resolveUrl(link.url, pageUrl);
-		if (!resolved || !/^https?:/i.test(resolved)) continue;
-		if (pageUrl && samePage(resolved, pageUrl)) continue;
-		return resolved;
-	}
-	return null;
+	const primary = usableDestination(chunk?.primaryLink?.url, pageUrl);
+	if (primary) return primary;
+
+	if (!headline) return null;
+	const best = pickBestLink(normalizeLinks(chunk?.links), headline, pageUrl);
+	return usableDestination(best?.url, pageUrl);
 }
 
-function normalizeLinks(links: unknown): { url: string; text: string }[] {
+/** An absolute http(s) URL that is neither this page nor site furniture. */
+function usableDestination(url: string | undefined, pageUrl?: string): string | null {
+	if (!url) return null;
+	const resolved = resolveUrl(url, pageUrl);
+	if (!resolved || !/^https?:/i.test(resolved)) return null;
+	if (pageUrl && samePage(resolved, pageUrl)) return null;
+	if (isFurnitureUrl(resolved, pageUrl)) return null;
+	return resolved;
+}
+
+function normalizeLinks(links: unknown): ChunkLink[] {
 	if (!Array.isArray(links)) return [];
 	return links
-		.map((link) => {
-			if (typeof link === 'string') {
-				return { url: link, text: '' };
-			}
-			if (link && typeof link === 'object') {
-				const url = String((link as any).url || (link as any).href || '');
-				const text = String((link as any).text || '').trim();
-				return { url, text };
-			}
-			return null;
-		})
-		.filter(Boolean) as { url: string; text: string }[];
+		.filter((link) => link && typeof link === 'object' && (link as ChunkLink).url)
+		.map((link: ChunkLink) => ({
+			url: String(link.url),
+			text: String(link.text || '').trim(),
+			label: String(link.label || '').trim(),
+		}));
 }
 
 function firstLinkText(links: unknown): string {
@@ -176,57 +253,35 @@ function samePage(a: string, b: string): boolean {
 	}
 }
 
+/** Detection reason plus why the unravel stopped — both matter when a label looks wrong. */
+function withReason(explanation: string | undefined, reason: string): string {
+	const base = explanation || 'Clickbait detected';
+	return `${base.replace(/\.$/, '')}. Not rewritten: ${reason}.`;
+}
+
 function uniqueFlags(flags: string[]): string[] {
 	return [...new Set(flags.filter(Boolean))];
 }
 
-function analyzeWithHeuristics(context) {
-	const text = `${context.title || ''} ${context.text || ''}`.toLowerCase();
-	let score = 0;
-	const flags: string[] = [];
-
-	const patterns: { re: RegExp; weight: number; flag: string }[] = [
-		{ re: /you won'?t believe/i, weight: 0.45, flag: 'you_wont_believe' },
-		{ re: /one weird trick/i, weight: 0.5, flag: 'one_weird_trick' },
-		{ re: /the one thing (you'?re|you are) doing wrong/i, weight: 0.5, flag: 'the_one_thing' },
-		{ re: /what happened next|what happens next/i, weight: 0.4, flag: 'what_happens_next' },
-		{ re: /doctors hate|experts hate/i, weight: 0.45, flag: 'authority_hate' },
-		{ re: /will (shock|blow your mind|amaze)/i, weight: 0.4, flag: 'shock_promise' },
-		{ re: /this is why|here'?s why you/i, weight: 0.3, flag: 'heres_why' },
-		{ re: /\d+\s+(reasons|ways|things|secrets|tips)\b/i, weight: 0.25, flag: 'listicle_tease' },
-		{ re: /\b(gone wrong|goes viral|you need to see)\b/i, weight: 0.35, flag: 'viral_tease' },
-		{ re: /\?$/, weight: 0.15, flag: 'question_headline' },
-	];
-
-	for (const { re, weight, flag } of patterns) {
-		if (re.test(text)) {
-			score += weight;
-			flags.push(flag);
-		}
-	}
-
-	// Withholding pronouns / vague referents in short headlines
-	if (
-		/\b(this|these|that)\b/i.test(context.title || '') &&
-		(context.title || '').length < 80 &&
-		flags.length > 0
-	) {
-		score += 0.1;
-	}
-
-	score = Math.min(score, 1);
-	if (score >= CLICKBAIT_THRESHOLD && !flags.includes('clickbait')) {
-		flags.push('clickbait');
-	}
+/**
+ * Score a headline on curiosity-gap structure. See `clickbait-signals.ts` for why the old
+ * catchphrase list ("you won't believe", "one weird trick") scored 0 on every headline on
+ * upworthy.com and buzzfeed.com.
+ */
+function analyzeWithHeuristics(headline: string) {
+	const { score, flags } = scoreClickbait(headline);
+	const isBait = score >= CLICKBAIT_THRESHOLD;
+	const named = namedSignals(flags);
 
 	return {
 		problemScore: score,
-		confidence: flags.length ? 0.65 : 0.5,
-		flags,
-		explanation:
-			score >= CLICKBAIT_THRESHOLD
-				? `Clickbait patterns: ${flags.filter((f) => f !== 'clickbait').join(', ') || 'sensational framing'}.`
-				: 'Headline appears reasonably descriptive.',
+		confidence: named.length >= 2 ? 0.75 : named.length === 1 ? 0.6 : 0.5,
+		flags: isBait ? uniqueFlags([...named, 'clickbait']) : named,
+		explanation: isBait
+			? `Withholds the payoff: ${describeSignals(named)}.`
+			: flags.includes('quiz_out_of_scope')
+				? 'A quiz — there is no withheld answer on a destination page to reveal.'
+				: 'Headline states what the story is about.',
 	};
 }
 
@@ -239,7 +294,7 @@ Content:
 ${context.text}`;
 }
 
-function parseAIResponse(responseText) {
+function parseAIResponse(responseText: string, headline = '') {
 	try {
 		const jsonMatch = responseText.match(/\{[\s\S]*\}/);
 		if (jsonMatch) {
@@ -277,57 +332,139 @@ function parseAIResponse(responseText) {
 	}
 
 	const scoreMatch = responseText.match(/score[:\s]+([\d.]+)/i);
-	const score = scoreMatch ? parseFloat(scoreMatch[1]) : 0.2;
+	if (!scoreMatch) {
+		// Unparseable. A hardcoded 0.2 here silently answered "not clickbait" for every
+		// model that cannot produce JSON, which is every small local one.
+		return analyzeWithHeuristics(headline);
+	}
+	const score = Math.max(0, Math.min(1, parseFloat(scoreMatch[1])));
 	return {
-		problemScore: Math.max(0, Math.min(1, score)),
+		problemScore: score,
 		confidence: 0.5,
 		flags: score >= CLICKBAIT_THRESHOLD ? ['clickbait'] : [],
 		explanation: responseText.substring(0, 200),
 	};
 }
 
-function getMockResults(context) {
-	const title = String(context.title || context.text || '');
-	const looksBait = /you won'?t believe|one thing|shock|weird trick/i.test(title);
-	return {
-		problemScore: looksBait ? 0.7 : 0.15,
-		confidence: 0.75,
-		flags: looksBait ? ['clickbait'] : [],
-		explanation: 'Mock clickbait analysis',
-	};
-}
+/**
+ * A short honest line about what the destination actually says.
+ *
+ * Tiers, best first, each one a function that either produces a candidate or returns null;
+ * every candidate goes through the same `acceptSummary` gate. The gate is the point. The
+ * failure that made this feature actively misleading was not a missing model but an
+ * unchecked one: with no LLM in local mode the old code fell back to the destination's
+ * `<title>`, which is the same clickbait headline the site put on the link, so the page read
+ * `[You won't believe what this doctor keeps] You won't believe what this doctor keeps on a
+ * Post-it note`. The bait, twice, presented as the cure.
+ *
+ * Running them as a list rather than an if/else chain also means a tier that is unavailable
+ * falls through to the next instead of skipping the rest: `mode: 'openai'` with no API key
+ * used to jump straight past a perfectly good downloaded local model.
+ */
+type SummaryTier = (
+	dest: DestinationContent,
+	originalTitle: string,
+	options: any
+) => Promise<string | null> | string | null;
 
 async function summarizeDestination(
-	dest: { title: string; text: string },
+	dest: DestinationContent,
 	originalTitle: string,
 	options: any
 ): Promise<string | null> {
-	const { mode = 'local', config = {}, llmClient } = options;
-	const client =
-		llmClient ??
-		(mode === 'openai' || mode === 'anthropic' ? createLLMClient(mode, config) : null);
+	const tiers = [summarizeWithRemoteLLM, summarizeWithLocalModel, summarizeFromPage];
 
-	if (client) {
-		try {
-			const text = await client.complete(
-				[
-					{ role: 'system', content: getPrompt(UNRAVEL_PROMPT_ID) },
-					{
-						role: 'user',
-						content: `Original headline: ${originalTitle}\n\nDestination title: ${dest.title}\n\nDestination excerpt:\n${dest.text.slice(0, 2500)}`,
-					},
-				],
-				{ traceName: 'click-unbait.unravel' }
-			);
-			const summary = parseSummaryResponse(text);
-			if (summary) return summary;
-		} catch (err) {
-			console.error('click-unbait unravel LLM error:', err);
-		}
+	for (const tier of tiers) {
+		const candidate = await tier(dest, originalTitle, options);
+		const accepted = acceptSummary(candidate, originalTitle);
+		if (accepted) return accepted;
 	}
-
-	return heuristicSummary(dest, originalTitle);
+	return null;
 }
+
+const summarizeWithRemoteLLM: SummaryTier = async (dest, originalTitle, options) => {
+	const { mode = 'local', config = {}, llmClient, trace } = options;
+	const client = llmClient ?? createLLMClient(mode, config);
+	if (!client) return null;
+
+	try {
+		const text = await client.complete(
+			[
+				{ role: 'system', content: getPrompt(UNRAVEL_PROMPT_ID) },
+				{
+					role: 'user',
+					content: `Original headline: ${originalTitle}\n\nDestination title: ${dest.title}\n\nDestination excerpt:\n${dest.text.slice(0, REMOTE_SUMMARY_CHARS)}`,
+				},
+			],
+			{ traceName: 'click-unbait.unravel', trace }
+		);
+		return parseSummaryResponse(text);
+	} catch (err) {
+		console.error('click-unbait unravel LLM error:', err);
+		return null;
+	}
+};
+
+/**
+ * On-device summary. The small FLAN-T5 models cannot follow the JSON unravel prompt — asked
+ * for one they return the headline back — but they do handle a plain "summarise this" and
+ * then pull a real sentence out of the article, so that is what we ask for.
+ */
+const summarizeWithLocalModel: SummaryTier = async (dest, originalTitle, options) => {
+	const { config = {}, localBackend } = options;
+	const backend =
+		localBackend !== undefined ? localBackend : await getOffscreenLocalBackend();
+	if (!backend?.generate) return null;
+
+	const model = getLocalModel(config.localModelId as string | undefined);
+	if (!canGenerate(model)) return null;
+
+	const body = [dest.description, dest.text]
+		.filter(Boolean)
+		.join(' ')
+		.slice(0, LOCAL_SUMMARY_CHARS);
+	if (!body) return null;
+
+	try {
+		const result = (await traceStep(
+			'local.generate',
+			{
+				parent: options.trace,
+				attributes: {
+					'gen_ai.operation.name': model.pipeline,
+					'gen_ai.system': 'local',
+					'gen_ai.request.model': model.id,
+					'betternet.step': 'click-unbait.unravel',
+				},
+			},
+			async (span) => {
+				const res = await backend.generate({
+					modelId: model.id,
+					prompt: `Summarize the following article in one short sentence.\n\n${body}`,
+					maxNewTokens: 48,
+				});
+				// Load + inference as the worker timed them (see inference-worker.ts).
+				recordSteps(res?.traceSteps, span);
+				setAttributes(span, { 'betternet.output.chars': res?.text?.length ?? 0 });
+				return res;
+			}
+		)) as { text?: string; error?: string } | undefined;
+		return result?.error ? null : result?.text || null;
+	} catch (err) {
+		console.error('click-unbait local unravel error:', err);
+		return null;
+	}
+};
+
+/**
+ * No model available. The destination's own `og:description` is the publisher's honest
+ * one-liner about the story, which is exactly the job — and unlike `<title>`, it is not the
+ * clickbait headline again. Failing that, the first sentence that is not an echo.
+ */
+const summarizeFromPage: SummaryTier = (dest, originalTitle) =>
+	[dest.description, ...splitSentences(dest.text)].find((candidate) =>
+		acceptSummary(candidate, originalTitle)
+	) ?? null;
 
 function parseSummaryResponse(responseText: string): string | null {
 	try {
@@ -348,27 +485,93 @@ function parseSummaryResponse(responseText: string): string | null {
 }
 
 function cleanSummary(s: string): string {
-	return s
-		.replace(/^\[+|\]+$/g, '')
-		.replace(/^["']|["']$/g, '')
-		.replace(/\s+/g, ' ')
-		.trim()
-		.slice(0, 60);
+	const flat = stripWrappingQuotes(
+		String(s || '')
+			.replace(/^\[+|\]+$/g, '')
+			.replace(/\s+/g, ' ')
+			.trim()
+	).replace(/[.,;:]+$/, '');
+
+	if (flat.length <= MAX_SUMMARY_CHARS) return balanceQuotes(flat);
+
+	// Cut at a word break: a summary ending mid-word is its own little curiosity gap.
+	const cut = flat.slice(0, MAX_SUMMARY_CHARS);
+	const lastSpace = cut.lastIndexOf(' ');
+	const kept = lastSpace > MAX_SUMMARY_CHARS / 2 ? cut.slice(0, lastSpace) : cut;
+	return balanceQuotes(kept.replace(TRAILING_PUNCTUATION, '')) + '\u2026';
 }
 
-function heuristicSummary(
-	dest: { title: string; text: string },
-	originalTitle: string
-): string | null {
-	const title = dest.title.replace(/\s+/g, ' ').trim();
-	if (title && title.toLowerCase() !== originalTitle.toLowerCase()) {
-		// Shorten destination title into a bracket-friendly phrase
-		const words = title.split(/\s+/).slice(0, 8);
-		return words.join(' ').replace(/[|:].*$/, '').trim() || null;
+const TRAILING_PUNCTUATION = /[\s,;:.\u2013\u2014-]+$/;
+
+/** Quotation marks a model wrapped the whole summary in. Only a matched pair is stripped:
+ *  taking one end off `She called it "the best day of her life"` leaves the other dangling. */
+const QUOTE_PAIRS: [string, string][] = [
+	['"', '"'],
+	["'", "'"],
+	['\u201c', '\u201d'],
+	['\u2018', '\u2019'],
+];
+
+function stripWrappingQuotes(text: string): string {
+	for (const [open, close] of QUOTE_PAIRS) {
+		if (text.length > 2 && text.startsWith(open) && text.endsWith(close)) {
+			return text.slice(1, -1).trim();
+		}
 	}
-	const sentence = dest.text.split(/[.!?]/)[0]?.replace(/\s+/g, ' ').trim();
-	if (sentence && sentence.length > 12) {
-		return sentence.split(/\s+/).slice(0, 8).join(' ');
-	}
-	return null;
+	return text;
+}
+
+/**
+ * Drop a quotation the summary opens and never closes — `the "full American experience`.
+ * A publisher's `og:description` arrives that way often enough on its own, so this runs on
+ * every summary, not just truncated ones.
+ *
+ * Counted per quote character rather than as open/close pairs: a straight `"` is both, so
+ * matching it against an "opening" and a "closing" pattern counts one quote twice and calls
+ * the dangling case balanced.
+ */
+function balanceQuotes(text: string): string {
+	const straightUnclosed = (text.match(/"/g) || []).length % 2 === 1;
+	const curlyUnclosed =
+		(text.match(/\u201c/g) || []).length > (text.match(/\u201d/g) || []).length;
+	if (!straightUnclosed && !curlyUnclosed) return text;
+
+	const lastOpen = Math.max(text.lastIndexOf('"'), text.lastIndexOf('\u201c'));
+	if (lastOpen < 0) return text;
+	// Opened at the very start: drop the mark and keep the sentence, rather than cut to
+	// nothing and throw away a usable summary.
+	if (lastOpen === 0) return text.slice(1).trim();
+	return text.slice(0, lastOpen).replace(TRAILING_PUNCTUATION, '');
+}
+
+/**
+ * A summary is only worth showing if it says something the headline did not. Reject the
+ * empty, the too-short, and above all the echo — repeating the bait inside the brackets is
+ * worse than leaving the headline alone, because it looks like the feature worked.
+ */
+export function acceptSummary(summary: string | null, originalTitle: string): string | null {
+	const text = cleanSummary(summary || '');
+	if (text.length < MIN_SUMMARY_CHARS) return null;
+	if (echoesHeadline(text, originalTitle)) return null;
+	return text;
+}
+
+/** Share of the summary's own content words that the headline already used. */
+export function echoesHeadline(summary: string, originalTitle: string): boolean {
+	const summaryTokens = contentTokens(summary);
+	if (!summaryTokens.size) return true;
+	const headlineTokens = contentTokens(originalTitle);
+	if (!headlineTokens.size) return false;
+
+	let shared = 0;
+	for (const token of summaryTokens) if (headlineTokens.has(token)) shared += 1;
+	return shared / summaryTokens.size >= MAX_HEADLINE_OVERLAP;
+}
+
+function splitSentences(text: string): string[] {
+	return String(text || '')
+		.split(/(?<=[.!?])\s+/)
+		.map((s) => s.trim())
+		.filter((s) => s.length >= MIN_SUMMARY_CHARS)
+		.slice(0, 6);
 }

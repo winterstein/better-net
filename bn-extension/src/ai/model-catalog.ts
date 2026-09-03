@@ -47,6 +47,33 @@ export const LOCAL_MODELS = [
   },
 ];
 
+/**
+ * What a pipeline can be asked to do. Callers used to probe this themselves — one with
+ * `model.pipeline === 'zero-shot-classification'`, another with `/generation/.test(...)` —
+ * so a new pipeline name had to happen to match a regex to work.
+ */
+const PIPELINE_CAPABILITIES = {
+  'zero-shot-classification': { classify: true, generate: false },
+  'text2text-generation': { classify: false, generate: true },
+  'text-generation': { classify: false, generate: true },
+};
+
+const NO_CAPABILITIES = { classify: false, generate: false };
+
+export function capabilitiesOf(model) {
+  return PIPELINE_CAPABILITIES[model?.pipeline] ?? NO_CAPABILITIES;
+}
+
+/** Can this model be asked for free text (a summary, an explanation)? */
+export function canGenerate(model) {
+  return capabilitiesOf(model).generate;
+}
+
+/** Can this model score text against candidate labels? */
+export function canClassify(model) {
+  return capabilitiesOf(model).classify;
+}
+
 export function getLocalModel(id) {
   return LOCAL_MODELS.find((m) => m.id === id) ?? LOCAL_MODELS.find((m) => m.default) ?? LOCAL_MODELS[0];
 }

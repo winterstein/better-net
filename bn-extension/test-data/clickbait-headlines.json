@@ -1,0 +1,538 @@
+{
+ "_comment": [
+  "Real headlines captured from live pages on 2026-09-02/03, hand-labelled.",
+  "Sources: upworthy.com and buzzfeed.com front pages; test-data/pages/bbc.co.uk-*.html.",
+  "bait    = promises a payoff and withholds it; Click Unbait should fetch and reveal it.",
+  "plain   = states its own outcome; must not be flagged.",
+  "quiz    = interactive/quiz; no destination payoff to reveal, so out of scope either way.",
+  "unclear = genuinely arguable; excluded from the pass/fail thresholds rather than fudged.",
+  "Not every headline on a clickbait site is clickbait, and a straight news site runs soft",
+  "feature headlines - so the labels are per-headline, not per-source."
+ ],
+ "headlines": [
+  {
+   "headline": "Neurologist shares a 10-second hand test that can help determine if someone has dementia",
+   "label": "bait"
+  },
+  {
+   "headline": "‘Do you have toilets?’ Europeans share the ‘craziest’ questions they’ve been asked by Americans.",
+   "label": "unclear"
+  },
+  {
+   "headline": "15 reasons people who hate summer are giddy about hitting the ‘ber’ months",
+   "label": "bait"
+  },
+  {
+   "headline": "Marlon Brando bought a Polynesian island in 1966. Over 15,600 green sea turtles just hatched there.",
+   "label": "plain"
+  },
+  {
+   "headline": "Teacher lists the 10 basic skills she says 3rd graders no longer have, and it’s eye-opening",
+   "label": "bait"
+  },
+  {
+   "headline": "Get stories worth sharing delivered to your inbox.",
+   "label": "unclear"
+  },
+  {
+   "headline": "An autistic girl couldn’t tolerate music. Then a book from Dolly Parton changed everything.",
+   "label": "bait"
+  },
+  {
+   "headline": "Mom shares ‘extreme $25 grocery budget’ to feed family of 4, 3 meals a day for a week",
+   "label": "plain"
+  },
+  {
+   "headline": "Bryce Dallas Howard reconnects with high-school English teacher who helped her discover what she was capable of.",
+   "label": "unclear"
+  },
+  {
+   "headline": "Jeannette Rankin was elected to Congress 4 years before the 19th Amendment. A Montana law made it work.",
+   "label": "plain"
+  },
+  {
+   "headline": "Teacher donated $5,000 to plant trees in China. 27 years later, he’s moved to tears by the results.",
+   "label": "bait"
+  },
+  {
+   "headline": "1st-grade teacher normalizes bodily functions by sending gassy students to ‘gusty wind area’",
+   "label": "plain"
+  },
+  {
+   "headline": "2 years after his death, 10 Richard Simmons fans recall their unforgettable encounters with him",
+   "label": "plain"
+  },
+  {
+   "headline": "Woman brings her Italian husband back-to-school shopping and his jaw drops at her list",
+   "label": "bait"
+  },
+  {
+   "headline": "88 years ago, she defied a judge’s order to wear a dress in court. She went to jail in pants.",
+   "label": "plain"
+  },
+  {
+   "headline": "Harvard psychiatrist reveals ‘the fastest way to change your life’ using just one Post-it note",
+   "label": "bait"
+  },
+  {
+   "headline": "Millennial teacher shares Oregon Trail with her Gen Alpha students and the trauma is real",
+   "label": "bait"
+  },
+  {
+   "headline": "Nearly 10 years after her death, nun’s quirky 90’s art history show is flooding Gen Z feeds",
+   "label": "plain"
+  },
+  {
+   "headline": "Red Sox pitcher chokes up explaining why he has ‘You’re so pretty’ inscribed on his glove",
+   "label": "plain"
+  },
+  {
+   "headline": "A Papa Johns pizza maker was told to ‘get a real job.’ People love his response.",
+   "label": "bait"
+  },
+  {
+   "headline": "Gen X has been designated the ‘worst grandparents.’ Sadly, their explanation makes sense.",
+   "label": "bait"
+  },
+  {
+   "headline": "People shared what they loved about their childhood home. An overwhelming number said trees.",
+   "label": "plain"
+  },
+  {
+   "headline": "A single mom owed her divorce attorney $3,404. The attorney’s reply left her in tears.",
+   "label": "bait"
+  },
+  {
+   "headline": "Husbands are tested on their ‘girl grip’ and fail spectacularly",
+   "label": "bait"
+  },
+  {
+   "headline": "Rupert Murdoch’s Early Days At ‘The Sun’ Come Into Light In Danny Boyle’s New Film “Ink”: From Larry Lamb To Page 3",
+   "label": "plain"
+  },
+  {
+   "headline": "FIRST LOOK: The Trailer For \"Ink\" Was Just Released, And The New Danny Boyle Film Is Getting Everyone Excited",
+   "label": "bait"
+  },
+  {
+   "headline": "WTF Is Happening Today? BuzzFeed Newsletters Can Help!",
+   "label": "quiz"
+  },
+  {
+   "headline": "I Misspelled 16 Film Titles, Only A Film Buff Can Correct Them All",
+   "label": "quiz"
+  },
+  {
+   "headline": "Most People Fail To Name Even 15 Countries That Begin With \"S\", So You're Brilliant If You Can Get Them All",
+   "label": "quiz"
+  },
+  {
+   "headline": "“The Best Reading Experience I’ve Ever Had” – 14 Books People Simply Couldn’t Put Down",
+   "label": "bait"
+  },
+  {
+   "headline": "42 Black Tweets From August That Had Us Laughing Through The Heat Wave",
+   "label": "bait"
+  },
+  {
+   "headline": "Black Twitter Delivered 55 Absolutely Hilarious Tweets In July, And I'm Still Laughing At Every Single One",
+   "label": "bait"
+  },
+  {
+   "headline": "Barack Obama Presidential Center Opening Ceremony: From Jennifer Hudson To John Legend, Every Performance From The Star-Studded Event",
+   "label": "plain"
+  },
+  {
+   "headline": "Elliot Page Admits He’s Not Getting The Role Offers You’d Expect After \"The Odyssey\"",
+   "label": "bait"
+  },
+  {
+   "headline": "Pacha Ibiza, Pioneer Of Ibiza's Party Scene, Is Still The Place To Go",
+   "label": "plain"
+  },
+  {
+   "headline": "Red Light Therapy Has Officially Moved From Your Face To Your Sex Life",
+   "label": "plain"
+  },
+  {
+   "headline": "These 25 Nostalgic Dessert Recipes Are The Sweetest Way To Say Goodbye To Summer (And Hello To Fall)",
+   "label": "bait"
+  },
+  {
+   "headline": "\"Just So Magical\": Travis Kelce Finally Opened Up About His And Taylor Swift's Wedding, And He Has Just 1 Wish",
+   "label": "bait"
+  },
+  {
+   "headline": "August 2026 Was Only 31 Days, But Felt Like It Lasted 19.756 Years, So Here Are 51 Photos To Jog Your Memory About What The [Redacted] Happened Last Month",
+   "label": "bait"
+  },
+  {
+   "headline": "Trump Is Charging An Absolutely Wild Amount For A Photo Op At Next Week's Midterm Convention",
+   "label": "bait"
+  },
+  {
+   "headline": "AOC's Take On Dating Republicans Is Going Viral, And She's Absolutely Right",
+   "label": "bait"
+  },
+  {
+   "headline": "JD Vance Just Made A Terrifying \"End Times\" Claim, And I Think We're All Uncomfortable Right Now",
+   "label": "bait"
+  },
+  {
+   "headline": "My Coworkers Are Concerned After Hearing Me Cackle At These 35 Tweets From My Cubicle",
+   "label": "bait"
+  },
+  {
+   "headline": "27 Celebrities Who've Visited Trump's White House, And Some Of Them Are Honestly Surprising",
+   "label": "bait"
+  },
+  {
+   "headline": "This 10-Question Quiz Will Reveal If You Could Actually Survive 24 Hours On The Mountain In \"Fall 2: Deadpoint\"",
+   "label": "quiz"
+  },
+  {
+   "headline": "These 2 Celebrities Are Participating In A Trump Admin-Backed \"Shark Tank\"-Style Show",
+   "label": "bait"
+  },
+  {
+   "headline": "31 \"Genuinely Flabbergasting\" Fun Facts That Are So Bizarre They'll Literally Break Your Brain",
+   "label": "bait"
+  },
+  {
+   "headline": "You're The Head Chef At A Restaurant—Can You Make It Through A Saturday Dinner Rush Successfully?",
+   "label": "quiz"
+  },
+  {
+   "headline": "My Friend Had An Affair, And The Secret Ended Up Ruining My Friendships Instead Of Hers",
+   "label": "bait"
+  },
+  {
+   "headline": "If You Can Answer 15/25 Of These Spelling Questions, You're Smarter Than 95% Of People",
+   "label": "quiz"
+  },
+  {
+   "headline": "Dyson’s New $500 Toothbrush Has People Asking If This Is The Future Of Brushing",
+   "label": "bait"
+  },
+  {
+   "headline": "\"It Took 70 Years To Get The Movie Off The Ground\": 19 Films That Were SUPER Close To Getting Axed, But Ended Up Being Released Against All Odds",
+   "label": "bait"
+  },
+  {
+   "headline": "People Are Having So Much Fun With This Crashout That Happened At The US Open",
+   "label": "bait"
+  },
+  {
+   "headline": "If You Can Guess Even 11/26 Of These \"Classic Fall Things\" On This Alphabetical Quiz, Sweater Weather Is Clearlyyy Your Vibe",
+   "label": "quiz"
+  },
+  {
+   "headline": "Solving This Wickedly Fun Crossword Will Have You Quivering With Antici...",
+   "label": "quiz"
+  },
+  {
+   "headline": "People Are Side-Eyeing Robert Pattinson’s Comments About Shooting Back-To-Back Movies In The Years Since Becoming A Father",
+   "label": "bait"
+  },
+  {
+   "headline": "Julie Chen Moonves Revealed 10 Fascinating Behind-The-Scenes Stories From 1,000 Episodes Of \"Big Brother\"",
+   "label": "bait"
+  },
+  {
+   "headline": "People Are Getting Brutally Honest About The Celeb Cancellations That Still Sting Because They Were Huge Fans Before Shit Hit The Fan",
+   "label": "bait"
+  },
+  {
+   "headline": "If You Can Solve Today's Word Chains, You're Officially Smarter Than Everyone Else",
+   "label": "quiz"
+  },
+  {
+   "headline": "Let's See If You're ~Actually~ Familiar With Ariana Grande's Discography",
+   "label": "quiz"
+  },
+  {
+   "headline": "Raven-Symoné Questioned If Her Famous Disney Channel Character Was Really Black, And It’s Sparked A Ton Of Heated Discourse",
+   "label": "bait"
+  },
+  {
+   "headline": "\"Please Delete This”: 35 Absolutely Hilarious Texts That Make Me Laugh Uncontrollably Literally Every Single Time I Think About Them",
+   "label": "bait"
+  },
+  {
+   "headline": "Forget Which Disney Character You Are — Which Disney Place Should You Live In?",
+   "label": "quiz"
+  },
+  {
+   "headline": "\"It Came And Went In About A Year\": 19 Things That Were Supposed To Be \"The Next Big Thing,\" But Then Flopped In The Most Unexpected Way Possible",
+   "label": "bait"
+  },
+  {
+   "headline": "I'll Be Impressed If You Can Get More Than 18 Out Of 20 On This Brutally Hard Pop Culture Fandom Quiz",
+   "label": "quiz"
+  },
+  {
+   "headline": "“You Weren’t There!”: Moms Are Applauding Michelle Obama’s Brutally Honest Comments About Why She Doesn’t “Miss” Her Kids, But Barack Does",
+   "label": "bait"
+  },
+  {
+   "headline": "The Average Person Is Getting Seriously Humbled By This Victorian Era Trivia Quiz, So I'll Be Shocked If You Can Pass It",
+   "label": "quiz"
+  },
+  {
+   "headline": "I'm Smacking My Head Into My Desk Because I Can't Finish This Geography Challenge",
+   "label": "quiz"
+  },
+  {
+   "headline": "All The Signs Were There For These 20 Potential Animated Couples, And I'm Still Mad None Of Them Ended Up Together",
+   "label": "bait"
+  },
+  {
+   "headline": "What did you dream about last night?",
+   "label": "quiz"
+  },
+  {
+   "headline": "8 Out Of 10 MIT Graduates Can Pass A General Knowledge Exam — Can You?",
+   "label": "quiz"
+  },
+  {
+   "headline": "Mel Stride and Priti Patel replaced in major Tory reshuffle",
+   "label": "plain"
+  },
+  {
+   "headline": "Live. Controlled explosion at Nepali hydropower tunnel as rescuers look for hundreds of missing workers",
+   "label": "plain"
+  },
+  {
+   "headline": "The trial of Lindsay Clancy has gripped the US for weeks - here's what the jury must consider",
+   "label": "unclear"
+  },
+  {
+   "headline": "Dolly Parton laid to rest alongside husband in Nashville",
+   "label": "plain"
+  },
+  {
+   "headline": "Looking back at one of the longest-standing street festivals in the world",
+   "label": "plain"
+  },
+  {
+   "headline": "Bank holiday brunches to mark the end of summer",
+   "label": "plain"
+  },
+  {
+   "headline": "Why coffee and alcohol make us feel so much worse as we age",
+   "label": "plain"
+  },
+  {
+   "headline": "Bumpy the rescued baby hippo has a new best friend",
+   "label": "plain"
+  },
+  {
+   "headline": "The trailblazing helicopters looking for answers on the Red Planet",
+   "label": "plain"
+  },
+  {
+   "headline": "An unthinkable tragedy changes a woman's life forever",
+   "label": "bait"
+  },
+  {
+   "headline": "Messi retires from Argentina duty with 'nothing left to give'",
+   "label": "plain"
+  },
+  {
+   "headline": "'She slipped out of my hand' - children missing after ferry sinks off northern Cyprus",
+   "label": "plain"
+  },
+  {
+   "headline": "South African airline defends low-altitude aerial stunt over packed stadium",
+   "label": "plain"
+  },
+  {
+   "headline": "Pakistan drop seven players and release head coach",
+   "label": "plain"
+  },
+  {
+   "headline": "Barcola joins Liverpool from PSG in £123m move",
+   "label": "plain"
+  },
+  {
+   "headline": "Live. US Open: Defending champion Sabalenka leads, GB's Dart serving for second set",
+   "label": "plain"
+  },
+  {
+   "headline": "The transfers to watch before window closes",
+   "label": "plain"
+  },
+  {
+   "headline": "Midnight matches and money disputes - why is tennis schedule such a headache?",
+   "label": "plain"
+  },
+  {
+   "headline": "This actor was told he had Alzheimer's, now he's performing a one-man show",
+   "label": "plain"
+  },
+  {
+   "headline": "Musical about me 'better not be rubbish' warns Allardyce",
+   "label": "plain"
+  },
+  {
+   "headline": "'Emo might have been a phase to some, but not for us'",
+   "label": "plain"
+  },
+  {
+   "headline": "Will Young set to make garden show debut",
+   "label": "plain"
+  },
+  {
+   "headline": "Is it 'cosy TV time' yet? iPlayer shows that could get you in the mood",
+   "label": "plain"
+  },
+  {
+   "headline": "History: Notting Hill Carnival at 60",
+   "label": "plain"
+  },
+  {
+   "headline": "Celebrating 60 years of Notting Hill Carnival",
+   "label": "plain"
+  },
+  {
+   "headline": "How a celebration of identity was 'born out of the race riots'",
+   "label": "plain"
+  },
+  {
+   "headline": "How much do you know about Autumn?",
+   "label": "quiz"
+  },
+  {
+   "headline": "Guess the animal from its misleading name",
+   "label": "quiz"
+  },
+  {
+   "headline": "Weekly quiz: Who is taking over as Gilderoy Lockhart in HBO's Harry Potter series?",
+   "label": "quiz"
+  },
+  {
+   "headline": "Accurately pinpoint these countries around the world",
+   "label": "quiz"
+  },
+  {
+   "headline": "Wholesome grain bowls you can prep ahead",
+   "label": "plain"
+  },
+  {
+   "headline": "How true are the nutritional claims about your packed lunch?",
+   "label": "quiz"
+  },
+  {
+   "headline": "Get ready for soup season with Anna Haugh's soup masterclass",
+   "label": "plain"
+  },
+  {
+   "headline": "Climber Laura completes 'full house' of 1,072 peaks around UK",
+   "label": "plain"
+  },
+  {
+   "headline": "The public broadcast that could be Britain's best-kept sleep secret",
+   "label": "bait"
+  },
+  {
+   "headline": "'I'm more nervous than she is!': Traitors star on the start of school",
+   "label": "plain"
+  },
+  {
+   "headline": "Coin hidden in 1971 earns finder free pint of beer",
+   "label": "plain"
+  },
+  {
+   "headline": "'I'm off to Las Vegas for a bricklaying contest'",
+   "label": "plain"
+  },
+  {
+   "headline": "When whole towns closed and headed for the seaside",
+   "label": "plain"
+  },
+  {
+   "headline": "They fell in love - then had to check they weren't brother and sister",
+   "label": "plain"
+  },
+  {
+   "headline": "'They are now athletes' - how do referees get ready for a season?",
+   "label": "plain"
+  },
+  {
+   "headline": "UK's rarest bird of prey rears new chicks in secret location",
+   "label": "plain"
+  },
+  {
+   "headline": "'Unmissable' sea slug could be new species",
+   "label": "plain"
+  },
+  {
+   "headline": "'It's been the best year for spotting sharks in decades'",
+   "label": "plain"
+  },
+  {
+   "headline": "What's the world's heaviest object?",
+   "label": "quiz"
+  },
+  {
+   "headline": "Discover more to watch and listen to",
+   "label": "unclear"
+  },
+  {
+   "headline": "From techno to trains: The twins behind the world's largest model train set",
+   "label": "plain"
+  },
+  {
+   "headline": "A dark, psychological murder mystery with a shiver of modern gothic",
+   "label": "plain"
+  },
+  {
+   "headline": "LiveControlled explosion at Nepali hydropower tunnel as rescuers look for hundreds of missing workers",
+   "label": "plain"
+  },
+  {
+   "headline": "Once a village, now barren land - BBC in valley devastated by floods",
+   "label": "plain"
+  },
+  {
+   "headline": "The millennials swapping doom-scrolling for gardening",
+   "label": "plain"
+  },
+  {
+   "headline": "The jury's options in Lindsay Clancy's murder trial",
+   "label": "plain"
+  },
+  {
+   "headline": "The mystery of why so many black Britons still can't swim",
+   "label": "unclear"
+  },
+  {
+   "headline": "'My parents won't lend me £10k but helped my brother': When families play financial favourites",
+   "label": "plain"
+  },
+  {
+   "headline": "The druid, the weather presenter and the astronomer - when does autumn start?",
+   "label": "plain"
+  },
+  {
+   "headline": "Parents of seriously ill children should get paid leave, says commissioner",
+   "label": "plain"
+  },
+  {
+   "headline": "Politics Essential: Get the latest news and analysis delivered to your inbox every weekday",
+   "label": "unclear"
+  },
+  {
+   "headline": "One dead and more than a dozen missing after 'terrifying' flash flood hits Grand Canyon",
+   "label": "plain"
+  },
+  {
+   "headline": "Nursery fined after baby boy burned by bleach",
+   "label": "plain"
+  },
+  {
+   "headline": "John Galliano exhibition at New York Met cancelled after backlash",
+   "label": "plain"
+  }
+ ]
+}

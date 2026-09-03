@@ -9,6 +9,7 @@
  */
 
 import { generateXPath, isElementHidden, visibleText } from './chunking-utils.js';
+import { accessibleLinkName, findHeadlineLink } from './headline-link.js';
 import { TAG } from './chunk-tags.js';
 
 /** Long enough to be a headline, short enough not to be a paragraph. */
@@ -56,6 +57,11 @@ export function extractHeadlineChunks(source: Document | Element | string, url, 
     // its headline in the title attribute and has no text of its own.
     if (isCovered(candidate, key, coveredElements, covered)) continue;
 
+    // The candidate, before climbing: headlineCard walks up to a visible wrapper, so
+    // checking only the card lets a screen-reader-only heading through. On a page that has
+    // not rendered there is nothing else on it to stop the climb, which is how X's "To view
+    // keyboard shortcuts, press question mark" heading became the only chunk of a post.
+    if (isElementHidden(candidate)) continue;
     const element = headlineCard(candidate, headline.length);
     if (!element || isElementHidden(element) || inRotatingStrip(element)) continue;
     // Only once we are keeping it: a candidate dropped for being in a ticker must not
@@ -66,7 +72,19 @@ export function extractHeadlineChunks(source: Document | Element | string, url, 
       url,
       text: headline,
       html: (element as Element).innerHTML,
-      links: link ? [{ url: link.getAttribute('href') || '', text: headline, isExternal: false }] : [],
+      links: link
+        ? [{
+            url: link.getAttribute('href') || '',
+            text: (link.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 100),
+            label: accessibleLinkName(link).slice(0, 200),
+            isExternal: false,
+          }]
+        : [],
+      // A bare heading teaser has no link of its own; its story anchor is on the card
+      // around it, which findHeadlineLink climbs to.
+      primaryLink: link
+        ? { url: link.getAttribute('href') || '', text: headline, label: headline }
+        : findHeadlineLink(element as Element, headline, url),
       images: [],
       metadata: {
         headline: true,

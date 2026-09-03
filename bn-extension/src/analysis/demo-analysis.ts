@@ -6,16 +6,18 @@
  * chunker would emit plus the analysis the pipeline would return, so a demo run is instant
  * and repeatable.
  *
- * Both entries are genuine, still-live URLs, and they are the two halves of one story: an
- * X post sharing a link to a fake news article, and the article it links to. Every verdict
- * cites a published fact-check.
+ * Every URL below is genuine and still live, and every verdict cites a published
+ * fact-check. Two of them are the two halves of one story: an X post sharing a link to a
+ * fake news article, and the article it links to.
  *
  * Scores are hand-set to land in the intended Nutrient Label band (see RiskLevel.ts).
  * buildChunkSummary averages the chunk-level analyses, so only list the features that
  * actually fired — padding with near-zero scores washes the label out.
  *
- * Nothing imports this yet. `findDemoPage()` is the seam: call it in background.ts
- * PERFORM_ANALYSIS (before chunking) and serve the canned result when it hits.
+ * Two seams into this file, both used by background.ts performAnalysis:
+ * `findDemoPage()` matches the page being analysed, and `demoLinkResultsForChunks()`
+ * matches a canned headline wherever it turns up as a link — which is what the
+ * click-unbait example needs, since the whole point is the link you have not clicked.
  */
 
 import { createChunk } from '../types/Chunk.js';
@@ -25,6 +27,23 @@ import type { ChunkAnalysis } from '../types/ChunkAnalysis.js';
 import { completeAspectAnalysis } from '../types/AspectAnalysis.js';
 import type { AspectAnalysis } from '../types/AspectAnalysis.js';
 import type { Statement } from '../types/Statement.js';
+import { formatUnbaitTitle } from '../features/click-unbait/format-unbait-title.js';
+
+/** The Demo URLs for easy reference by6yccfkj developers */
+const DEMO_URLS = [
+  'https://x.com/drhossamsamy65/status/2047310606361899350',
+  'https://thepeoplesvoice.tv/study-bill-gates-lab-grown-meat-causes-cancer-in-humans/',
+  'https://x.com/realMaalouf/status/2094452781843100052',
+  'https://www.upworthy.com/harvard-psychiatrist-reveals-the-fastest-way-to-change-your-life-using-just-one-post-it-note/',
+];
+// Build then serve: npm run build:demo && npx serve -l 8080 --no-clean-urls demo/
+// (serve mounts demo/ at /, so paths have no /demo/ prefix)
+const DEMO_URLS_OFFLINE_MIRROR = [
+  'http://localhost:8080/shared-fake-news-post.html',
+  'http://localhost:8080/fake-news-article.html',
+  'http://localhost:8080/unsourced-statistic-post.html',
+  'http://localhost:8080/clickbait-headline-link.html',
+];
 
 /** One feature's verdict, keyed by settings module id (see MODULE_ASPECT_TYPE). */
 interface DemoAspectSpec {
@@ -35,6 +54,13 @@ interface DemoAspectSpec {
   explanation: string;
   /** Fact-check or source page, shown as a link in the Content Analysis modal. */
   url?: string;
+  /** clickUnbait only: what the unravel step would return after reading the destination.
+   *  buildAspect turns it into the displayTitle/hoverTitle metadata that
+   *  apply-click-unbait.ts rewrites the on-page link with, using the same formatter the
+   *  live feature uses — so the demo cannot show a rewrite the feature could not produce. */
+  honestSummary?: string;
+  /** clickUnbait only: the link the headline goes to. */
+  destinationUrl?: string;
 }
 
 interface DemoStatementSpec {
@@ -44,6 +70,8 @@ interface DemoStatementSpec {
 }
 
 interface DemoChunkSpec {
+  /** How the offline mirror renders it: a post (default) or a link card pointing elsewhere. */
+  kind?: 'post' | 'teaser';
   title: string;
   /** Account display name or article author, as shown on the page. */
   byline: string;
@@ -78,6 +106,9 @@ export interface DemoChunk {
   analysis: ChunkAnalysis;
   /** See DemoChunkSpec.markers. */
   markers: string[];
+  /** Set by demoResultsForChunks when nothing on the page matched and it fell back to the
+   *  canned chunk. Such a result has no element and so cannot be labelled on the page. */
+  canned?: boolean;
 }
 
 export interface DemoPage {
@@ -385,6 +416,15 @@ const SILVERSTONE_TEASER: DemoChunkSpec = {
   ],
 };
 
+/** The clickbait headline's destination: a real Upworthy piece by Cecily Knobler,
+ *  1 Sep 2026. Nothing in it is false — which is the point of having it here. */
+const CLICKBAIT_DESTINATION =
+  'https://www.upworthy.com/harvard-psychiatrist-reveals-the-fastest-way-to-change-your-life-using-just-one-post-it-note/';
+/** Affect labelling — putting a feeling into words damps the reaction to it — is the
+ *  ordinary, decades-old technique under the headline. Backs the one statement in this
+ *  chunk, which is true: it is the packaging that is the problem, not the content. */
+const AFFECT_LABELLING = 'https://en.wikipedia.org/wiki/Affect_labeling';
+
 /**
  * Example 3: a fabricated statistic, posted with no source at all. Posted 31 Aug 2026 by an
  * account with ~502k followers; 259k views, 18k likes and 6.8k reposts within a day.
@@ -401,7 +441,7 @@ const SILVERSTONE_TEASER: DemoChunkSpec = {
  */
 const WELFARE_STAT_POST: DemoChunkSpec = {
   title: 'Shocking data revealed: Out of 50 million Muslims in Europe, 40 million are on welfare',
-  byline: 'Dr. Maalouf ‏',
+  byline: 'Dr. Maalouf',
   source: '@realMaalouf',
   time: '31 Aug 2026',
   text:
@@ -467,12 +507,83 @@ const WELFARE_STAT_POST: DemoChunkSpec = {
   ],
 };
 
+/**
+ * The clickbait example: clickbait, and nothing worse than clickbait.
+ *
+ * Every trick in one line. Borrowed authority ("Harvard psychiatrist"), an unbeatable
+ * promise ("the fastest way to change your life"), and then the withholding: it dangles a
+ * single Post-it note and refuses to say what is written on it. Clicking is the only way to
+ * find out, which is the whole design. (It is not even one note — the piece uses four.)
+ *
+ * There is no false claim in it, and the technique it describes is real and old, so this is
+ * the demo's counterweight to the fake-news examples: the chunk lands on Caution rather
+ * than High Risk, and the fact-checker's one verdict is *true*. What Click Unbait does is
+ * close the curiosity gap in place — the link text becomes `[honest summary] original
+ * title`, so the reader gets the answer without the click and can still take it if they
+ * want the rest.
+ *
+ * It is also the reason `demoLinkResultsForChunks()` exists. A clickbait headline is
+ * something you meet as a link on some other page, so this entry is matched by its headline
+ * on whatever page carries it, not by a demo URL.
+ */
+const CLICKBAIT_TEASER: DemoChunkSpec = {
+  kind: 'teaser',
+  title: 'Harvard psychiatrist reveals ‘the fastest way to change your life’ using just one Post-it note',
+  byline: 'Cecily Knobler',
+  source: 'upworthy.com',
+  time: '1 Sep 2026',
+  // The headline plus the furniture a feed card puts round it, which is all a link gives you.
+  text:
+    'Harvard psychiatrist reveals ‘the fastest way to change your life’ using just one ' +
+    'Post-it note upworthy.com · Cecily Knobler · 1 Sep 2026',
+  link: {
+    href: CLICKBAIT_DESTINATION,
+    title: 'Harvard psychiatrist reveals ‘the fastest way to change your life’ using just one Post-it note',
+    site: 'upworthy.com',
+  },
+  markers: ['the fastest way to change your life', 'using just one Post-it note'],
+  primaryTopic: 'Healthy Living',
+  statements: [
+    {
+      type: 'claim',
+      // Deliberately the only statement, and it is true. A demo that flagged this as
+      // misinformation would teach the wrong lesson about what the labels mean: the
+      // advice is sound, it is the headline that is working the reader.
+      summaryText:
+        'Naming a feeling in words, instead of reacting to it, reduces how strongly you react.',
+      analyses: [
+        {
+          moduleId: 'factChecker',
+          problemScore: 0.15,
+          confidence: 0.8,
+          flags: ['true'],
+          explanation:
+            'True, and unremarkable. Affect labelling has been studied since the 2000s and putting a name to a feeling before acting on it is standard in CBT and in mindfulness practice — what the headline sells as a Harvard secret is in every therapy handbook.',
+          url: AFFECT_LABELLING,
+        },
+      ],
+    },
+  ],
+  analyses: [
+    {
+      moduleId: 'clickUnbait',
+      problemScore: 0.66,
+      confidence: 0.82,
+      flags: ['clickbait', 'curiosity-gap', 'borrowed-authority', 'unbaited'],
+      explanation:
+        'The headline withholds the one thing it is about: what the note says. The answer is the word "awareness" — noticing the feeling before reacting to it — which takes six words to state and costs the publisher a click to give away. "Harvard psychiatrist" and "the fastest way to change your life" are there to make the gap unbearable.',
+      honestSummary: 'The note says ‘awareness’',
+      destinationUrl: CLICKBAIT_DESTINATION,
+    },
+  ],
+};
+
 const DEMO_PAGE_SPECS: DemoPageSpec[] = [
   {
     urls: [
       'https://x.com/drhossamsamy65/status/2047310606361899350',
       // Offline mirror from renderDemoPage(), for recording without the live site.
-      'http://localhost:8080/demo/shared-fake-news-post.html',
+      'http://localhost:8080/shared-fake-news-post.html',
     ],
     title: 'X post sharing a fake news link',
     note: 'Step 1 of the demo: the share, flagged in the feed before you click it. High Risk.',
@@ -482,7 +593,7 @@ const DEMO_PAGE_SPECS: DemoPageSpec[] = [
   {
     urls: [
       'https://thepeoplesvoice.tv/study-bill-gates-lab-grown-meat-causes-cancer-in-humans/',
-      'http://localhost:8080/demo/fake-news-article.html',
+      'http://localhost:8080/fake-news-article.html',
     ],
     title: 'The People’s Voice — lab-grown meat article',
     note: 'Step 2: the article behind the link, plus two fabricated celebrity teasers in the sidebar. All High Risk.',
@@ -492,18 +603,36 @@ const DEMO_PAGE_SPECS: DemoPageSpec[] = [
   {
     urls: [
       'https://x.com/realMaalouf/status/2094452781843100052',
-      'http://localhost:8080/demo/unsourced-statistic-post.html',
+      'http://localhost:8080/unsourced-statistic-post.html',
     ],
     title: 'X post with a fabricated statistic',
     note: 'Standalone example: nothing is linked, so there is no article to open and check — the post is the claim. High Risk.',
     verified: '2026-09-01',
     chunks: [WELFARE_STAT_POST],
   },
+  {
+    urls: [
+      // The destination, so opening the article rewrites its own headline too.
+      CLICKBAIT_DESTINATION,
+      'http://localhost:8080/clickbait-headline-link.html',
+    ],
+    title: 'Clickbait headline, rewritten',
+    note:
+      'The clickbait example: sound advice behind a headline that will not give it up. ' +
+      'Caution, not High Risk — the link text is rewritten in place instead. Also matched as ' +
+      'a link on any other page, via demoLinkResultsForChunks().',
+    verified: '2026-09-02',
+    chunks: [CLICKBAIT_TEASER],
+  },
 ];
 
 // --- build ---
 
-function buildAspect(spec: DemoAspectSpec, idSuffix: string): AspectAnalysis {
+function buildAspect(
+  spec: DemoAspectSpec,
+  idSuffix: string,
+  originalTitle: string
+): AspectAnalysis {
   return completeAspectAnalysis(spec.moduleId, {
     // Fixed ids: a demo re-run should produce byte-identical results.
     id: `demo-${spec.moduleId}-${idSuffix}`,
@@ -514,18 +643,41 @@ function buildAspect(spec: DemoAspectSpec, idSuffix: string): AspectAnalysis {
     flags: spec.flags,
     explanation: spec.explanation,
     url: spec.url,
+    metadata: unbaitMetadata(spec, originalTitle),
   });
+}
+
+/**
+ * The shape apply-click-unbait.ts reads: `originalTitle` to find the link on the page,
+ * `displayTitle` to put in it, `hoverTitle` for the tooltip. Run through the live
+ * feature's own formatter rather than written out by hand, so a change to the length
+ * budget shows up in the demo instead of the demo quietly disagreeing with the product.
+ */
+function unbaitMetadata(
+  spec: DemoAspectSpec,
+  originalTitle: string
+): Record<string, unknown> | undefined {
+  if (!spec.honestSummary) return undefined;
+  const formatted = formatUnbaitTitle(spec.honestSummary, originalTitle);
+  return {
+    destinationUrl: spec.destinationUrl,
+    originalTitle,
+    honestSummary: spec.honestSummary,
+    displayTitle: formatted.displayText,
+    hoverTitle: formatted.hoverTitle,
+  };
 }
 
 function buildStatements(spec: DemoChunkSpec, index: number): Statement[] {
   return spec.statements.map((statement, i) => ({
     type: statement.type,
     summaryText: statement.summaryText,
-    analyses: statement.analyses.map((a, j) => buildAspect(a, `${index}-s${i}-${j}`)),
+    analyses: statement.analyses.map((a, j) => buildAspect(a, `${index}-s${i}-${j}`, spec.title)),
   }));
 }
 
 function chunkHtml(spec: DemoChunkSpec): string {
+  if (spec.kind === 'teaser') return teaserHtml(spec);
   const link = spec.link
     ? `\n    <a class="link-card" href="${spec.link.href}"><span class="link-title">${spec.link.title}</span><span class="link-site">${spec.link.site}</span></a>`
     : '';
@@ -536,6 +688,20 @@ function chunkHtml(spec: DemoChunkSpec): string {
       <time>${spec.time}</time>
     </header>
     <p class="post-text" data-testid="postText">${spec.text}</p>${link}
+  </article>`;
+}
+
+/**
+ * A link to a story on somebody else's page: a feed card, a related-stories box, a
+ * chumbox. Click Unbait rewrites the anchor's text, so the headline has to *be* an
+ * anchor — a `<p>` of post text would give findTitleTarget() nothing to work with.
+ */
+function teaserHtml(spec: DemoChunkSpec): string {
+  const href = spec.link?.href ?? '#';
+  const headline = spec.link?.title ?? spec.title;
+  return `<article class="teaser" data-testid="teaser">
+    <h3 class="teaser-title"><a href="${href}">${headline}</a></h3>
+    <footer><span class="link-site">${spec.link?.site ?? spec.source}</span> · <span class="author">${spec.byline}</span> · <time>${spec.time}</time></footer>
   </article>`;
 }
 
@@ -551,7 +717,7 @@ function buildChunk(pageUrl: string, spec: DemoChunkSpec, index: number): DemoCh
     tags: ['post'],
     isPrimary: index === 0,
   });
-  const analyses = spec.analyses.map((a, i) => buildAspect(a, `${index}-${i}`));
+  const analyses = spec.analyses.map((a, i) => buildAspect(a, `${index}-${i}`, spec.title));
   const analysis: ChunkAnalysis = {
     chunkId: chunk.fingerprint,
     primaryTopic: spec.primaryTopic,
@@ -592,7 +758,9 @@ export function normaliseDemoUrl(url: string): string {
 }
 
 function lastSegment(normalised: string): string {
-  return normalised.split('/').filter(Boolean).pop() ?? '';
+  const seg = normalised.split('/').filter(Boolean).pop() ?? '';
+  // `npx serve` clean-urls redirects foo.html → /foo; match either form.
+  return seg.replace(/\.html?$/i, '');
 }
 
 /**
@@ -709,21 +877,7 @@ export function demoResultsForChunks(url: string, chunks: Partial<Chunk>[] = [])
     // in the sidebar, and a label on one of them looks like the other slipped through.
     for (const live of pickLiveChunks(entry, chunks, taken)) {
       taken.add(live);
-      results.push({
-        ...entry,
-        chunk: live as Chunk,
-        analysis: {
-          ...entry.analysis,
-          chunkId: String(live.id ?? live.fingerprint ?? live.xpath ?? entry.analysis.chunkId),
-          fingerprint: live.fingerprint ?? entry.analysis.fingerprint,
-          xpath: live.xpath ?? entry.analysis.xpath,
-          title: live.title ?? entry.analysis.title,
-          // The page this verdict is for, not the canonical demo URL: the content script
-          // drops results belonging to a page it has navigated away from, and on the
-          // offline mirror the two differ.
-          url,
-        },
-      });
+      results.push(replayOnto(entry, live, url));
     }
   }
 
@@ -731,18 +885,40 @@ export function demoResultsForChunks(url: string, chunks: Partial<Chunk>[] = [])
   // Nothing matched: hand back the canned chunks, minus an xpath the live DOM will not have.
   return page.chunks.map((entry) => ({
     ...entry,
+    canned: true,
     chunk: withoutMirrorXpath(entry.chunk, url),
     analysis: { ...withoutMirrorXpath(entry.analysis, url), url },
   }));
 }
 
+/** Keep the live chunk's identity — the on-page label is placed by its xpath — and swap in
+ *  the canned analysis. */
+function replayOnto(entry: DemoChunk, live: Partial<Chunk>, url: string): DemoChunk {
+  return {
+    ...entry,
+    chunk: live as Chunk,
+    analysis: {
+      ...entry.analysis,
+      chunkId: String(live.id ?? live.fingerprint ?? live.xpath ?? entry.analysis.chunkId),
+      fingerprint: live.fingerprint ?? entry.analysis.fingerprint,
+      xpath: live.xpath ?? entry.analysis.xpath,
+      title: live.title ?? entry.analysis.title,
+      // The page this verdict is for, not the canonical demo URL: the content script
+      // drops results belonging to a page it has navigated away from, and on the
+      // offline mirror the two differ.
+      url,
+    },
+  };
+}
+
 function pickLiveChunks(
   entry: DemoChunk,
   chunks: Partial<Chunk>[],
-  taken: Set<Partial<Chunk>>
+  taken: Set<Partial<Chunk>>,
+  exactMatch: (entry: DemoChunk, live: Partial<Chunk>) => boolean = matchesDemoChunk
 ): Partial<Chunk>[] {
   const free = chunks.filter((c) => !taken.has(c));
-  const matched = free.filter((c) => matchesDemoChunk(entry, c));
+  const matched = free.filter((c) => exactMatch(entry, c));
 
   // Markers are the loose match: the same headline in the ticker and in the sidebar card
   // are both wanted, but a container that merely holds the phrase (a whole timeline, a
@@ -754,6 +930,69 @@ function pickLiveChunks(
   const siblings = marked.filter((c) => (c.text?.length ?? 0) <= Math.max(tightest * 2, tightest + 40));
 
   return [...new Set([...matched, ...siblings])];
+}
+
+// --- headlines matched on any page ---
+//
+// Click Unbait acts on the link you have not clicked yet, so its demo cannot be keyed to a
+// page URL the way the others are: the headline has to be recognised wherever it turns up —
+// a feed, a search-results page, a related-stories box. These entries are matched by their
+// headline and replayed onto whichever live chunk carries it.
+
+const DEMO_LINK_SPECS: DemoChunkSpec[] = [CLICKBAIT_TEASER];
+
+export const DEMO_LINKS: DemoChunk[] = DEMO_LINK_SPECS.map((spec, i) => {
+  const built = buildChunk(spec.link?.href ?? '', spec, i);
+  // These match on pages we know nothing about, so buildChunk's mirror xpath is not just
+  // wrong here, it is dangerous: the live chunk's own xpath is the only one that can be right.
+  return {
+    ...built,
+    chunk: { ...built.chunk, xpath: undefined },
+    analysis: { ...built.analysis, xpath: undefined },
+  };
+});
+
+/**
+ * Headline-only match. Deliberately narrower than matchesDemoChunk: no xpath or fingerprint
+ * comparison, because this entry is offered to every page on the web and an arbitrary page
+ * can share `/html/body/main/article[1]` with the offline mirror by coincidence. It cannot
+ * share the headline by coincidence.
+ */
+function matchesDemoLinkTitle(entry: DemoChunk, live: Partial<Chunk>): boolean {
+  return !!live.title && matchKey(live.title) === matchKey(entry.chunk.title);
+}
+
+/**
+ * A link teaser is its headline plus a little furniture: a site name, a byline, a
+ * standfirst. A chunk several times longer is a container that happens to hold the headline
+ * — a whole feed, a whole sidebar — and rewriting inside it, or badging it, puts the mark on
+ * the page instead of on the link. Only gates the marker fallback: a chunk whose *title* is
+ * the headline is the link (or the story itself), however much text came with it.
+ */
+const MIN_HEADLINE_SHARE = 0.35;
+
+function isMostlyHeadline(entry: DemoChunk, live: Partial<Chunk>): boolean {
+  const liveLength = matchKey(live.text).length;
+  if (!liveLength) return false;
+  return matchKey(entry.chunk.title).length / liveLength >= MIN_HEADLINE_SHARE;
+}
+
+/**
+ * Canned results for demo headlines appearing as links on the page being analysed. One
+ * result per live chunk carrying the headline; everything else on the page is left alone,
+ * for the caller to run the real pipeline over.
+ */
+export function demoLinkResultsForChunks(url: string, chunks: Partial<Chunk>[] = []): DemoChunk[] {
+  const taken = new Set<Partial<Chunk>>();
+  const results: DemoChunk[] = [];
+  for (const entry of DEMO_LINKS) {
+    for (const live of pickLiveChunks(entry, chunks, taken, matchesDemoLinkTitle)) {
+      if (!matchesDemoLinkTitle(entry, live) && !isMostlyHeadline(entry, live)) continue;
+      taken.add(live);
+      results.push(replayOnto(entry, live, url));
+    }
+  }
+  return results;
 }
 
 /** Standalone HTML for the page, for serving locally during a recording. */
@@ -775,6 +1014,9 @@ export function renderDemoPage(page: DemoPage): string {
     .handle, time, footer { color: #667; font-size: 14px; }
     .link-card { display: block; border: 1px solid #dfe2e6; border-radius: 8px; padding: 12px; margin-top: 12px; text-decoration: none; color: inherit; }
     .link-title { display: block; font-weight: 600; }
+    .teaser { background: #fff; border: 1px solid #dfe2e6; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    .teaser-title { margin: 0 0 8px; font-size: 18px; line-height: 1.3; }
+    .teaser-title a { color: #14335c; text-decoration: none; }
     .link-site { color: #667; font-size: 14px; }
   </style>
 </head>

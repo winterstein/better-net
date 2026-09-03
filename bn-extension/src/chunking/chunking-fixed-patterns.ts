@@ -9,6 +9,7 @@ import {
   isScreenReaderOnly,
   NON_CONTENT_SELECTOR,
 } from './chunking-utils.js';
+import { accessibleLinkName, findHeadlineLink } from './headline-link.js';
 import { inferAdvert, TAG } from './chunk-tags.js';
 
 /**
@@ -45,7 +46,7 @@ export function extractChunksRegex(source: Document | Element | string, url = ''
   for (const selector of articleSelectors) {
     const elements = doc.querySelectorAll(selector);
     for (const element of elements) {
-      const chunk = extractChunkFromElement(element, { includeAds });
+      const chunk = extractChunkFromElement(element, { includeAds, url });
       if (chunk && chunk.text.length >= minTextLength) {
         chunks.push(chunk);
       }
@@ -66,7 +67,7 @@ export function extractChunksRegex(source: Document | Element | string, url = ''
     for (const selector of socialPatterns) {
       const elements = doc.querySelectorAll(selector);
       for (const element of elements) {
-        const chunk = extractChunkFromElement(element, { includeAds });
+        const chunk = extractChunkFromElement(element, { includeAds, url });
         if (chunk && chunk.text.length >= minTextLength) {
           chunks.push(chunk);
         }
@@ -78,7 +79,7 @@ export function extractChunksRegex(source: Document | Element | string, url = ''
   if (chunks.length === 0) {
     const mainContent = doc.querySelector('main, [role="main"], .content, #content, .main');
     if (mainContent) {
-      const fallbackChunks = splitBySemanticBoundaries(mainContent, { minTextLength });
+      const fallbackChunks = splitBySemanticBoundaries(mainContent, { minTextLength, url });
       chunks.push(...fallbackChunks);
     }
   }
@@ -97,7 +98,7 @@ export function extractChunksRegex(source: Document | Element | string, url = ''
  * Extract content from a single element
  */
 function extractChunkFromElement(element: Element, options: any = {}) {
-  const { includeAds } = options;
+  const { includeAds, url } = options;
 
   // Skip if element is hidden or too small
   if (isElementHidden(element) || getElementTextLength(element) < 50) {
@@ -138,6 +139,8 @@ function extractChunkFromElement(element: Element, options: any = {}) {
       return {
         url: href,
         text: a.textContent.trim().substring(0, 100),
+        // A card's story link wraps the image and has no text; its headline is the aria-label.
+        label: accessibleLinkName(a).substring(0, 200),
         isExternal: href.startsWith('http') && origin && !href.startsWith(origin)
       };
     })
@@ -159,12 +162,18 @@ function extractChunkFromElement(element: Element, options: any = {}) {
       ? TAG.ARTICLE
       : TAG.OTHER;
 
+  const heading = element.querySelector('h1, h2, h3, h4, h5, h6')?.textContent?.trim() || '';
+
   return {
     id: generateChunkId(element),
     text,
     html: clone.innerHTML,
     metadata,
     links,
+    // Resolved against the live element, not the pruned clone: a card's story anchor often
+    // sits outside the heading, and picking the wrong one makes click-unbait describe a
+    // different article.
+    primaryLink: heading ? findHeadlineLink(element, heading, url) : null,
     images,
     tags: [contentTag],
     position: getElementPosition(element),
@@ -214,19 +223,24 @@ function splitBySemanticBoundaries(element: Element, options: any = {}) {
       images = [];
       if (text.length < minTextLength) return;
       const anchor = sectionHeading || element;
+      const heading = sectionHeading ? sectionHeading.textContent.trim() : '';
       chunks.push({
         id: generateChunkId(anchor),
         text,
         // Same shape as a chunk taken from a whole element, so consumers do not have to
         // care which strategy produced the chunk.
         metadata: {
-          heading: sectionHeading ? sectionHeading.textContent.trim() : null,
+          heading: heading || null,
           elementType: anchor.tagName.toLowerCase(),
           classes: Array.from(anchor.classList),
           id: anchor.id || null,
           dataAttributes: extractDataAttributes(anchor),
         },
         links: sectionLinks,
+        // The section's links are collected in document order, which on a card grid files
+        // the *next* card's story anchor under this heading. Resolve the heading's own
+        // link from the DOM instead, so click-unbait cannot summarise the neighbour.
+        primaryLink: heading ? findHeadlineLink(anchor, heading, options.url) : null,
         images: sectionImages,
         tags: [TAG.ARTICLE],
         position: null,
@@ -357,6 +371,8 @@ function describeLink(anchor: Element) {
   return {
     url: href,
     text: (anchor.textContent || '').trim().substring(0, 100),
+    // A card's story link wraps the image and has no text; its headline is the aria-label.
+    label: accessibleLinkName(anchor).substring(0, 200),
     isExternal: href.startsWith('http') && !!origin && !href.startsWith(origin),
   };
 }

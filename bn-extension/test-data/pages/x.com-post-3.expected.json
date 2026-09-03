@@ -1,0 +1,13 @@
+{
+  "url": "https://x.com/realMaalouf/status/2094452781843100052",
+  "note": "Rendered permalink with replies, saved 2026-09-02. The demo's third example; the post itself must be chunked or it cannot be labelled.",
+  "chunks": { "min": 3, "max": 25 },
+  "mustChunk": [
+    "Out of 50 million Muslims in Europe"
+  ],
+  "mustNotAppear": [
+    "To view keyboard shortcuts",
+    "View keyboard shortcuts"
+  ],
+  "primaryChunk": { "contains": "Out of 50 million Muslims in Europe", "minLength": 100 }
+}

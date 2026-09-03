@@ -12,6 +12,18 @@
 
 export type TraceAttributes = Record<string, string | number | boolean>;
 
+/**
+ * A span timed somewhere the tracer cannot reach — the content script, or the
+ * inference worker — carried back as data and replayed as a real span. Epoch ms.
+ */
+export interface TraceStep {
+	name: string;
+	start: number;
+	end: number;
+	attributes?: TraceAttributes;
+	children?: TraceStep[];
+}
+
 /** Opaque span reference. Real shape is set by the registered implementation. */
 export interface TraceHandle {
 	readonly span: object;
@@ -33,6 +45,7 @@ export interface TracerImpl {
 	startSpan(name: string, opts: SpanOptions): TraceHandle | null;
 	endSpan(handle: TraceHandle, error?: unknown): void;
 	setAttributes(handle: TraceHandle, attributes: TraceAttributes): void;
+	recordSteps(steps: TraceStep[], parent: TraceHandle): void;
 }
 
 let impl: TracerImpl | null = null;
@@ -62,6 +75,14 @@ export function endSpan(
 
 export function setAttributes(handle: TraceHandle | null, attributes: TraceAttributes): void {
 	if (impl && handle) impl.setAttributes(handle, attributes);
+}
+
+/**
+ * Replay steps timed elsewhere as child spans of `parent`, keeping their original
+ * times — e.g. model load and inference measured inside the offscreen worker.
+ */
+export function recordSteps(steps: TraceStep[] | undefined, parent: TraceHandle | null): void {
+	if (impl && parent && steps?.length) impl.recordSteps(steps, parent);
 }
 
 /**

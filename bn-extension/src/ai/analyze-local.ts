@@ -2,10 +2,10 @@
  * Shared local-model runner. Does not invent scores/explanations — analyzers parse those.
  */
 
-import { getLocalModel } from './model-catalog.js';
+import { canClassify, getLocalModel } from './model-catalog.js';
 import { getOffscreenLocalBackend } from './local-model-backend.js';
-import type { LocalModelBackend } from './local-model-backend.js';
-import { traceStep, setAttributes } from '../tracing/tracer-hook.js';
+import type { LocalModelBackend, ZeroShotResult } from './local-model-backend.js';
+import { traceStep, setAttributes, recordSteps } from '../tracing/tracer-hook.js';
 import type { TraceHandle } from '../tracing/tracer-hook.js';
 import { logit } from '../utils/logger.js';
 
@@ -19,6 +19,19 @@ function localModelAttributes(modelId: string, pipeline: string) {
 		'gen_ai.system': 'local',
 		'gen_ai.request.model': modelId,
 	};
+}
+
+/**
+ * Zero-shot verdict on the span: the top label and its score, so a trace shows what the
+ * model decided. Labels are our own candidate strings, never page text.
+ */
+function recordZeroShotResult(span: TraceHandle | null, result: ZeroShotResult) {
+	const top = result.labels?.[0];
+	if (top === undefined) return;
+	setAttributes(span, {
+		'betternet.zero_shot.top_label': top,
+		'betternet.zero_shot.top_score': result.scores?.[0] ?? 0,
+	});
 }
 
 function truncate(text: string) {
@@ -62,29 +75,35 @@ export async function analyzeWithLocalLLM(params: AnalyzeWithLocalLLMParams) {
 
 	if (!backend) {
 		logit('warn', '[LOCAL_AI] No local backend available, using heuristics');
+		setAttributes(trace, { 'betternet.analysis.path': 'no_backend' });
 		const fb = fallback();
 		fb.metadata = { ...(fb.metadata as object || {}), localModelSkipped: 'no_backend' };
 		return fb;
 	}
 
 	try {
-		if (model.pipeline === 'zero-shot-classification' && candidateLabels?.length) {
+		if (canClassify(model) && candidateLabels?.length) {
 			const result = await traceStep(
 				'local.zero_shot',
 				{ parent: trace, attributes: localModelAttributes(model.id, 'zero-shot-classification') },
-				(span) => {
+				async (span) => {
 					setAttributes(span, { 'gen_ai.request.label_count': candidateLabels.length });
-					return backend.zeroShot({
+					const res = await backend.zeroShot({
 						modelId: model.id,
 						text: truncate(context.text || ''),
 						candidateLabels,
 						multiLabel,
 					});
+					// The span above also covers the port hops and any first-call model load;
+					// these steps are what the model itself spent (see inference-worker.ts).
+					recordSteps(res.traceSteps, span);
+					recordZeroShotResult(span, res);
+					// Thrown inside the span so a failed inference is a failed span in AIQA.
+					if (res.error) throw new Error(res.error);
+					if (!res.labels?.length) throw new Error('Empty zero-shot result');
+					return res;
 				}
 			);
-
-			if (result?.error) throw new Error(result.error);
-			if (!result?.labels?.length) throw new Error('Empty zero-shot result');
 
 			const parsed = parseResponse(
 				JSON.stringify({
@@ -102,16 +121,25 @@ export async function analyzeWithLocalLLM(params: AnalyzeWithLocalLLMParams) {
 		const result = await traceStep(
 			'local.generate',
 			{ parent: trace, attributes: localModelAttributes(model.id, 'text2text-generation') },
-			(span) => {
-				setAttributes(span, { 'gen_ai.request.max_tokens': MAX_NEW_TOKENS });
-				return backend.generate({ modelId: model.id, prompt, maxNewTokens: MAX_NEW_TOKENS });
+			async (span) => {
+				setAttributes(span, {
+					'gen_ai.request.max_tokens': MAX_NEW_TOKENS,
+					'betternet.input.chars': prompt.length,
+				});
+				const res = await backend.generate({
+					modelId: model.id,
+					prompt,
+					maxNewTokens: MAX_NEW_TOKENS,
+				});
+				recordSteps(res.traceSteps, span);
+				setAttributes(span, { 'betternet.output.chars': res?.text?.length ?? 0 });
+				if (res.error) throw new Error(res.error);
+				if (!res.text?.trim()) throw new Error('Empty generation');
+				return res;
 			}
 		);
 
-		if (result?.error) throw new Error(result.error);
-		const text = result?.text?.trim();
-		if (!text) throw new Error('Empty generation');
-
+		const text = result.text!.trim();
 		const parsed = parseResponse(text);
 		const explanationText = typeof parsed.explanation === 'string' ? parsed.explanation.trim() : '';
 		if (!explanationText) {
@@ -122,6 +150,11 @@ export async function analyzeWithLocalLLM(params: AnalyzeWithLocalLLMParams) {
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		logit('warn', '[LOCAL_AI] Local analysis failed, using heuristics:', message);
+		// The model span carries the error; this marks the result as a fallback.
+		setAttributes(trace, {
+			'betternet.analysis.path': 'heuristic_fallback',
+			'betternet.analysis.fallback_reason': message,
+		});
 		const fb = fallback();
 		fb.metadata = { ...(fb.metadata as object || {}), localModelError: message };
 		return fb;

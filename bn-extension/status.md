@@ -17,7 +17,15 @@
   rotating ticker are skipped: the strip clips the label and cycles, so a badge there is either
   invisible or sitting over a different headline; chunks carry `tags[]` (`advert`, `article`, `post`, `search_result`, …) and heuristic `title` (first h1/h2/h3 in chunk HTML, else first sentence); advert tag drives ad-blocker partition; tags shown in chunk detail modal
 - Analysis orchestration: per-feature folders (`factChecker`, `biasDetector`, `antiManipulation`, `defuseRagebait`, `clickUnbait`) + Google fact-check when keyed; shared `ai/llm-client.ts` + `ai/run-feature-analysis.ts`; chunk **Content Analysis** modal title includes truncated chunk title when available
-- **Click Unbait (unravel)**: clickbait-scored chunks → fetch destination → `[honest summary] original title` rewrite (truncate + hover) + nutrient label; module toggle / Off-List via analysis pipeline
+- **Click Unbait (unravel)**: clickbait-scored chunks → fetch destination → `[honest summary] original title` rewrite + nutrient label; module toggle / Off-List via analysis pipeline. The original headline is kept **whole**: the cap (`DEFAULT_MAX_TITLE_LEN`, 140) applies to the original alone, so a wordier summary never eats into it, and only a runaway headline is truncated — cut back to a word break, full original on hover.
+  Working end-to-end in the **default** configuration (local mode, no model downloaded, no
+  API key): live upworthy.com rewrites 12 of 26 chunks, bbc.co.uk/ 2 of 50 — and both BBC
+  hits are real bait (`An unthinkable tragedy changes a woman's life forever` turns out to
+  be a Jenna Coleman drama). Detection is a curiosity-gap scorer
+  (`clickbait-signals.ts`), measured against `test-data/clickbait-headlines.json`: 131 real
+  hand-labelled headlines, 95% recall on the 41 `bait` rows, 1 false positive in 61 `plain`
+  rows. Quizzes are scored 0 — engagement bait, but with no withheld answer on a destination
+  page there is nothing honest to put in the brackets
 - Popup: expand page chunks list; click chunk to highlight on page
 - **Nutrient Label threshold**: Settings -> AI Model -> *Label content rated* picks the lowest risk band that earns a label (Safe / Caution / High Risk). Default Caution, so safe chunks are unlabelled. Bands live in `src/types/RiskLevel.ts` and drive both the traffic light and the threshold; changes apply to open tabs without a reload
 - **Chunk overlay** (debug aid, Settings -> Advanced -> *Show chunk overlay*): draws a
@@ -35,14 +43,29 @@
   calls traced to AIQA (`aiqa.winterwell.com`). Off unless the toggle *and* an API key
   (Advanced) are set. Span tree: `betternet.analyze_page` -> `betternet.chunk_page` /
   `betternet.analyze_chunk` -> `betternet.feature.<id>` -> LLM span
-  (`local.zero_shot`, `local.generate`, `openai.complete`, `anthropic.complete`, with
-  GenAI attributes + token usage). Attributes carry lengths/scores, never chunk text.
+  (`local.zero_shot`, `local.generate`, `openai.complete`, `anthropic.complete`, or
+  `<prompt-id>.<mode>`, with GenAI attributes + token usage) -> for local models,
+  `local.load_model` / `local.infer` as timed inside the inference worker (the parent
+  span also covers port hops and a first-call model load, so it is not inference time).
+  The feature span records `betternet.analysis.mode` and `.path`, so a chunk that fell
+  back to heuristics is distinguishable from one an LLM judged; provider and on-device
+  failures are ERROR spans. Click-unbait's destination fetch is
+  `click-unbait.fetch_destination`, with status code + status message, content type,
+  extraction source, character counts and an `outcome`
+  (`ok` / `cache_hit` / `http_error` / `unsupported_content_type` / `timeout` /
+  `budget_exceeded` / …); a quiet failure there is normal, so it stays an OK span.
+  Attributes carry lengths/scores, never chunk text or prompts. AIQA's `input` / `output`
+  headline pair is set on the three spans worth reading as a QA record: the root
+  (`host: title` -> summary verdict), each chunk (its headline, blank when it has none ->
+  risk + score + flags) and each feature (same headline -> score, confidence, flags and
+  the model's own explanation, capped at 240 chars). A chunk's body text is never used as
+  a stand-in for a missing headline.
   `src/tracing/`: `tracer-hook.ts` (zero-dep seam used by analysis code),
   `aiqa-tracer.ts` (background only; OpenTelemetry + `aiqa-client`'s exporter),
   `trace-steps.ts` (content-script step timer, keeps OTel out of that bundle).
   See `aiqa-client-request.md` for the browser-support changes wanted in `aiqa-client`.
 - **Demo dataset** (`src/analysis/demo-analysis.ts`): canned url -> chunks + `ChunkAnalysis` for
-  product-demo recordings. Three real, live URLs: two forming one story — an X post sharing a fake
+  product-demo recordings. Four real, live URLs: two forming one story — an X post sharing a fake
   news link, and the article it links to ("Study: Bill Gates' Lab Grown Meat Causes Cancer in
   Humans", The People's Voice, plus its two fabricated celebrity sidebar teasers) — all High Risk,
   every verdict citing a published fact-check
@@ -53,7 +76,32 @@
   presenter's aside in 2012 that a 2013 European Parliament question repeated as fact. Its
   label distinguishes the roughly-right population figure from the invented one. Verified
   end-to-end against the real saved page (`test-data/pages/x.com-post.html`) rather than
-  hand-written chunk text. URLs last checked live 2026-09-01; recheck before recording. `renderDemoPage()` emits an offline mirror. Wired into background
+  hand-written chunk text.
+  Fourth example, **clickbait -> rewritten headline**: Upworthy's "Harvard psychiatrist
+  reveals 'the fastest way to change your life' using just one Post-it note" (Cecily
+  Knobler, 1 Sep 2026) — borrowed authority, an unbeatable promise, and then the
+  withholding: it dangles one Post-it note and will not say what is written on it. (Four
+  notes, in fact.) Deliberately the counterweight to the other three: nothing in it is
+  false and the technique is real and old (affect labelling), so the chunk lands on
+  **Caution** and its one statement is rated *true* — the packaging is the problem, not
+  the content. Click Unbait closes the curiosity gap in place, rewriting the link text to
+  `[The note says 'awareness'] Harvard psychiatrist reveals 'the fastest way to change your
+  life' using just one Post-it note`, with the link still pointing at the story. The
+  rewrite is run through the live `formatUnbaitTitle()` rather than written out, so the demo
+  cannot disagree with the feature about how the line is built.
+  Because clickbait is something you meet *before* you click, this entry is also matched by
+  headline on any page: `demoLinkResultsForChunks()` (`DEMO_LINKS`) recognises it wherever
+  it turns up as a link — a feed, a search-results page, a related-stories box — and
+  background `performAnalysis` serves those chunks from the dataset while the real pipeline
+  handles the rest of the page. That match is headline-only (no xpath or fingerprint
+  comparison, since the entry is offered to every page), and the marker fallback is gated on
+  the headline being most of the chunk, so a whole feed that merely contains it is not
+  labelled. URLs last checked live: first three 2026-09-01, clickbait 2026-09-02; recheck
+  before recording.
+  Offline mirrors: `npm run build:demo` then `npx serve -l 8080 --no-clean-urls demo/` —
+  open `http://localhost:8080/shared-fake-news-post.html` or
+  `http://localhost:8080/clickbait-headline-link.html` (etc; no `/demo/` prefix).
+  `renderDemoPage()` is the HTML source. Wired into background
   `performAnalysis`: with `demoMode: true` in `chrome.storage.sync`, a matching URL serves the
   canned analysis (keeping each live chunk's xpath so labels land in the right place; one entry
   labels every instance of a repeated headline) instead
@@ -67,6 +115,81 @@
 
 ## Recent fixes
 
+- **Click Unbait architecture pass** (model swappability, DRY, minimality). The feature layer
+  was the only place outside `llm-client.ts` that knew the strings `'openai'` / `'anthropic'`
+  — two disjunctions, so adding a provider meant editing Click Unbait or having it silently
+  drop to heuristics. `llm-client.ts` now owns a `PROVIDERS` registry and exports
+  `isRemoteProvider`; adding a provider is one entry. Also: an injected `llmClient` now beats
+  `mode` (`run-feature-analysis.ts` checked `mode === 'local'` first, so a supplied client was
+  silently ignored); model capability comes from `canGenerate` / `canClassify` in the catalog
+  instead of `/generation/.test(model.pipeline)`; each detection signal carries its own
+  description (`singular_tease` had been added to the scorer and forgotten in a separate map,
+  so headlines it caught alone read "sensational framing"); the three summary branches became
+  an ordered tier list through one `acceptSummary` gate, which also fixes `mode: 'openai'`
+  with no API key skipping a downloaded local model; the destination-fetch budget is per page
+  rather than one global counter, so a second tab no longer starts already spent; and
+  `Chunk.links` is typed `ChunkLink[]` (it claimed `string[]`, while every chunker emits
+  objects — that stale type was what the runtime string/`href` handling existed to survive).
+  Two quote bugs fell out of the tidy-up: wrapping quotes were stripped one end at a time, so
+  `She called it "the best day of her life"` lost its closing mark, and the dangling-quote
+  guard only ran on truncated summaries. Both fixed and covered.
+
+- **Click Unbait did not work on any real page — four separate failures, one per step.**
+  The demo looked right because `demo-analysis.ts` served that one Upworthy headline from a
+  canned dataset; none of the live path ran. Found by running the pipeline against live
+  upworthy.com and buzzfeed.com and by running the shipped models on real headlines.
+  1. *Detection scored 0 on everything.* The catchphrase list ("you won't believe", "one
+     weird trick") flagged 0 of 26 chunks on upworthy.com and 0 of 50 on buzzfeed.com,
+     including the demo's own Post-it headline. Every pattern also used a straight
+     apostrophe, so `won’t` as actually published never matched. Nor could a model save it:
+     MobileBERT zero-shot with this feature's label pair is anti-correlated (plain BBC
+     headline `Storm Eowyn: Thousands without power` → 0.52; real bait → 0.015–0.27), and
+     FLAN-T5-Small — the shipped default — answers the JSON detection prompt by repeating
+     the headline, which parsed to the hardcoded 0.2 fallback and never crossed the 0.4
+     threshold. Replaced with `clickbait-signals.ts`, sixteen curiosity-gap signals scored
+     against a concreteness credit, and detection no longer routes through the on-device
+     model. `parseAIResponse` now falls back to the signal score instead of 0.2.
+  2. *The wrong page was fetched.* `pickDestinationUrl` took the chunk's first http link. On
+     Upworthy's grid the story anchor wraps the image, sits *before* the heading in document
+     order and carries the headline only in `aria-label`, so the generic chunker filed it
+     under the previous card and **every** destination was the neighbour's article; on a
+     search page the first link was `google.com/preferences`. A wrong-page summary is worse
+     than none — it is a confident sentence about a different article. New
+     `chunking/headline-link.ts` resolves the headline's own link from the DOM at chunk time
+     (`chunk.primaryLink`), and the analysis-side picker scores links by accessible name and
+     URL slug and returns null rather than guess. 18 of 18 correct on Upworthy, 0 wrong,
+     and the newsletter signup correctly declines (it used to fetch beehiiv's Terms of Use).
+  3. *The article never reached the summariser.* `MAX_BODY_CHARS` sliced the first 4,000
+     characters of the whole stripped page; on a real Upworthy article the nav, topic list
+     and newsletter form fill the first ~5,200 and the story starts at 5,271, so the model
+     was being asked to summarise a menu. Extraction now prefers JSON-LD `articleBody`, then
+     `<article>`, then `<main>`, drops furniture regions first, and applies the cap to what
+     is left. Numeric entities are decoded (`&#039;` was reaching the page) and the site
+     suffix is stripped from the title. Plus a URL→content cache, in-flight dedupe and a
+     per-page fetch budget, reset per analysis in `performAnalysis`.
+  4. *The "honest summary" was the bait again.* `summarizeDestination` only built an LLM
+     client for `openai`/`anthropic`, so in the default local mode it fell through to the
+     destination's `<title>` — the same clickbait headline the site put on the link. Output
+     was `[You won't believe what this Harvard doctor keeps] You won't believe what this
+     Harvard doctor keeps on a Post-it note`. Three tiers now: remote LLM, on-device
+     `generate` (a plain "summarise this" — the small FLAN-T5 models cannot follow the JSON
+     prompt but do pull a real sentence out of the article), then the publisher's own
+     `og:description`. All three pass through `acceptSummary`, which rejects a summary that
+     merely echoes the headline, so a failed unravel leaves the headline alone instead of
+     looking like it worked.
+  Also: `applyClickUnbaitRewrite`'s last-resort "first link with >10 characters of text" is
+  gone — prepending a summary to a byline is the same failure as summarising the wrong page.
+
+- **Click Unbait rendering**: the display budget was 90 chars *including* the `[summary] `
+  prefix, so a normal headline got chopped — `[The note says 'awareness'] Harvard
+  psychiatrist reveals 'the fastest way to change your…`. That trailing `…` is a second
+  curiosity gap (is the missing part the interesting bit?), and a longer summary silently
+  ate more of the headline. Now the cap applies to the original alone and sits at 140, so
+  headlines come through whole; truncation is a runaway guard and cuts back to a word break
+  rather than mid-word. `format-unbait-title.ts`, spec updated.
+- Offline demo mirrors: URLs assumed `/demo/…` under `npx serve demo/`, which 404s (that
+  command mounts `demo/` at `/`). Paths are now root-relative; `npm run build:demo` writes the
+  HTML.
 - **No label on live x.com — three separate causes**, all found from one saved page and a
   console trace:
   1. *Canned demo chunks carried the offline mirror's xpath.* When the live chunker finds
@@ -92,6 +215,25 @@
   visually-hidden pattern (`position:absolute; clip:rect(1px,1px,1px,1px)`, 1px box) with
   hashed class names we cannot enumerate, so `isElementHidden` now detects that *shape*.
   Covers Bootstrap `.sr-only`, GOV.UK and X alike
+- **The third demo URL lost its Nutrient Label again — one junk chunk defeated the render
+  backoff.** `https://x.com/realMaalouf/status/2094452781843100052` analysed and scored High
+  Risk but placed nothing on the page. From the ANALYZE_CHUNKS payload in a console trace:
+  `<main>` held only a spinner, the X chunker correctly found 0, and the *headline* chunker
+  returned X's "To view keyboard shortcuts" heading. `extractChunksWhenRendered` breaks as
+  soon as `chunks.length` is truthy, so that one chunk ended the 0/500/1000/2000/4000ms
+  backoff on attempt 1 and the post was never chunked. Three fixes:
+  1. `isElementHidden` already knows the clip-rect pattern, but it was only checked on the
+     *card* — and `headlineCard` climbs to a visible wrapper, which on an unrendered page is
+     nothing less than `/html/body/div`. The candidate is now checked before the climb, so a
+     screen-reader-only heading cannot become a chunk on any site.
+  2. `looksUnrendered()` (`chunking.ts`): teasers-only, on a site with a platform chunker,
+     means "too early" rather than "chunked", so the content script keeps retrying. Off
+     platform, teasers really are the content and it does not fire.
+  3. The result was then dropped in silence — `content.ts` guarded on `message.data.xpath`
+     with no log, and the background's demo log counted the canned fallback as a match. Both
+     now say what happened, which is what made this take a saved page to diagnose.
+  Regression cover: `test-data/pages/x.com-post-3-loading.html` is the real pre-render DOM
+  and must chunk to nothing; `x.com-post-3.html` is the rendered page and must chunk the post
 - **Chunking on index pages was unusable**: `splitBySemanticBoundaries` collected text from
   container elements *and* their descendants, so every string was counted once per nesting
   level — the BBC homepage came out as one 4,533-char chunk with the headline list repeated
@@ -139,6 +281,12 @@
 
 ## Test data
 
+`test-data/clickbait-headlines.json` holds 131 real headlines captured from live
+upworthy.com and buzzfeed.com front pages and from the saved BBC pages, hand-labelled
+`bait` / `plain` / `quiz` / `unclear`. Not every headline on a clickbait site is clickbait
+and a straight news site runs soft feature headlines, so the labels are per-headline, not
+per-source; `unclear` rows are excluded from the thresholds rather than fudged.
+
 `test-data/pages/` holds **real pages saved from the browser** (BBC home, BBC article, the
 demo fake-news article, and x.com post / profile / feed) plus a small
 `<name>.expected.json` of quality expectations (`mustChunk`, `mustNotAppear`,
@@ -167,4 +315,7 @@ exactly what they lack. Keep them, but add new coverage as pages.
 
 ## Next
 
-Wire update-manager bundles into chunking and `isModuleEnabled` (apply `domain-off-defaults` on analysis). Host update manifests on bn-server. Extend ad-blocker (generic pages, YouTube). Wire cookie-cutter, privacy-shield, etc. Chrome Web Store CSP review for `wasm-unsafe-eval`. Polish Facebook/Twitter chunking; server cache. Manual pass on live clickbait headlines for Click Unbait.
+Wire update-manager bundles into chunking and `isModuleEnabled` (apply `domain-off-defaults` on analysis). Host update manifests on bn-server. Extend ad-blocker (generic pages, YouTube). Wire cookie-cutter, privacy-shield, etc. Chrome Web Store CSP review for `wasm-unsafe-eval`. Polish Facebook/Twitter chunking; server cache. Click Unbait: the heuristic summary tier is
+the publisher's own `og:description` — honest, but the publisher's framing rather than an
+independent reading; a local model that can actually answer "what is the withheld payoff"
+would close that.

@@ -5,10 +5,12 @@
 
 import assert from 'node:assert/strict';
 import {
+  DEMO_LINKS,
   DEMO_PAGES,
   demoAnalyses,
   demoAnalysisForChunk,
   demoChunks,
+  demoLinkResultsForChunks,
   demoResultsForChunks,
   findDemoPage,
   normaliseDemoUrl,
@@ -16,12 +18,17 @@ import {
 } from '../src/analysis/demo-analysis.js';
 import { riskLevelForScore } from '../src/types/RiskLevel.js';
 import { chunkProblemScore } from '../src/types/ChunkAnalysis.js';
+import { findAnalysisByModule } from '../src/types/AspectAnalysis.js';
+import { applyClickUnbaitFromAnalysis } from '../src/content/apply-click-unbait.js';
+import { DEFAULT_MAX_TITLE_LEN } from '../src/features/click-unbait/format-unbait-title.js';
 
-const [sharePost, fakeArticle, statPost] = DEMO_PAGES;
+const [sharePost, fakeArticle, statPost, clickbait] = DEMO_PAGES;
 const POST_URL = 'https://x.com/drhossamsamy65/status/2047310606361899350';
 const ARTICLE_URL =
   'https://thepeoplesvoice.tv/study-bill-gates-lab-grown-meat-causes-cancer-in-humans/';
 const STAT_POST_URL = 'https://x.com/realMaalouf/status/2094452781843100052';
+const CLICKBAIT_URL =
+  'https://www.upworthy.com/harvard-psychiatrist-reveals-the-fastest-way-to-change-your-life-using-just-one-post-it-note/';
 
 // --- lookup ---
 
@@ -29,10 +36,11 @@ assert.equal(normaliseDemoUrl('https://WWW.Example.com/a/b/?utm=x'), 'example.co
 assert.equal(findDemoPage(POST_URL), sharePost);
 assert.equal(findDemoPage(ARTICLE_URL), fakeArticle);
 assert.equal(findDemoPage(STAT_POST_URL), statPost);
+assert.equal(findDemoPage(CLICKBAIT_URL), clickbait);
 // Tracking params and a trailing slash must not lose the match
 assert.equal(findDemoPage(POST_URL + '?s=20&t=abc'), sharePost);
 // Offline mirror, on any local port
-assert.equal(findDemoPage('http://127.0.0.1:9999/demo/fake-news-article.html'), fakeArticle);
+assert.equal(findDemoPage('http://127.0.0.1:9999/fake-news-article.html'), fakeArticle);
 assert.equal(findDemoPage('https://example.com/other'), undefined);
 assert.equal(findDemoPage(''), undefined);
 
@@ -41,6 +49,7 @@ assert.equal(findDemoPage(''), undefined);
 assert.equal(sharePost.chunks.length, 1, 'the X post is one chunk');
 assert.equal(fakeArticle.chunks.length, 3, 'the article plus its two sidebar teasers');
 assert.equal(statPost.chunks.length, 1, 'the fabricated-statistic post is one chunk');
+assert.equal(clickbait.chunks.length, 1, 'the clickbait teaser is one chunk');
 for (const page of DEMO_PAGES) {
   for (const { chunk, analysis } of page.chunks) {
     assert.equal(analysis.chunkId, chunk.fingerprint);
@@ -59,11 +68,22 @@ assert.equal(demoAnalyses(ARTICLE_URL).length, 3);
 assert.ok(sharePost.chunks[0].chunk.text.includes(ARTICLE_URL));
 
 // --- the bands the demo script relies on ---
+//
+// The fake-news examples are High Risk. The clickbait one is Caution on purpose: the story
+// behind that headline is true and sincere, only the packaging is manipulative, and a demo
+// that scored the two the same would be teaching the wrong thing about what a label means.
+const EXPECTED_BAND = [
+  [sharePost, 'high-risk'],
+  [fakeArticle, 'high-risk'],
+  [statPost, 'high-risk'],
+  [clickbait, 'caution'],
+] as const;
+assert.equal(EXPECTED_BAND.length, DEMO_PAGES.length, 'every demo page declares its band');
 
-for (const page of DEMO_PAGES) {
+for (const [page, band] of EXPECTED_BAND) {
   for (const { chunk, analysis } of page.chunks) {
     const score = chunkProblemScore(analysis);
-    assert.equal(riskLevelForScore(score).id, 'high-risk', `${page.title}: ${chunk.title}`);
+    assert.equal(riskLevelForScore(score).id, band, `${page.title}: ${chunk.title}`);
   }
 }
 
@@ -197,6 +217,110 @@ assert.equal(
   undefined
 );
 
+// --- clickbait -> rewritten headline ---
+
+const CLICKBAIT_HEADLINE =
+  'Harvard psychiatrist reveals ‘the fastest way to change your life’ using just one Post-it note';
+const teaser = clickbait.chunks[0];
+assert.equal(teaser.chunk.title, CLICKBAIT_HEADLINE);
+
+// The rewrite the content script applies, derived from the live formatter rather than
+// hand-written, so the demo cannot drift from what the feature would actually produce.
+const unbait = findAnalysisByModule(teaser.analysis.analyses, 'clickUnbait');
+assert.ok(unbait, 'the clickbait chunk carries a clickUnbait verdict');
+assert.equal(unbait.metadata?.originalTitle, CLICKBAIT_HEADLINE);
+assert.equal(unbait.metadata?.hoverTitle, CLICKBAIT_HEADLINE, 'the full headline stays on hover');
+assert.equal(unbait.metadata?.destinationUrl, CLICKBAIT_URL);
+const displayTitle = String(unbait.metadata?.displayTitle);
+assert.ok(
+  displayTitle.startsWith('[The note says ‘awareness’] '),
+  `the honest summary leads: ${displayTitle}`
+);
+// The whole headline survives the rewrite. Cutting it short would leave the reader an
+// ellipsis to wonder about — a second curiosity gap where we just closed the first.
+assert.equal(displayTitle, `[The note says ‘awareness’] ${CLICKBAIT_HEADLINE}`);
+assert.ok(!displayTitle.includes('…'), 'nothing withheld by the rewrite itself');
+assert.ok(
+  CLICKBAIT_HEADLINE.length <= DEFAULT_MAX_TITLE_LEN,
+  'a demo headline past the cap would be shown truncated'
+);
+
+// The one statement is true. Clickbait is a packaging problem, not a truth problem, and the
+// demo is the place that distinction has to be visible.
+assert.deepEqual(
+  teaser.analysis.statements.map((st) => st.analyses[0].flags[0]),
+  ['true']
+);
+
+// The mirror renders the headline as an anchor, which is what the rewrite needs to target.
+const teaserHtml = renderDemoPage(clickbait);
+assert.ok(teaserHtml.includes('class="teaser"'), 'rendered as a link card, not a post');
+assert.ok(teaserHtml.includes(`<a href="${CLICKBAIT_URL}">`), 'the headline is a link to the story');
+
+// --- the same headline as a link on somebody else's page ---
+//
+// This is the case the click-unbait demo exists for: no demo entry matches the page URL, and
+// the headline still has to be recognised.
+assert.equal(DEMO_LINKS.length, 1);
+assert.equal(findDemoPage('https://news.example.com/feed'), undefined, 'not a demo page');
+
+const FEED_URL = 'https://news.example.com/feed';
+const feedLink = {
+  xpath: '/html/body/div[2]/ul/li[4]',
+  title: CLICKBAIT_HEADLINE,
+  text: `${CLICKBAIT_HEADLINE} upworthy.com \u00b7 Cecily Knobler \u00b7 1 Sep 2026`,
+};
+const unrelated = { xpath: '/html/body/div[2]/ul/li[5]', title: 'Council approves the new bypass', text: 'Council approves the new bypass after a four-year inquiry.' };
+const [linkResult, ...restOfFeed] = demoLinkResultsForChunks(FEED_URL, [unrelated, feedLink]);
+assert.equal(restOfFeed.length, 0, 'only the headline is served from the dataset');
+assert.equal(linkResult.chunk, feedLink, 'replayed onto the live chunk, xpath and all');
+assert.equal(linkResult.analysis.xpath, feedLink.xpath);
+assert.equal(linkResult.analysis.url, FEED_URL, 'stamped with the page it is for');
+assert.equal(
+  findAnalysisByModule(linkResult.analysis.analyses, 'clickUnbait')?.metadata?.displayTitle,
+  displayTitle
+);
+// No mirror xpath leaks onto a page that has never heard of the mirror.
+assert.equal(DEMO_LINKS[0].chunk.xpath, undefined);
+assert.equal(DEMO_LINKS[0].analysis.xpath, undefined);
+
+// Matched by a marker phrase too, for a card whose title the chunker did not pick out
+assert.equal(
+  demoLinkResultsForChunks(FEED_URL, [{ xpath: '/html/body/aside/div', text: `Sponsored: ${CLICKBAIT_HEADLINE}` }]).length,
+  1
+);
+// ...but not a whole feed that merely contains it, which would put the label on the page
+assert.equal(
+  demoLinkResultsForChunks(FEED_URL, [
+    { xpath: '/html/body/div[2]', text: `Today's stories. ${CLICKBAIT_HEADLINE} ${'And nineteen more below. '.repeat(20)}` },
+  ]).length,
+  0
+);
+assert.deepEqual(demoLinkResultsForChunks(FEED_URL, [unrelated]), []);
+assert.deepEqual(demoLinkResultsForChunks(FEED_URL, []), []);
+
+// End to end: the link on the feed page really is rewritten in the DOM.
+const { Window } = await import('happy-dom');
+const feedWindow = new Window();
+feedWindow.document.body.innerHTML = `
+  <ul>
+    <li id="teaser"><a href="${CLICKBAIT_URL}">${CLICKBAIT_HEADLINE}</a></li>
+    <li id="other"><a href="https://news.example.com/bypass">Council approves the new bypass</a></li>
+  </ul>
+`;
+const teaserEl = feedWindow.document.getElementById('teaser');
+assert.equal(applyClickUnbaitFromAnalysis(teaserEl as any, linkResult.analysis), true);
+const rewritten = teaserEl!.querySelector('a')!;
+assert.equal(rewritten.textContent, displayTitle);
+assert.equal(rewritten.getAttribute('title'), CLICKBAIT_HEADLINE, 'the original is one hover away');
+assert.equal(rewritten.getAttribute('href'), CLICKBAIT_URL, 'the link still goes to the story');
+const otherEl = feedWindow.document.getElementById('other');
+assert.equal(
+  otherEl!.querySelector('a')!.textContent,
+  'Council approves the new bypass',
+  'the other links on the page are untouched'
+);
+
 // --- canned chunks must not claim an xpath they cannot have ---
 //
 // buildChunk()'s xpath describes the offline mirror. When the live chunker finds nothing
@@ -209,7 +333,7 @@ assert.equal(cannedLive.length, 1);
 assert.equal(cannedLive[0].xpath, undefined, 'no mirror xpath on the live site');
 assert.equal(demoAnalyses(POST_URL)[0].xpath, undefined, 'nor on the analysis');
 
-const cannedMirror = demoChunks('http://localhost:8080/demo/shared-fake-news-post.html');
+const cannedMirror = demoChunks('http://localhost:8080/shared-fake-news-post.html');
 assert.equal(
   cannedMirror[0].xpath,
   '/html/body/main/article[1]',
@@ -227,26 +351,33 @@ const { JSDOM } = await import('jsdom');
 const { readFileSync } = await import('node:fs');
 const { extractChunks } = await import('../src/chunking/chunking.js');
 
-async function labelSavedPage(fixture: string, url: string) {
-  const dom = new JSDOM(
-    readFileSync(new URL(`../test-data/pages/${fixture}`, import.meta.url), 'utf-8'),
-    { url }
-  );
+async function labelPage(html: string, url: string) {
+  const dom = new JSDOM(html, { url });
   Object.assign(globalThis as any, {
     window: dom.window,
     document: dom.window.document,
     DOMParser: dom.window.DOMParser,
     Node: dom.window.Node,
     NodeFilter: dom.window.NodeFilter,
+    XPathResult: dom.window.XPathResult,
     getComputedStyle: dom.window.getComputedStyle.bind(dom.window),
   });
   const chunks = await extractChunks(dom.window.document, url);
-  return demoResultsForChunks(url, chunks);
+  return { dom, results: demoResultsForChunks(url, chunks) };
+}
+
+async function labelSavedPage(fixture: string, url: string) {
+  const { results } = await labelPage(
+    readFileSync(new URL(`../test-data/pages/${fixture}`, import.meta.url), 'utf-8'),
+    url
+  );
+  return results;
 }
 
 for (const page of [
   { fixture: 'x.com-post-2.html', url: POST_URL, expect: 'Lab Grown Meat Causes Cancer' },
   { fixture: 'x.com-post.html', url: STAT_POST_URL, expect: 'Out of 50 million Muslims in Europe' },
+  { fixture: 'x.com-post-3.html', url: STAT_POST_URL, expect: 'Out of 50 million Muslims in Europe' },
 ]) {
   const results = await labelSavedPage(page.fixture, page.url);
   assert.equal(results.length, 1, `${page.fixture}: exactly the post is labelled, not the replies`);
@@ -256,6 +387,7 @@ for (const page of [
     `${page.fixture}: label landed on the wrong chunk: ${labelled.chunk.text.slice(0, 80)}`
   );
   assert.ok(labelled.chunk.xpath, `${page.fixture}: the label has an element to attach to`);
+  assert.ok(!labelled.canned, `${page.fixture}: matched the page, rather than falling back`);
   assert.equal(
     riskLevelForScore(chunkProblemScore(labelled.analysis)).id,
     'high-risk',
@@ -266,6 +398,41 @@ for (const page of [
     assert.ok(aspect.url?.startsWith('https://'), `${page.fixture}: ${aspect.methodName} cites no source`);
   }
 }
+
+// --- the clickbait mirror, chunked and rewritten for real ---
+//
+// The offline mirror is what gets recorded, so the whole path has to work on it: the chunker
+// finds the teaser, the canned analysis is replayed onto it, and the rewrite lands on the
+// anchor the mirror rendered. A chunking change that misses the teaser shows up here.
+
+const MIRROR_URL = 'http://localhost:8080/clickbait-headline-link.html';
+const { dom: mirrorDom, results: mirrorResults } = await labelPage(
+  renderDemoPage(clickbait),
+  MIRROR_URL
+);
+assert.equal(mirrorResults.length, 1, 'the mirror produces exactly the teaser chunk');
+const [mirrored] = mirrorResults;
+assert.ok(mirrored.analysis.xpath, 'the label has an element to attach to');
+const { findElementByXPath } = await import('../src/utils/utils.js');
+const mirrorEl = findElementByXPath(mirrored.analysis.xpath);
+assert.ok(mirrorEl, `xpath does not resolve on the mirror: ${mirrored.analysis.xpath}`);
+assert.equal(applyClickUnbaitFromAnalysis(mirrorEl, mirrored.analysis), true);
+assert.equal(mirrorEl.querySelector('a').textContent, displayTitle);
+assert.equal(riskLevelForScore(chunkProblemScore(mirrored.analysis)).id, 'caution');
+mirrorDom.window.close();
+
+// --- the canned fallback says so ---
+//
+// When the page chunks to something we do not recognise — x.com mid-load offered only its
+// "To view keyboard shortcuts" heading — the canned chunk comes back with no xpath, and the
+// content script has nothing to label. That is the right answer, but it has to be legible:
+// the flag is what lets the background log say so instead of reporting a match.
+const unmatched = demoResultsForChunks(STAT_POST_URL, [
+  { text: 'To view keyboard shortcuts, press question mark', xpath: '/html/body/div' },
+]);
+assert.equal(unmatched.length, 1);
+assert.equal(unmatched[0].canned, true, 'the fallback is flagged');
+assert.equal(unmatched[0].analysis.xpath, undefined, 'and carries no xpath into the live page');
 
 // --- rendering ---
 

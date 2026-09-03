@@ -65,5 +65,9 @@ function findTitleTarget(root: Element, originalTitle: string): Element | null {
 		}
 	}
 
-	return links.find((a) => (a.textContent || '').trim().length > 10) || null;
+	// No fallback. The old one took "the first link with more than ten characters of text",
+	// which on a chunk whose headline we could not find is a nav item or a byline — and
+	// prepending an honest summary to the wrong element is the same failure as summarising
+	// the wrong page. Leaving the chunk alone is the correct outcome.
+	return null;
 }

@@ -2,6 +2,8 @@
  * Platform abstraction for on-device inference (extension offscreen vs server none).
  */
 
+import type { TraceStep } from '../tracing/tracer-hook.js';
+
 export interface ZeroShotParams {
 	modelId: string;
 	text: string;
@@ -13,6 +15,8 @@ export interface ZeroShotResult {
 	labels?: string[];
 	scores?: number[];
 	error?: string;
+	/** Stages timed inside the worker (model load, inference), for AIQA. */
+	traceSteps?: TraceStep[];
 }
 
 export interface GenerateParams {
@@ -24,6 +28,8 @@ export interface GenerateParams {
 export interface GenerateResult {
 	text?: string;
 	error?: string;
+	/** Stages timed inside the worker (model load, inference), for AIQA. */
+	traceSteps?: TraceStep[];
 }
 
 export interface LocalModelBackend {

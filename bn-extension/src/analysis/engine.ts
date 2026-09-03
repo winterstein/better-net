@@ -48,7 +48,10 @@ async function analyzeChunk(
     tasks.push(
       traceStep(
         `betternet.feature.${feature.id}`,
-        { parent: analysisOptions.trace, attributes: { 'betternet.feature': feature.id } },
+        {
+          parent: analysisOptions.trace,
+          attributes: { 'betternet.feature': feature.id, input: chunkInput(chunk) },
+        },
         (span) =>
           feature
             .analyze(chunk, pageMetadata, { ...analysisOptions, trace: span })
@@ -57,6 +60,7 @@ async function analyzeChunk(
                 'betternet.problem_score': result.problemScore ?? 0,
                 'betternet.confidence': result.confidence ?? 0,
                 'betternet.flag_count': result.flags?.length ?? 0,
+                output: featureOutput(result),
               });
               return result;
             })
@@ -115,7 +119,14 @@ export async function analyzeChunksParallel(
         const result = await traceStep(
           'betternet.analyze_chunk',
           { parent: analysisOptions.trace, attributes: chunkAttributes(chunk) },
-          (span) => analyzeChunk(chunk, pageMetadata, { ...analysisOptions, trace: span })
+          async (span) => {
+            const analysis = await analyzeChunk(chunk, pageMetadata, {
+              ...analysisOptions,
+              trace: span,
+            });
+            setAttributes(span, { output: chunkOutput(analysis) });
+            return analysis;
+          }
         );
         if (onAnalysis) onAnalysis(chunk, result);
         return result;
@@ -130,9 +141,48 @@ export async function analyzeChunksParallel(
 /** Span attributes identifying a chunk. Text length only, never the text itself. */
 function chunkAttributes(chunk: Chunk) {
   return {
+    input: chunkInput(chunk),
     'betternet.chunk.id': String(chunk.id ?? chunk.fingerprint ?? ''),
     'betternet.chunk.xpath': chunk.xpath ?? '',
     'betternet.chunk.text_length': chunk.text?.length ?? 0,
     'betternet.chunk.tags': (chunk.tags ?? []).join(','),
   };
+}
+
+/**
+ * AIQA's `input` for a chunk: its headline, and blank when it has none. A plain
+ * paragraph's own text is page content, which stays in the browser — so it is never
+ * used as a stand-in for a missing headline.
+ */
+function chunkInput(chunk: Chunk): string {
+  return chunk.title ?? '';
+}
+
+/** Two decimals: scores are averages, and a trace does not need 17 digits of one. */
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/** AIQA's `output` for a chunk: the verdict the whole chunk ended up with. */
+function chunkOutput(analysis: ChunkAnalysis): string {
+  return JSON.stringify({
+    risk: analysis.summary.overallRisk,
+    score: round2(analysis.summary.problemScore),
+    flags: analysis.summary.flags.map((flag) => flag.label),
+  });
+}
+
+/**
+ * AIQA's `output` for one feature. The explanation is the model's own words about the
+ * chunk — the thing an AI QA run is there to judge — so it is included, capped.
+ */
+const MAX_EXPLANATION_CHARS = 240;
+
+function featureOutput(result: Partial<AspectAnalysis>): string {
+  return JSON.stringify({
+    score: round2(result.problemScore ?? 0),
+    confidence: round2(result.confidence ?? 0),
+    flags: result.flags ?? [],
+    explanation: (result.explanation ?? '').slice(0, MAX_EXPLANATION_CHARS),
+  });
 }

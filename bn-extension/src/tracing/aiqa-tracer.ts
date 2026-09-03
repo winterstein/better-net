@@ -25,7 +25,13 @@ import { Resource } from '@opentelemetry/resources';
 import { SpanStatusCode, trace, context as otelContext } from '@opentelemetry/api';
 import type { Span } from '@opentelemetry/api';
 import { setTracerImpl } from './tracer-hook.js';
-import type { SpanOptions, TraceAttributes, TraceHandle, TracerImpl } from './tracer-hook.js';
+import type {
+	SpanOptions,
+	TraceAttributes,
+	TraceHandle,
+	TracerImpl,
+	TraceStep,
+} from './tracer-hook.js';
 import { logit } from '../utils/logger.js';
 
 /** aiqa-client's own default (see its README, AIQA_SERVER_URL). */
@@ -44,15 +50,11 @@ export interface AiqaSettings {
 	aiqaSamplingRate?: number;
 }
 
-/** A step timed outside the service worker (content-script chunking), replayed as a span. */
-export interface RelayedStep {
-	name: string;
-	/** Epoch ms. */
-	start: number;
-	end: number;
-	attributes?: TraceAttributes;
-	children?: RelayedStep[];
-}
+/**
+ * A step timed outside the service worker — content-script chunking, or model load and
+ * inference inside the offscreen worker — replayed as a span.
+ */
+export type RelayedStep = TraceStep;
 
 let provider: BasicTracerProvider | null = null;
 let exporter: AIQASpanExporter | null = null;
@@ -91,6 +93,10 @@ const aiqaTracerImpl: TracerImpl = {
 		for (const [key, value] of Object.entries(attributes)) {
 			if (value !== undefined && value !== null) span.setAttribute(key, value);
 		}
+	},
+
+	recordSteps(steps, parent) {
+		recordRelayedSteps(steps, parent);
 	},
 
 	endSpan(handle, error) {
