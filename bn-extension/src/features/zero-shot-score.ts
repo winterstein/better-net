@@ -11,11 +11,13 @@ export interface ZeroShotPayload {
 	candidateLabels: string[];
 }
 
-export function isZeroShotPayload(parsed: Record<string, unknown>): parsed is ZeroShotPayload {
+export function isZeroShotPayload(parsed: unknown): parsed is ZeroShotPayload {
+	if (!parsed || typeof parsed !== 'object') return false;
+	const obj = parsed as Record<string, unknown>;
 	return (
-		Array.isArray(parsed.labels) &&
-		Array.isArray(parsed.candidateLabels) &&
-		parsed.candidateLabels.length > 0
+		Array.isArray(obj.labels) &&
+		Array.isArray(obj.candidateLabels) &&
+		obj.candidateLabels.length > 0
 	);
 }
 
