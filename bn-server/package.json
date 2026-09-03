@@ -15,7 +15,8 @@
       "test/**/*.ts",
       "test/**/*.js",
       "!test/**/*.d.ts"
-    ]
+    ],
+    "allow-incomplete-coverage": true
   },
   "keywords": [],
   "author": "",

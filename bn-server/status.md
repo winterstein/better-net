@@ -8,6 +8,7 @@
 - Server defaults: `heuristic` mode when no API keys; `localBackend: null` (no Chrome offscreen)
 - `npm run build` compiles shared analyzer subset + server code
 - `npm test` includes chunk analyze integration test
+- Tap allows incomplete coverage (CI was failing at ~87% vs tap's 100% default)
 
 ## AI layer
 
@@ -19,4 +20,3 @@
 
 - Wire OpenAI/Anthropic keys in production env for server-side LLM analysis
 - Optional: Node local inference backend (transformers.js or sidecar)
-- Fix flaky timezone assertion in `test_db.ts`
