@@ -36,7 +36,20 @@
   `pointer-events: none` so the page stays usable. Toggling applies to the open page without
   a reload. `src/content/chunk-overlay.ts`
 - **Toolbar badge**: per-tab progress (`…` while analyzing, count when done); popup shows stage detail (no on-page “Analyzing page…” overlay)
-- **Local models**: Settings → AI Model lists each catalog model with downloaded badge, progress while fetching, and **Delete download**; download starts async (offscreen) so the button is not blocked by multi‑minute HF fetches
+- **Local models**: Settings → AI Model lists each catalog model with downloaded badge, progress while fetching, **Cancel** while busy, and **Delete download**; download starts async (offscreen) so the button is not blocked by multi‑minute HF fetches.
+  Lifecycle status lives in `src/ai/model-status.ts` and is shared by the worker, offscreen,
+  background and Settings. `loading` was split into `downloading` (fetching bytes) and
+  `initialising` (building the ONNX session, after a download or on a warm load), plus an
+  `installed` flag: a teardown now sends an initialising-but-installed model back to `ready`
+  instead of `not_installed`, so Clear runtime memory no longer offers a re-download of
+  weights that never left the cache. Cancel and Clear runtime memory are one
+  `resetBusyModels` helper that writes storage *while the offscreen document is down* — a
+  live document is seeded from storage on connect and its next sync overwrites the whole
+  map, so resetting after the restart was silently reverted. A failed warm load now posts
+  `error` (it used to sit at `loading` forever, silently skipping the model on every later
+  page), and the download → initialising switch needs both a near-complete byte count and
+  all known files finished, so an under-estimated catalog size cannot report a running
+  download as done
 - **Settings** (`options/`): AI Model (incl. local models), Modules, Off-List, Account, Data Sharing (incl. server cache + AIQA tracing toggles), Advanced (console logging, server endpoint, AIQA API key / server / sampling). Diagnostic `logit()` output is off unless Advanced → Console logging is on
 - **Chunk feedback** (v1): thumbs up/down per aspect in Content Analysis modal → `POST /api/feedback` when Data Sharing + server endpoint configured; offline queue in `chrome.storage.local`
 - **AIQA tracing** (opt-in, Settings -> Data Sharing): page analysis, chunking and AI
@@ -47,6 +60,8 @@
   `<prompt-id>.<mode>`, with GenAI attributes + token usage) -> for local models,
   `local.load_model` / `local.infer` as timed inside the inference worker (the parent
   span also covers port hops and a first-call model load, so it is not inference time).
+  A cold page-level warm also records `local.load_model` under `betternet.analyze_page`
+  (cache hits are not traced).
   The feature span records `betternet.analysis.mode` and `.path`, so a chunk that fell
   back to heuristics is distinguishable from one an LLM judged; provider and on-device
   failures are ERROR spans. Click-unbait's destination fetch is
@@ -115,6 +130,11 @@
 
 ## Recent fixes
 
+- **Local model download stuck at ~100%**: after HF bytes finished, progress callbacks kept
+  status as `downloading` while ONNX session init ran (or hung), and a dead worker never
+  flipped the card to error — so Settings showed "Downloading… 100%" / "Not on device" with
+  no Retry or Remove. Now: ≥99% shows "Loading model…"; worker crashes and Clear memory
+  clear in-flight states; Cancel on busy cards; 15‑minute download timeout → error + Retry
 - **Click Unbait architecture pass** (model swappability, DRY, minimality). The feature layer
   was the only place outside `llm-client.ts` that knew the strings `'openai'` / `'anthropic'`
   — two disjunctions, so adding a provider meant editing Click Unbait or having it silently
@@ -266,6 +286,7 @@
 - **Toolbar Badge -> Popup, root cause**: local inference ran on the offscreen document's *main* thread (`wasm.proxy = false`, `numThreads = 1`, no worker). All same-origin extension pages (popup, options, offscreen) share one renderer main thread, so a multi-second WASM inference stopped the popup painting entirely — clicking the badge did nothing until the extension was reloaded. Measured: a 6s burn on one extension page delayed the popup by 5.8s. Fixed by moving all transformers.js/ONNX work to `offscreen/inference-worker.ts` (module worker; ORT loads its jsep runtime via dynamic `import()`); `offscreen.ts` is now a thin message proxy (1.8MB -> 6.9kB) that owns `modelState` and answers `PING`/`GET_STATUS` on its own thread. Regression tests: `e2e/popup-blocking.spec.ts` (`--project=popup`)
 - Note: `performance.memory` is main-thread only, so the Settings -> Runtime memory heap figure no longer counts ONNX session weights (they live in the worker isolate); `loadedModelIds` still comes from the worker
 - **Toolbar Badge -> Popup reliability**: popup paints its shell before any `await` (was serialising `tabs.query` + `storage.sync` + `storage.local` + a background round-trip behind the spinner, up to ~13s); every startup call goes through `popup-diagnostics.ts` `runStep` (timeout + timed console line); watchdog reports a popup that never becomes interactive; global `error` / `unhandledrejection` handlers replace a blank popup with a readable message; `pagehide` instead of `beforeunload` and polling stops on completed/error/excluded, so a slow teardown cannot make Chrome drop the *next* toolbar click. Popup opens/failures are logged to the service worker console (`POPUP_OPENED` / `POPUP_ERROR`)
+- **Local AI timeout / warm**: offscreen ZERO_SHOT/GENERATE timeout raised to 90s; inference requests are serialised so queue wait does not burn the budget; analysis warms (`LOAD_MODEL`) the selected model before chunks so DistilBERT stays resident across pages; a cold warm records `local.load_model` under the page span (cache hits are silent); Popup shows a diagnostics banner when local inference fails and heuristics take over
 - **Toolbar badge**: `chrome.action.*` rejections were escaping `try/catch` (they are promises in MV3) — now caught and logged per tab; badge state changes logged once each
 - Options hamburger: stay open across settings reload (storage race was closing `nav-open` with no console output)
 - Nutrient labels: `problemScore` stays “higher = worse”; zero-shot raw labels go to each feature’s `parseAIResponse`, which emits matching score + explanation. Recalibrated MNLI label pairs to cut false positives on normal news
@@ -315,7 +336,16 @@ exactly what they lack. Keep them, but add new coverage as pages.
 
 ## Next
 
-Wire update-manager bundles into chunking and `isModuleEnabled` (apply `domain-off-defaults` on analysis). Host update manifests on bn-server. Extend ad-blocker (generic pages, YouTube). Wire cookie-cutter, privacy-shield, etc. Chrome Web Store CSP review for `wasm-unsafe-eval`. Polish Facebook/Twitter chunking; server cache. Click Unbait: the heuristic summary tier is
+- **Content classification** (spec only): `specs/content-classification.md` — site / page / chunk
+  type ontology, and an `appliesTo` routing matrix so features filter by type before spending an
+  LLM call (no fact-check on a checkout form; no content analysis on login pages or banking apps).
+  Nothing filters today: `engine.ts` runs every enabled feature on every chunk. Reuses schema.org
+  (page/chunk type, and readable from sites' own JSON-LD), IAB Tier 1 (topic), UT1 (domain
+  category), Mathur et al. (dark patterns). Classifier choice is a declarative registry +
+  per-label chain in `src/classify/classifier-config.ts`; heuristics are the floor, a local
+  model (structural tree / embeddings, not necessarily an LLM) the intended preferred mode.
+- **Algorithm eval** (spec only): `specs/evaluation/algorithm-eval/spec.md` — gold examples in git, AIQA for experiment reporting, step-shaped datasets. No harness yet.
+- Wire update-manager bundles into chunking and `isModuleEnabled` (apply `domain-off-defaults` on analysis). Host update manifests on bn-server. Extend ad-blocker (generic pages, YouTube). Wire cookie-cutter, privacy-shield, etc. Chrome Web Store CSP review for `wasm-unsafe-eval`. Polish Facebook/Twitter chunking; server cache. Click Unbait: the heuristic summary tier is
 the publisher's own `og:description` — honest, but the publisher's framing rather than an
 independent reading; a local model that can actually answer "what is the withheld payoff"
 would close that.

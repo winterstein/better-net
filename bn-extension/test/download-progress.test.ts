@@ -2,7 +2,7 @@
  * Unit tests for multi-file download progress aggregation.
  */
 
-import { applyDownloadProgressEvent } from '../src/ai/download-progress.js';
+import { applyDownloadProgressEvent, allFilesDone } from '../src/ai/download-progress.js';
 
 function assert(condition, message) {
   if (!condition) {
@@ -76,6 +76,26 @@ const EST = 1000;
     0
   );
   assert(b === 50, `second file discovered should rebalance to 50%, got ${b}`);
+}
+
+// allFilesDone gates the switch to "initialising"; a file still in flight must not qualify
+{
+  const files = new Map();
+  assert(!allFilesDone(files), 'no files seen yet is not done');
+
+  applyDownloadProgressEvent(files, { status: 'progress', file: 'a.bin', loaded: 50, total: 100 }, EST);
+  assert(!allFilesDone(files), 'a partial file is not done');
+
+  applyDownloadProgressEvent(files, { status: 'done', file: 'a.bin' }, EST);
+  assert(allFilesDone(files), 'the only file finished, so downloads are over');
+
+  // A second file starting reopens the download — this is the case pct >= 99 alone missed
+  // when a catalog size under-estimates the real total.
+  applyDownloadProgressEvent(files, { status: 'progress', file: 'b.bin', loaded: 0, total: 900 }, EST);
+  assert(!allFilesDone(files), 'a newly announced file reopens the download');
+
+  applyDownloadProgressEvent(files, { status: 'done', file: 'b.bin' }, EST);
+  assert(allFilesDone(files), 'all files finished');
 }
 
 console.log('✅ download-progress tests passed');

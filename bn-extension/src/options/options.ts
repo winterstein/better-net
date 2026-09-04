@@ -1,6 +1,7 @@
 // better:net settings (options page)
 
 import { LOCAL_MODELS, formatBytes } from '../ai/model-catalog.js';
+import { MODEL_STATUS, isBusyStatus, isInstalled } from '../ai/model-status.js';
 import { DEFAULT_NUTRIENT_LABEL_MIN_RISK, RISK_LEVELS } from '../types/RiskLevel.js';
 import { logit, setConsoleLogging } from '../utils/logger.js';
 
@@ -201,7 +202,18 @@ class SettingsController {
   }
 
   isModelDownloaded(state) {
-    return state?.status === 'ready';
+    return isInstalled(state);
+  }
+
+  applyModelsState(models) {
+    this.localModelsState = models;
+    this.renderLocalModelsList(models);
+  }
+
+  /** Model actions return the fresh map; fall back to a fetch when one does not. */
+  async applyModelsResponse(res) {
+    if (res?.models) this.applyModelsState(res.models);
+    else await this.refreshLocalModelStatus();
   }
 
   formatMemoryStats(stats) {
@@ -250,6 +262,7 @@ class SettingsController {
       const el = document.getElementById('local-memory-stats');
       if (el && res?.memory) el.textContent = this.formatMemoryStats(res.memory);
       else await this.refreshLocalMemoryStats();
+      await this.applyModelsResponse(res);
       this.showStatus('Runtime memory cleared', 'success');
     } catch (err) {
       this.showStatus('Clear memory failed: ' + (err?.message || err), 'error');
@@ -263,8 +276,7 @@ class SettingsController {
         action: 'status',
       });
       if (res?.models) {
-        this.localModelsState = res.models;
-        this.renderLocalModelsList(res.models);
+        this.applyModelsState(res.models);
         void this.refreshLocalMemoryStats();
         return;
       }
@@ -283,7 +295,7 @@ class SettingsController {
     const prev = select.value;
     select.innerHTML = '';
     for (const model of LOCAL_MODELS) {
-      const state = stateMap[model.id] || { status: 'not_installed' };
+      const state = stateMap[model.id] || { status: MODEL_STATUS.NOT_INSTALLED };
       const opt = document.createElement('option');
       opt.value = model.id;
       const tag = this.isModelDownloaded(state) ? 'downloaded' : 'not downloaded';
@@ -299,9 +311,7 @@ class SettingsController {
   }
 
   updateLocalModelPoll(stateMap: Record<string, { status?: string }> = {}) {
-    const busy = Object.values(stateMap).some((s) =>
-      ['downloading', 'loading'].includes(s?.status ?? '')
-    );
+    const busy = Object.values(stateMap).some((s) => isBusyStatus(s?.status));
     if (busy && !this.localModelPollTimer) {
       this.localModelPollTimer = setInterval(() => this.refreshLocalModelStatus(), 1500);
     } else if (!busy && this.localModelPollTimer) {
@@ -312,7 +322,8 @@ class SettingsController {
 
   busyStatusText(state) {
     const progressPct = Math.min(100, Math.max(0, state.progress ?? 0));
-    if (state.status === 'loading') return 'Loading model…';
+    // Initialising has no percentage of its own — the ONNX session build is opaque.
+    if (state.status === MODEL_STATUS.INITIALISING) return 'Initialising model…';
     return `Downloading… ${progressPct}%`;
   }
 
@@ -322,14 +333,14 @@ class SettingsController {
     if (!container?.children.length) return false;
 
     for (const model of LOCAL_MODELS) {
-      const state = stateMap[model.id] || { status: 'not_installed' };
+      const state = stateMap[model.id] || { status: MODEL_STATUS.NOT_INSTALLED };
       const card = container.querySelector(`[data-model-id="${CSS.escape(model.id)}"]`);
       if (!(card instanceof HTMLElement)) return false;
 
-      const prevStatus = card.dataset.status || 'not_installed';
-      const nextStatus = state.status || 'not_installed';
-      const wasBusy = prevStatus === 'downloading' || prevStatus === 'loading';
-      const isBusy = nextStatus === 'downloading' || nextStatus === 'loading';
+      const prevStatus = card.dataset.status || MODEL_STATUS.NOT_INSTALLED;
+      const nextStatus = state.status || MODEL_STATUS.NOT_INSTALLED;
+      const wasBusy = isBusyStatus(prevStatus);
+      const isBusy = isBusyStatus(nextStatus);
 
       if (wasBusy && isBusy) {
         const progressPct = Math.min(100, Math.max(0, state.progress ?? 0));
@@ -362,34 +373,34 @@ class SettingsController {
     container.innerHTML = '';
 
     for (const model of LOCAL_MODELS) {
-      const state = stateMap[model.id] || { status: 'not_installed' };
+      const state = stateMap[model.id] || { status: MODEL_STATUS.NOT_INSTALLED };
       const downloaded = this.isModelDownloaded(state);
       const card = document.createElement('div');
       card.className = 'local-model-card' + (downloaded ? ' local-model-card--downloaded' : '');
       card.dataset.modelId = model.id;
-      card.dataset.status = state.status || 'not_installed';
+      card.dataset.status = state.status || MODEL_STATUS.NOT_INSTALLED;
 
-      const isBusy = state.status === 'downloading' || state.status === 'loading';
+      const isBusy = isBusyStatus(state.status);
+      // An installed model can still fail to load, so the error has to win over
+      // "Downloaded — ready to use" or the card would hide the reason it is not working.
+      const hasError = state.status === MODEL_STATUS.ERROR;
       const progressPct = Math.min(100, Math.max(0, state.progress ?? 0));
       let statusText = 'Not downloaded';
       let statusClass = 'local-model-status';
       if (isBusy) {
         statusText = this.busyStatusText(state);
         statusClass += ' local-model-status--busy';
+      } else if (hasError) {
+        statusText = `Download failed: ${state.error || 'unknown error'}`;
+        statusClass += ' local-model-status--error';
       } else if (downloaded) {
         statusText = 'Downloaded — ready to use';
         statusClass += ' local-model-status--ready';
-      } else if (state.status === 'error') {
-        statusText = `Download failed: ${state.error || 'unknown error'}`;
-        statusClass += ' local-model-status--error';
-      } else if (state.status === 'removed') {
-        statusText = 'Not downloaded';
       }
 
-      const canDownload = !['ready', 'loading', 'downloading'].includes(state.status);
+      const canDownload = !isBusy && (hasError || !downloaded);
       // Ready or failed: allow remove (error may leave cached files / bad state).
-      const canRemove =
-        !isBusy && (downloaded || state.status === 'error');
+      const canRemove = !isBusy && (downloaded || hasError);
 
       const badge = downloaded
         ? '<span class="local-model-badge local-model-badge--downloaded">Downloaded</span>'
@@ -425,6 +436,14 @@ class SettingsController {
           logit('log', LOG, 'Download button clicked', model.id, 'state=', state.status);
           this.downloadLocalModel(model.id);
         });
+        actions.appendChild(btn);
+      }
+      if (isBusy) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-small btn-secondary';
+        btn.textContent = 'Cancel';
+        btn.addEventListener('click', () => this.cancelLocalModelDownload(model.id));
         actions.appendChild(btn);
       }
       if (canRemove) {
@@ -468,6 +487,23 @@ class SettingsController {
         (typeof err === 'string' ? err : 'Could not reach extension background');
       console.error(LOG, 'downloadLocalModel failed', msg, err);
       this.showStatus('Download failed: ' + msg, 'error');
+      await this.refreshLocalModelStatus();
+    }
+  }
+
+  async cancelLocalModelDownload(modelId) {
+    logit('log', LOG, 'cancelLocalModelDownload()', modelId);
+    try {
+      const res = await sendExtensionMessage({
+        type: 'BN_LOCAL_MODEL',
+        action: 'cancel',
+        modelId,
+      });
+      if (res?.error) throw new Error(res.error);
+      await this.applyModelsResponse(res);
+      this.showStatus('Download cancelled', 'success');
+    } catch (err) {
+      this.showStatus('Cancel failed: ' + (err?.message || err), 'error');
       await this.refreshLocalModelStatus();
     }
   }

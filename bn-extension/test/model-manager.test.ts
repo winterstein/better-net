@@ -109,6 +109,57 @@ const clearRes = await dispatchRuntimeMessage(chrome, {
 assert(clearRes?.ok === true, 'clearMemory should return ok');
 assert(clearRes?.memory?.jsHeapLimitBytes === 2_000_000_000, 'clearMemory should include memory');
 
+// clearMemory keeps a downloaded model downloaded. 'initialising' covers a warm load of
+// weights already on disk, so resetting it to not_installed used to make Settings offer a
+// re-download of a model that never left the cache.
+chrome.storage.local.set({
+  localModels: {
+    'mobilebert-mnli': { status: 'initialising', installed: true, progress: 100 },
+    'flan-t5-small': { status: 'downloading', progress: 42 },
+  },
+});
+const keptRes = await dispatchRuntimeMessage(chrome, {
+  type: 'BN_LOCAL_MODEL',
+  action: 'clearMemory',
+});
+assert(
+  keptRes?.models?.['mobilebert-mnli']?.status === 'ready',
+  `installed model should revert to ready, got ${JSON.stringify(keptRes?.models?.['mobilebert-mnli'])}`
+);
+assert(
+  keptRes?.models?.['flan-t5-small']?.status === 'not_installed',
+  `partial download should reset, got ${JSON.stringify(keptRes?.models?.['flan-t5-small'])}`
+);
+
+// The reset has to survive the offscreen restart: a live document is seeded from storage
+// and its next state sync overwrites the whole map, so writing after the restart lost it.
+const { localModels: afterClear } = await chrome.storage.local.get({ localModels: {} });
+assert(
+  afterClear?.['flan-t5-small']?.status === 'not_installed',
+  `reset should be persisted, got ${JSON.stringify(afterClear?.['flan-t5-small'])}`
+);
+
+// cancel unlocks one busy model and leaves the rest alone
+chrome.storage.local.set({
+  localModels: {
+    'mobilebert-mnli': { status: 'ready', installed: true },
+    'flan-t5-small': { status: 'downloading', progress: 7 },
+  },
+});
+const cancelRes = await dispatchRuntimeMessage(chrome, {
+  type: 'BN_LOCAL_MODEL',
+  action: 'cancel',
+  modelId: 'flan-t5-small',
+});
+assert(
+  cancelRes?.models?.['flan-t5-small']?.status === 'not_installed',
+  `cancel should unlock the card, got ${JSON.stringify(cancelRes?.models?.['flan-t5-small'])}`
+);
+assert(
+  cancelRes?.models?.['mobilebert-mnli']?.status === 'ready',
+  'cancel should not touch other models'
+);
+
 // unknown action
 const unknownRes = await dispatchRuntimeMessage(chrome, {
   type: 'BN_LOCAL_MODEL',

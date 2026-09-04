@@ -30,11 +30,40 @@ import {
 	flushAiqaSpans,
 	recordRelayedSteps,
 } from '../tracing/aiqa-tracer.js';
-import { startSpan, endSpan, setAttributes } from '../tracing/tracer-hook.js';
+import { startSpan, endSpan, setAttributes, recordSteps } from '../tracing/tracer-hook.js';
+import { warmLocalModel } from '../ai/local-inference-client.js';
+import { isInstalled } from '../ai/model-status.js';
 
 /** Chunks labelled below safe (caution / high-risk). */
 function isNeutralisedScore(score) {
   return score != null && score >= 0.4;
+}
+
+/** Short Popup-facing copy for local-model failures (full error stays in traces). */
+function friendlyLocalAiDiagnostic(raw: string): string {
+  if (/Offscreen request timed out/i.test(raw)) {
+    return 'Local AI timed out — some checks used heuristics instead.';
+  }
+  if (/Offscreen port disconnected|did not connect/i.test(raw)) {
+    return 'Local AI worker unavailable — some checks used heuristics instead.';
+  }
+  if (/Not enough memory/i.test(raw)) {
+    return 'Local AI ran out of memory — some checks used heuristics instead.';
+  }
+  return 'Local AI unavailable — some checks used heuristics instead.';
+}
+
+function noteLocalAiDiagnostics(state, chunkAnalysis) {
+  if (!state.diagnostics) state.diagnostics = [];
+  const seen = new Set(state.diagnostics);
+  for (const a of chunkAnalysis?.analyses || []) {
+    const err = a.metadata?.localModelError;
+    if (typeof err !== 'string' || !err) continue;
+    const msg = friendlyLocalAiDiagnostic(err);
+    if (seen.has(msg)) continue;
+    seen.add(msg);
+    state.diagnostics.push(msg);
+  }
 }
 
 /**
@@ -435,25 +464,65 @@ class AnalysisManager {
       const anthropicKey = getAnthropicKey();
       
       const { localModels = {} } = await chrome.storage.local.get({ localModels: {} });
+      const localModelId = settings.localModelId || 'flan-t5-small';
       const localModelReady =
         settings.analysisMode !== 'local' ||
-        localModels[settings.localModelId]?.status === 'ready';
+        isInstalled(localModels[localModelId]);
 
       logit('log', '[BetterNet] [PERFORM_ANALYSIS] Analysis settings:', {
         mode: settings.analysisMode,
-        localModelId: settings.localModelId,
+        localModelId,
         localModelReady,
         hasOpenAIKey: !!openaiKey,
         hasAnthropicKey: !!anthropicKey,
         hasGoogleFactCheckKey: !!googleFactCheckKey
       });
 
+      // Keep the on-device pipeline in RAM across pages: warm (or load) before the batch.
+      // Trace only a real load — a cache hit is silent so AIQA stays about work that mattered.
+      if (settings.analysisMode === 'local' && localModelReady) {
+        this.broadcastUpdate(state.tabId, {
+          status: 'analyzing',
+          progress: 5,
+          currentStage: 'Loading local AI model…',
+          stages: { ...state.stages },
+        });
+        // Started before the load so a failure span reports how long it burned. Created in
+        // the catch it was always ~0ms, which hid the difference between an instant error
+        // and a 90s timeout. Only ended on failure — a success is traced by recordSteps.
+        const loadSpan = startSpan('local.load_model', {
+          parent: state.trace,
+          attributes: {
+            'gen_ai.system': 'local',
+            'gen_ai.request.model': localModelId,
+            'betternet.model.cached': false,
+          },
+        });
+        try {
+          const warm = await warmLocalModel(localModelId);
+          if (warm?.cached === false) {
+            recordSteps(warm.traceSteps, state.trace);
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          logit('warn', '[BetterNet] [PERFORM_ANALYSIS] warmLocalModel failed:', message);
+          endSpan(loadSpan, {}, err);
+          state.diagnostics = [friendlyLocalAiDiagnostic(message)];
+          this.broadcastUpdate(state.tabId, {
+            status: 'analyzing',
+            progress: 5,
+            currentStage: 'Local AI unavailable — using heuristics…',
+            stages: { ...state.stages },
+          });
+        }
+      }
+
       // Perform analysis with parallel processing
       this.broadcastUpdate(state.tabId, {
         status: 'analyzing',
         progress: 10,
         currentStage: 'Analyzing content chunks in parallel...',
-        stages: { ...state.stages }
+        stages: { ...state.stages },
       });
 
 	  // send per-chunk updates to the page
@@ -467,6 +536,7 @@ class AnalysisManager {
 		if (isNeutralisedScore(chunkProblemScore(combinedResults))) {
 		  state.neutralisedCount += 1;
 		}
+		noteLocalAiDiagnostics(state, combinedResults);
 		this.broadcastUpdate(state.tabId, {
 			type: "analysisUpdate",
 			xpath: chunk.xpath,
@@ -530,7 +600,7 @@ class AnalysisManager {
                   openaiKey: openaiKey,
                   anthropicKey: anthropicKey,
                   googleFactCheckKey: googleFactCheckKey,
-                  localModelId: settings.localModelId || 'flan-t5-small',
+                  localModelId,
                 },
                 maxConcurrency: 5,
                 enabledFeatures,
@@ -540,6 +610,9 @@ class AnalysisManager {
             )),
           ];
       
+      // Catch any local-model fallbacks that did not fire through onAnalysis mid-flight.
+      for (const cr of chunkResults) noteLocalAiDiagnostics(state, cr);
+
       logit('log', '[BetterNet] [PERFORM_ANALYSIS] Analysis complete:', {
         chunksAnalyzed: chunkResults.length
       });
@@ -604,6 +677,9 @@ class AnalysisManager {
 
       // Generate summary
       const summary = this.generateSummary(state.results);
+      if (state.diagnostics?.length) {
+        summary.warnings = [...(summary.warnings || []), ...state.diagnostics];
+      }
       state.summaryOverall = summary.overall;
       state.neutralisedCount = chunkResults.filter((cr) =>
         isNeutralisedScore(chunkProblemScore(cr))
@@ -619,6 +695,7 @@ class AnalysisManager {
         analysisId: state.id,
         results: state.results,
         summary: summary,
+        diagnostics: state.diagnostics ? [...state.diagnostics] : [],
         chunkResults: chunkResults.map((cr) => {
           const src = (chunkByKey.get(cr.chunkId) || {}) as Record<string, any>;
           const text = src.text || '';
@@ -703,6 +780,10 @@ class AnalysisManager {
     
     // Update internal state
     const state = this.activeAnalyses.get(tabId);
+    // Diagnostics are sticky for the whole analysis. Every update replaces the stored
+    // record and the popup rebuilds its banner from it, so an update that omitted them
+    // blanked a warning raised by an earlier chunk.
+    data = { diagnostics: [...(state?.diagnostics ?? [])], ...data };
     if (state) {
       if (data.neutralisedCount != null) state.neutralisedCount = data.neutralisedCount;
       if (data.progress != null) state.progress = data.progress;
@@ -779,6 +860,7 @@ class AnalysisManager {
         progress: 100,
         neutralisedCount: state?.neutralisedCount ?? 0,
         adsHidden: state?.adsHidden ?? 0,
+        diagnostics: result.diagnostics ?? state?.diagnostics ?? [],
         result,
         timestamp: Date.now()
       }
@@ -801,7 +883,9 @@ class AnalysisManager {
       status: state.status,
       progress: state.progress,
       stages: state.stages,
-      results: state.results
+      currentStage: state.currentStage,
+      results: state.results,
+      diagnostics: state.diagnostics,
     };
   }
 } // .end AnalysisManager

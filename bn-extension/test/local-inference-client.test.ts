@@ -48,6 +48,12 @@ assert(
 const analyzeRes = await sendToOffscreen('ANALYZE', { modelId: 'mobilebert-mnli', text: 'hi' });
 assert(analyzeRes?.ok === true, 'default port mock should respond ok to ANALYZE');
 
+const { warmLocalModel } = await import('../src/ai/local-inference-client.js');
+const warmRes = await warmLocalModel('mobilebert-mnli');
+assert(warmRes?.ok === true, 'warmLocalModel should round-trip LOAD_MODEL');
+const loadPosted = chrome._test.connectedPort.posted.filter((m) => m.action === 'LOAD_MODEL');
+assert(loadPosted.length >= 1, 'warmLocalModel should post LOAD_MODEL');
+
 // ensureOffscreen is idempotent when port already connected
 await ensureOffscreen();
 await ensureOffscreen();

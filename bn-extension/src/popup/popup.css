@@ -190,9 +190,25 @@ body {
 }
 
 .current-stage {
-  font-size: 14px;
+  font-size: 13px;
   color: #666;
   text-align: center;
+  margin-top: 8px;
+}
+
+.diagnostics-banner {
+  margin: 0 16px 12px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  color: #6d4c00;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.diagnostics-banner.hidden {
+  display: none;
 }
 
 .results-section {

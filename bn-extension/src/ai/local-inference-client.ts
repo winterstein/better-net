@@ -9,12 +9,19 @@ const LOG = '[BN:local-model]';
 const OFFSCREEN_URL = 'offscreen/offscreen.html';
 const PORT_NAME = 'bn-offscreen';
 const OFFSCREEN_PORT_WAIT_MS = 20_000;
+/** DistilBERT cold load + infer often exceeds 15s; queued calls must not share that budget. */
+const INFERENCE_TIMEOUT_MS = 90_000;
+const DOWNLOAD_TIMEOUT_MS = 30_000;
+const DEFAULT_TIMEOUT_MS = 15_000;
+const INFERENCE_ACTIONS = new Set(['ZERO_SHOT', 'GENERATE', 'LOAD_MODEL']);
 
 let offscreenReady = null;
 /** @type {chrome.runtime.Port | null} */
 let offscreenPort = null;
 /** @type {Map<string, (msg: object) => void>} */
 const portWaiters = new Map();
+/** One in-flight inference at a time so the timeout covers work, not the queue. */
+let inferenceChain: Promise<unknown> = Promise.resolve();
 
 async function persistLocalModels(localModels) {
   await chrome.storage.local.set({ localModels });
@@ -114,10 +121,17 @@ async function closeOffscreenDocument() {
   offscreenReady = null;
 }
 
-/** Tear down and recreate offscreen so WASM heap starts fresh (needed for ~60MB+ models). */
-export async function restartOffscreen() {
+/**
+ * Tear down and recreate offscreen so WASM heap starts fresh (needed for ~60MB+ models).
+ *
+ * `whileDown` runs with no offscreen document alive. Model state written there cannot be
+ * clobbered by the outgoing document's last state sync, or read back stale by the incoming
+ * one via INIT_STATE — see resetBusyModels in model-manager.
+ */
+export async function restartOffscreen(whileDown?: () => Promise<void>) {
   console.log(LOG, 'background: restartOffscreen');
   await closeOffscreenDocument();
+  await whileDown?.();
   // Brief pause so Chrome finishes tearing down before createDocument.
   await new Promise((r) => setTimeout(r, 100));
   await ensureOffscreen();
@@ -132,7 +146,9 @@ function postToOffscreen(action, payload = {}, timeoutMs = 15_000) {
     const requestId = `${action}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const timer = setTimeout(() => {
       portWaiters.delete(requestId);
-      reject(new Error(`Offscreen request timed out (${action})`));
+      reject(
+        Object.assign(new Error(`Offscreen request timed out (${action})`), { timeout: true })
+      );
     }, timeoutMs);
 
     portWaiters.set(requestId, (msg) => {
@@ -197,6 +213,42 @@ export async function ensureOffscreen() {
   }
 }
 
+function timeoutForAction(action: string) {
+  if (action === 'DOWNLOAD') return DOWNLOAD_TIMEOUT_MS;
+  if (INFERENCE_ACTIONS.has(action)) return INFERENCE_TIMEOUT_MS;
+  return DEFAULT_TIMEOUT_MS;
+}
+
+/**
+ * A timed-out request has not been cancelled — the worker is single-threaded and still
+ * grinding it. Releasing the queue now would start the next job's clock against work that
+ * has not begun, so one slow inference cascades into a run of timeouts. Restarting inside
+ * the queued task holds the chain until a fresh worker exists; the model reloads on the
+ * next call, which is slow but correct.
+ */
+async function runInference(action: string, payload: Record<string, unknown>, timeoutMs: number) {
+  try {
+    return await postToOffscreen(action, payload, timeoutMs);
+  } catch (err) {
+    if ((err as { timeout?: boolean })?.timeout) {
+      console.warn(LOG, 'background: inference timed out, restarting offscreen', action);
+      await restartOffscreen().catch((restartErr) => {
+        console.error(LOG, 'background: restart after timeout failed', restartErr);
+      });
+    }
+    throw err;
+  }
+}
+
+function enqueueInference<T>(fn: () => Promise<T>): Promise<T> {
+  const run = inferenceChain.then(fn, fn);
+  inferenceChain = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
+}
+
 /**
  * @param {string} action
  * @param {Object} [payload]
@@ -204,10 +256,22 @@ export async function ensureOffscreen() {
  */
 export async function sendToOffscreen(action: string, payload: Record<string, unknown> = {}): Promise<any> {
   await ensureOffscreen();
-  const timeoutMs = action === 'DOWNLOAD' ? 30_000 : 15_000;
-  const res = await postToOffscreen(action, payload, timeoutMs);
+  const timeoutMs = timeoutForAction(action);
+  const res = INFERENCE_ACTIONS.has(action)
+    ? await enqueueInference(() => runInference(action, payload, timeoutMs))
+    : await postToOffscreen(action, payload, timeoutMs);
   console.log(LOG, 'background: sendToOffscreen done', action, res);
   return res;
+}
+
+/**
+ * Ensure the offscreen worker is up and the given model is loaded in RAM.
+ * No-op (fast) when that pipeline is already resident — keeps the model warm across pages.
+ */
+export async function warmLocalModel(modelId: string) {
+  if (!modelId) return { ok: false, error: 'modelId required' };
+  console.log(LOG, 'background: warmLocalModel', modelId);
+  return sendToOffscreen('LOAD_MODEL', { modelId });
 }
 
 export async function closeOffscreenIfIdle() {

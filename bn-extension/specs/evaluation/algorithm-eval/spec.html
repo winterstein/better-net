@@ -1,0 +1,246 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta http-equiv='Content-Type' content='text/html; charset=utf-8'>
+<title></title>
+<meta name='generator' content='Jerbil v1.3.0' />
+</head>
+<body>
+<h1>Algorithm evaluation</h1>
+<h2>Overview</h2>
+<p>A shared way to measure how well BetterNet's algorithms do their job - not how fast they run (though let's measure that too).</p>
+<p>We evaluate:</p>
+<ul>
+<li>Page → chunks (the chunker)</li>
+<li>Each chunk analyser as a whole</li>
+<li>Each unreliable step inside an analyser (the places that can be wrong even when the rest of the pipeline is fine)</li>
+</ul>
+<p>Gold examples live in this repo, independent of which model or heuristic we plug in. A <em>setup</em> (local model X, OpenAI, signals-only, …) is something we run <em>against</em> those examples. Same data, different setups, comparable scores.</p>
+<p>Used for:</p>
+<ul>
+<li>Regression (CI: &quot;did we make tagging worse?&quot;)</li>
+<li>Reporting (precision / recall / &quot;rewrote when it should have left alone&quot;)</li>
+<li>Improvement loops (&quot;local tagging is weak - try a new scorer / prompt / model&quot;)</li>
+</ul>
+<p>Later: the same labelled rows should be exportable for fine-tuning. We do not train yet.</p>
+<h2>Status</h2>
+<p>draft - no harness yet. Click Unbait detection and chunking already have labelled fixtures; this spec generalises that pattern.</p>
+<h2>Tooling choice</h2>
+<p><strong>Git is the source of truth for examples and expected answers.</strong><br />
+<strong>AIQA Experiments is the reporting / comparison layer.</strong><br />
+Those are not alternatives - Experiments needs a dataset on the AIQA server.</p>
+<p><code>ExperimentRunner</code> takes a <code>datasetId</code>, loads examples from the server, scores each one, and summarises the run. There is no useful Experiments report without examples registered in AIQA. Live Traces (already wired in the extension) are a different product: production debugging, not &quot;setup A vs B on a fixed gold set.&quot;</p>
+<p>Do not put gold labels <em>only</em> in AIQA. Do not skip AIQA reporting and rebuild run history / compare-setups UI in this repo either - that would reinvent the part AIQA already does. Do not add Langfuse.</p>
+<p>Practical split:</p>
+<table>
+<thead>
+<tr><th>Concern</th><th>Where</th></tr>
+</thead>
+<tbody>
+<tr><td>Canonical examples + expected</td><td>git (<code>test-data/…</code>)</td></tr>
+<tr><td>CI floors (<code>npm test</code>)</td><td>local runner on git - offline, no API key</td></tr>
+<tr><td>Named experiments, setup compare, run history</td><td>AIQA Experiments</td></tr>
+<tr><td>Live page/feature debugging</td><td>AIQA Traces (already)</td></tr>
+</tbody>
+</table>
+<p>Mirror, don't dual-write by hand: when you want a reported experiment, sync/upload the git dataset into AIQA (or refresh an existing dataset id), then run <code>ExperimentRunner</code> against that copy. Git remains authoritative; AIQA holds a snapshot so Experiments work.</p>
+<p>Why git for gold:</p>
+<ul>
+<li>Adding an example is a file in a PR, reviewed like code</li>
+<li>CI can fail a merge without talking to a live server</li>
+<li>Saved pages already belong next to the chunker (<code>test-data/pages/</code>)</li>
+<li>Fine-tune later is a JSON export from the same files, not &quot;please dump the SaaS&quot;</li>
+<li>Labels version with the code that claims to pass them</li>
+</ul>
+<p>Why AIQA Experiments on top (not a home-grown report):</p>
+<ul>
+<li>Comparing setups wants run history and a UI - building that here is reinventing AIQA</li>
+<li>Same org already has Traces; experiment runs sit next to that world</li>
+<li>Client already in the package (<code>aiqa-client</code> → <code>ExperimentRunner</code>)</li>
+</ul>
+<p>What AIQA is <em>not</em> for here:</p>
+<ul>
+<li>Being the only copy of the corpus</li>
+<li>Gating <code>npm test</code></li>
+</ul>
+<p>Runtime / latency / memory is a different question (empty <code>specs/performance-testing.md</code>). Keep it separate.</p>
+<h2>Relevant links</h2>
+<ul>
+<li>Existing chunking gold: <code>test-data/pages/</code> + <code>test/chunking-pages.test.ts</code></li>
+<li>Existing clickbait gold: <code>test-data/clickbait-headlines.json</code> + detector asserts in <code>test/click-unbait.test.ts</code></li>
+<li>Click Unbait steps (worked example): <code>specs/click-unbait/unravel/spec.md</code></li>
+<li>Live traces: <code>src/tracing/</code>, Settings → Data Sharing → AIQA</li>
+<li>Terminology: chunk, module, aspect (<code>terminology.md</code>)</li>
+</ul>
+<h2>Units of evaluation</h2>
+<p>One <strong>dataset</strong> = one contract:</p>
+<ul>
+<li><code>id</code> - stable, e.g. <code>click-unbait.tag-headline</code></li>
+<li><code>input</code> - what the step sees (headline text; saved HTML; destination article text + original title)</li>
+<li><code>expected</code> - gold for <em>this</em> step only</li>
+<li><code>split</code> - <code>ci</code> (fast, always) vs <code>holdout</code> (not used while tuning) vs <code>slow</code> (needs a model or a fetch)</li>
+<li>optional <code>notes</code>, <code>source</code> URL, date captured</li>
+</ul>
+<p>One <strong>setup</strong> = how we compute the output (model id, prompt, heuristic). Setups are not stored inside the dataset.</p>
+<p>One <strong>run</strong> = setup + dataset → scores. CI keeps a floor on <code>ci</code> splits (local, from git). Improvement / reporting runs go through AIQA Experiments against a synced dataset copy.</p>
+<h3>Step vs feature</h3>
+<p>Every feature that judges content should have <strong>both</strong>:</p>
+<ul>
+<li><strong>Feature dataset</strong> (<code>click-unbait.end-to-end</code>, …) - user-visible contract. Given a realistic input (headline + page / destination fixture), did we rewrite correctly, leave alone, label risk, etc.? This is what &quot;is the feature working?&quot; means.</li>
+<li><strong>Step datasets</strong> - same feature broken into unreliable steps. When e2e fails (or when improving a weak setup), these show <em>which</em> bit failed.</li>
+</ul>
+<p>They answer different questions. Passing every step and failing e2e is possible (wiring, thresholds, order). Passing e2e while a step is soft is also possible. Keep both; do not treat e2e as optional once the feature ships.</p>
+<p>Chunking is its own top-level concern (<code>chunking.pages</code>), not a step under a module - but the same idea applies if we later split &quot;find cards&quot; vs &quot;assign tags&quot;.</p>
+<p>If a step is reliable (pure format, no judgement), it does not need a dataset - ordinary unit tests are enough. <code>formatUnbaitTitle</code> is in that bucket.</p>
+<p>E2e rows are usually fewer, richer fixtures, and often <code>slow</code> (fetch / model). Step rows are cheaper and denser - good for CI floors and targeted improvement loops.</p>
+<h2>Scoring outputs</h2>
+<p>Start from what we actually output, not from the full metric menu.</p>
+<h3>What we need (likely day-to-day)</h3>
+<table>
+<thead>
+<tr><th>Output shape</th><th>Examples here</th><th>Practical checker</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td>Discrete label</td><td>bait/plain; rewrite yes/no; fact verdict</td><td>Exact match (<code>equals</code>)</td><td>Core of tag-headline, rewrite-or-leave, many e2e rows</td></tr>
+<tr><td>URL or null</td><td>pick-destination</td><td>Exact match (incl. &quot;must be null&quot;)</td><td>Wrong URL is worse than no rewrite - binary</td></tr>
+<tr><td>Presence / absence in text</td><td>mustChunk / mustNotAppear; mustMention; must not echo headline</td><td><code>contains</code> / <code>not_contains</code> (often several)</td><td>Already how chunking gold works; best fit for short payoffs</td></tr>
+<tr><td>Bounds / structure</td><td>chunk count min-max; xpath resolves; maxWords</td><td>Checklist / <code>javascript</code></td><td>Not a single string compare</td></tr>
+<tr><td>Risk band / threshold</td><td>problemScore → Safe/Caution/High; &quot;should flag&quot; vs not</td><td>Band or cut (not exact float)</td><td>Exact <code>problemScore == 0.73</code> is brittle</td></tr>
+<tr><td>Aggregate over a set</td><td>recall on bait; FP rate on plain; precision@threshold</td><td>Dataset summary from 0/1 per row</td><td>This is the CI / experiment contract</td></tr>
+</tbody>
+</table>
+<h3>What we need less often</h3>
+<table>
+<thead>
+<tr><th>Output shape</th><th>When</th><th>Checker</th><th>Role</th></tr>
+</thead>
+<tbody>
+<tr><td>Soft paraphrase of a short summary</td><td>extract-summary / e2e when many wordings are fine</td><td><code>similar</code> or <code>llm</code></td><td>Secondary on <code>slow</code>; not the merge gate</td></tr>
+<tr><td>Free-text explanation quality</td><td>aspect <code>explanation</code></td><td>Usually ignore for CI</td><td>Optional <code>llm</code> later if we care</td></tr>
+<tr><td>Duration / tokens</td><td>experiment runs</td><td><code>system</code></td><td>Report only</td></tr>
+</tbody>
+</table>
+<h3>Policy</h3>
+<ol>
+<li>Prefer deterministic checkers for anything that gates CI.</li>
+<li>Generative steps (honest summary): default to checklist (<code>mustMention</code> + <code>mustNotEcho</code> + length). Add <code>similar</code> / <code>llm</code> only when a row cannot be captured that way.</li>
+<li>Continuous scores (<code>problemScore</code>, confidence): score bands or above/below threshold, never exact floats.</li>
+<li>Always define the set-level floor (recall / FP / pass-rate) - that is the regression contract. Per-example metrics feed it.</li>
+<li><code>unclear</code> / holdout rows are excluded from floors, not forced into a label.</li>
+</ol>
+<h3>Fit to AIQA</h3>
+<p>AIQA metric types cover the checkers we need. We will not use most of them on day one.</p>
+<p>Lean on: <code>equals</code>, <code>contains</code>, <code>not_contains</code>, <code>javascript</code>, plus experiment summaries (aggregates of 0/1 rows, or client-computed recall stored on the run).</p>
+<p>Defer / use sparingly: <code>similar</code> (only if checklist gold is too rigid); <code>llm</code> (secondary on <code>slow</code>, never sole merge gate); exact numeric equals on <code>problemScore</code>.</p>
+<p>Caveats:</p>
+<ul>
+<li>Local <code>scoreMetric</code> in <code>aiqa-client</code> today only runs <code>javascript</code> in-process; <code>llm</code> is server-side. Offline CI implements contains/equals/bands itself (chunking already does). Sync maps <code>expected.*</code> → AIQA metrics so Experiments and CI agree.</li>
+<li>Do not invent a parallel scoring DSL - keep git <code>expected</code> fields close to these checkers.</li>
+</ul>
+<h3>Per first datasets</h3>
+<ul>
+<li><code>chunking.pages</code> - mustChunk / mustNotAppear / count bounds / xpath (already). No LLM.</li>
+<li><code>click-unbait.tag-headline</code> - label equals; report recall + FP rate. No LLM.</li>
+<li><code>click-unbait.pick-destination</code> - URL equals or null. No LLM.</li>
+<li><code>click-unbait.extract-summary</code> - checklist first; <code>similar</code>/<code>llm</code> optional on hard rows.</li>
+<li><code>click-unbait.rewrite-or-leave</code> - boolean equals (+ optional contains on display text if rewritten).</li>
+<li><code>click-unbait.end-to-end</code> - rewrite/leave + checklist on the visible line.</li>
+<li>Later scorers (bias, ragebait, fact-check): band/threshold + expected flags; explanations out of CI unless we add them on purpose.</li>
+</ul>
+<h2>First datasets (Click Unbait as the template)</h2>
+<p>Feature-level:</p>
+<ul>
+<li><code>click-unbait.end-to-end</code> - headline (+ destination fixture or saved page) → rewrite / leave alone / expected summary checks. Start small with real cases (Upworthy bait that should rewrite; BBC plain that must stay).</li>
+</ul>
+<p>Step-level (unreliable steps we already know):</p>
+<ol>
+<li><code>click-unbait.tag-headline</code> - likely clickbait or not (<code>bait</code> / <code>plain</code> / <code>quiz</code> / <code>unclear</code>). <code>unclear</code> is excluded from pass/fail, not relabelled to make the metric pretty. <em>Already exists</em> as <code>clickbait-headlines.json</code>.</li>
+<li><code>click-unbait.pick-destination</code> - which URL (or none). Wrong page is worse than no rewrite.</li>
+<li><code>click-unbait.extract-summary</code> - short honest payoff from the destination. Not string-equal: checks such as &quot;mentions X&quot;, &quot;does not echo the bait headline&quot;, &quot;short enough&quot;.</li>
+<li><code>click-unbait.rewrite-or-leave</code> - given tag + summary (or failure), rewrite vs leave the headline alone.</li>
+</ol>
+<p>Also:</p>
+<ul>
+<li><code>chunking.pages</code> - saved HTML → quality expectations (<code>mustChunk</code>, <code>mustNotAppear</code>, count bounds, xpath resolves). <em>Already exists.</em> Exact full-page chunk lists are too brittle; keep the current style.</li>
+<li>Later features: same pair - one e2e dataset + one step dataset per unreliable step (Fact Checker, Bias Detector, …).</li>
+</ul>
+<p>Build order can still grow steps first where we already have gold, but the design includes e2e from the start - do not defer the feature dataset as &quot;nice later.&quot;</p>
+<h2>Examples</h2>
+<p>Add a row:</p>
+<ol>
+<li>Copy a nearby example in the dataset file.</li>
+<li>Fill <code>input</code> from a real page (headline, snippet, or <code>capture-page.js</code> HTML).</li>
+<li>Hand-label <code>expected</code>. If you are unsure, use <code>unclear</code> / omit from thresholds - do not guess.</li>
+<li>Run the eval for that dataset. If it fails, either the algorithm is wrong or the label is; say which in the PR.</li>
+</ol>
+<p>Improvement loop:</p>
+<ol>
+<li>Report says <code>click-unbait.tag-headline</code> + setup <code>local:flan-t5-small</code> is weak vs <code>signals</code>.</li>
+<li>Try a new setup (prompt, model, hybrid). Same dataset.</li>
+<li>Compare scores. Promote only if holdout does not collapse.</li>
+<li>Sync the dataset if needed, record the two runs as AIQA Experiments, compare in the UI.</li>
+</ol>
+<p>See <a href="/example-row-shapes.html">example-row-shapes.md</a> for concrete JSON shapes.</p>
+<h2>Collecting examples</h2>
+<h3>AIQA traces as a source?</h3>
+<p><strong>Good for small, already-traced inputs - not for &quot;HTML as the browser sees it.&quot;</strong></p>
+<p>Today traces deliberately store lengths/scores and a short headline <code>input</code>/<code>output</code> pair - not chunk bodies, prompts, or page HTML (privacy + size). AIQA Examples can be promoted from a trace's spans, which is a fine path for e.g. &quot;this headline was tagged wrong&quot; → draft row for <code>tag-headline</code>.</p>
+<p>Do <strong>not</strong> route full DOM/HTML through production AIQA sampling to build the corpus:</p>
+<ul>
+<li>Logged-in pages carry private feed/handle/token residue (same warning as <code>capture-page.js</code>)</li>
+<li>Pages are large; traces would balloon</li>
+<li>Opt-in QA tracing ≠ consent to store whole pages as eval gold</li>
+<li>Gold must be scrubbed and reviewed in a PR; a sampled trace is not that</li>
+</ul>
+<p>For page-sized inputs, keep the existing capture path: save the rendered DOM → <code>capture-page.js</code> (strip scripts) → hand-label <code>expected</code> → commit. Traces can still <em>point</em> at a failure (&quot;chunking missed this story on bbc.co.uk&quot;) and you capture a fresh fixture on purpose.</p>
+<p>Optional later: a local &quot;save for eval&quot; action that writes a candidate fixture to disk (or a private draft), never through the default trace pipeline.</p>
+<h3>On-disk layout in git</h3>
+<p>Match size to format - do not force one shape.</p>
+<table>
+<thead>
+<tr><th>Input size</th><th>Layout</th><th>Why</th></tr>
+</thead>
+<tbody>
+<tr><td>Small rows (headline, URL, label, short excerpt)</td><td><strong>One JSON file, many examples</strong></td><td>Easy to add, grep, review in a PR. Pretty-printed (<code>clickbait-headlines.json</code> style), with optional file-level <code>_comment</code>.</td></tr>
+<tr><td>Large inputs (whole HTML page, long destination body)</td><td><strong>One example = stem</strong> - e.g. <code>pages/bbc.co.uk-home.html</code> + <code>bbc.co.uk-home.expected.json</code></td><td>Diffs stay readable; HTML is not escaped inside a giant JSON string; mirrors what chunking already does.</td></tr>
+</tbody>
+</table>
+<p>Avoid: embedding multi-MB HTML inside JSON; one blob with all pages inline; duplicating the same page into every step dataset (reference the page fixture by id/path from small-row datasets when needed).</p>
+<p>No JSONL - same JSON shapes for edit, CI, sync, and any later fine-tune export.</p>
+<p><code>expected</code> / metrics stay small either way. Large bytes live as sibling files.</p>
+<h2>Out of scope</h2>
+<ul>
+<li>Training / fine-tuning (export format only, later)</li>
+<li>Runtime performance (latency, memory, WASM)</li>
+<li>Replacing unit tests for deterministic code</li>
+<li>Judging production live traffic automatically (traces stay opt-in QA, not the gold set)</li>
+<li>LLM-as-judge as the <em>only</em> merge gate (allowed as a secondary <code>slow</code> metric)</li>
+</ul>
+<h2>Build plan</h2>
+<ol>
+<li>Agree this spec (tooling + step-shaped datasets).</li>
+<li>Define a tiny shared schema (id, input, expected, split) and a runner that: loads a dataset, calls a setup, prints scores, exits non-zero if below the floor.</li>
+<li>Wrap existing clickbait + page fixtures as the first two datasets so we do not fork them.</li>
+<li>Add datasets for the other Click Unbait steps; keep examples few and real.</li>
+<li><code>npm test</code> runs <code>ci</code> splits only. A separate <code>npm run eval</code> (or tagged tests) runs <code>slow</code> / model setups.</li>
+<li>Wire dataset sync + <code>ExperimentRunner</code> for reported evals (<code>npm run eval</code> / similar). Local CI stays git-only.</li>
+<li>Repeat the pattern for the next feature's unreliable steps.</li>
+</ol>
+<h2>Test plan</h2>
+<ul>
+<li>Schema: a bad example file fails fast (missing label, unknown split).</li>
+<li>Runner: deterministic fake setup on a 3-row stub → known scores.</li>
+<li>Regression: current detector floors on <code>clickbait-headlines.json</code> still hold after the wrap.</li>
+<li>Chunking: existing <code>chunking-pages</code> expectations still hold.</li>
+<li>Manual: add one new headline example; eval picks it up without code changes.</li>
+</ul>
+<h2>Open (update as we go)</h2>
+<ul>
+<li>Exact folder tree under <code>test-data/</code> (names only; layout rules are above).</li>
+<li>AIQA dataset sync: every reported eval, or only when the git corpus changed since last sync.</li>
+<li>Confirm server-side scoring for <code>contains</code> / <code>similar</code> / <code>llm</code> on our AIQA deploy (types are there; wire once in a smoke experiment).</li>
+<li>Optional &quot;save for eval&quot; capture UX (local only).</li>
+<li>Fine-tune export columns (when we need them).</li>
+</ul>
+</body>
+</html>

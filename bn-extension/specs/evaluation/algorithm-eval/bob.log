@@ -1,0 +1,7 @@
+Sept 03, 2026 7:26:30 PM Thread[#3,main,5,main] FINE: dep #8f8aac2a set class com.winterwell.utils.threads.TaskRunner = com.winterwell.utils.threads.TaskRunner@668bc3d5 [com.winterwell.bob.Bob.initTaskRunner(Bob.java:497), com.winterwell.bob.Bob.init(Bob.java:492), com.winterwell.bob.Bob.getSingleton(Bob.java:180), com.winterwell.bob.BuildTask.<init>(BuildTask.java:168), com.goodloop.jerbil.BuildJerbilWebSite.<init>(BuildJerbilWebSite.java:46), com.goodloop.jerbil.JerbilMain.main(JerbilMain.java:91)]  MB-HK7JYVHXDH 
+Sept 03, 2026 7:26:30 PM Thread[#3,main,5,main] FINE: jerbil #95346ae6 Build: spec.md -> spec.html ...  MB-HK7JYVHXDH 
+Sept 03, 2026 7:26:30 PM Thread[#3,main,5,main] FINE: linkresolver #ac71fc4b ./example-row-shapes.md  MB-HK7JYVHXDH 
+Sept 03, 2026 7:26:30 PM Thread[#3,main,5,main] FINE: linkresolver #2cba8d54 ./example-row-shapes.md -> /Users/danielwinterstein/bn/better-net/bn-extension/specs/evaluation/algorithm-eval/example-row-shapes.md  MB-HK7JYVHXDH 
+Sept 03, 2026 7:26:30 PM Thread[#3,main,5,main] INFO: jerbil #d4db4d4c Made spec.html  MB-HK7JYVHXDH 
+Sept 03, 2026 7:26:30 PM Thread[#3,main,5,main] WARNING: jerbil.exit #f92a257c NOT starting a server - exit=true beats server=true  MB-HK7JYVHXDH 
+Sept 03, 2026 7:26:30 PM Thread[#3,main,5,main] WARNING: jerbil.exit #0d3ff3e5 NOT polling for git updates - exit=true beats gitcheck=true  MB-HK7JYVHXDH 

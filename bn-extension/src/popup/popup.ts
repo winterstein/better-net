@@ -253,6 +253,7 @@ class PopupController {
         neutralisedCount: response.status.neutralisedCount,
         adsHidden: response.status.adsHidden,
         partialResults: response.status.partialResults,
+        diagnostics: response.status.diagnostics,
         result: response.status.result,
       });
       return;
@@ -364,6 +365,9 @@ class PopupController {
     progressSection.classList.remove('hidden');
     resultsSection.classList.add('hidden');
     errorSection.classList.add('hidden');
+    this.showDiagnostics(
+      data.diagnostics || data.result?.diagnostics || data.result?.summary?.warnings
+    );
 
     if (data.status === 'error') {
       this.stopPolling('analysis error');
@@ -415,6 +419,21 @@ class PopupController {
       this.displayResults(data.result);
     }
 
+  }
+
+  showDiagnostics(messages) {
+    const banner = document.getElementById('diagnostics-banner');
+    if (!banner) return;
+    const list = Array.isArray(messages)
+      ? messages.filter((m) => typeof m === 'string' && m.trim())
+      : [];
+    if (!list.length) {
+      banner.classList.add('hidden');
+      banner.textContent = '';
+      return;
+    }
+    banner.textContent = list.join(' ');
+    banner.classList.remove('hidden');
   }
 
   showPartialResults(partialResults, stages) {

@@ -6,7 +6,7 @@
  * UI jump up and down — especially with a partial browser cache.
  */
 
-export type FileByteProgress = { loaded: number; total: number };
+export type FileByteProgress = { loaded: number; total: number; done?: boolean };
 
 export type ProgressEventLike = {
   status?: string;
@@ -28,11 +28,12 @@ export function applyDownloadProgressEvent(
     files.set(event.file, {
       loaded: Math.max(0, event.loaded ?? 0),
       total: event.total,
+      done: false,
     });
   } else if (event.status === 'done') {
     const prev = files.get(event.file);
     if (prev && prev.total > 0) {
-      files.set(event.file, { loaded: prev.total, total: prev.total });
+      files.set(event.file, { loaded: prev.total, total: prev.total, done: true });
     } else {
       return null;
     }
@@ -52,4 +53,20 @@ export function applyDownloadProgressEvent(
   // Prefer catalog estimate so small early files (config.json) don't read as 100%.
   const denom = Math.max(estimatedTotalBytes, knownTotal, 1);
   return Math.min(99, Math.round((100 * loaded) / denom));
+}
+
+/**
+ * Every file we have seen bytes for has finished. Used with the byte percentage to tell
+ * "downloads are over, the session is initialising" from "still fetching".
+ *
+ * Not a perfect end-of-download signal: transformers.js announces files as it reaches
+ * them, so between one file finishing and the next starting this reads true. Pairing it
+ * with a near-complete byte count keeps that window to milliseconds.
+ */
+export function allFilesDone(files: Map<string, FileByteProgress>): boolean {
+  if (files.size === 0) return false;
+  for (const f of files.values()) {
+    if (!f.done) return false;
+  }
+  return true;
 }

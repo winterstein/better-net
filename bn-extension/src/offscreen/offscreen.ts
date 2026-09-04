@@ -9,6 +9,7 @@
  */
 
 import { LOCAL_MODELS } from '../ai/model-catalog.js';
+import { MODEL_STATUS, isBusyStatus } from '../ai/model-status.js';
 
 const LOG = '[BN:local-model]';
 
@@ -43,17 +44,28 @@ function handleWorkerMessage(event) {
   else pending.resolve(result);
 }
 
+/** Downloads are fire-and-forget; if the worker dies mid-flight, surface an error so Settings can Retry. */
+function failBusyModels(reason: string) {
+  for (const [modelId, state] of modelState) {
+    if (isBusyStatus(state?.status)) {
+      setModelState(modelId, { status: MODEL_STATUS.ERROR, error: reason });
+    }
+  }
+}
+
 function startWorker() {
   // Module worker: ONNX loads its jsep runtime with a dynamic import(), which
   // classic workers cannot do.
   worker = new Worker(WORKER_URL, { type: 'module' });
   worker.addEventListener('message', handleWorkerMessage);
   worker.addEventListener('error', (event) => {
-    console.error(LOG, 'offscreen: inference worker error', event.message);
+    const reason = event.message || 'Inference worker crashed during model load';
+    console.error(LOG, 'offscreen: inference worker error', reason);
     for (const [id, pending] of pendingWorkerRequests) {
-      pending.reject(new Error(event.message || 'inference worker failed'));
+      pending.reject(new Error(reason));
       pendingWorkerRequests.delete(id);
     }
+    failBusyModels(reason);
   });
   console.log(LOG, 'offscreen: inference worker started', WORKER_URL);
   return callWorker('INIT', { wasmBase: WASM_BASE });
@@ -129,6 +141,7 @@ async function handleOffscreenAction(action, message) {
       return getMemoryStats();
     case 'DOWNLOAD':
     case 'REMOVE':
+    case 'LOAD_MODEL':
     case 'ZERO_SHOT':
     case 'GENERATE':
       return callWorker(action, message);

@@ -76,5 +76,7 @@ npm install && npm run dev
 ## Writing Style
 
 Keep it short.
+Text should be human friendly and designed for skim reading (e.g. bullet-points are often good).
 Prefer lists to tables.
-Avoid **bold**.
+Avoid **bold** and *italics* - plain text is usually better.
+Avoid opaque references - prefer references with a keyword or tagline.

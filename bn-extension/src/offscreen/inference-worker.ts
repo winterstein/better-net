@@ -17,8 +17,10 @@ import { getLocalModel } from '../ai/model-catalog.js';
 import type { TraceStep } from '../tracing/tracer-hook.js';
 import {
   applyDownloadProgressEvent,
+  allFilesDone,
   type FileByteProgress,
 } from '../ai/download-progress.js';
+import { MODEL_STATUS } from '../ai/model-status.js';
 
 const LOG = '[BN:local-model]';
 
@@ -30,6 +32,9 @@ const pipelines = new Map();
 
 /** Per-model file byte totals while a download is in flight. */
 const downloadFiles = new Map<string, Map<string, FileByteProgress>>();
+
+/** Whole download + ONNX session init; fire-and-forget DOWNLOAD must not hang forever. */
+const DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1000;
 
 /** Configure ONNX WASM for MV3 (no CDN, no proxy worker, single-threaded). */
 function configureOnnxWasm(wasmBase: string) {
@@ -70,8 +75,15 @@ function reportProgress(modelId, progress) {
   const pct = applyDownloadProgressEvent(files, progress, estimated);
   if (pct == null) return;
 
+  // Bytes capped at 99 in download-progress; past that is ONNX session init, not fetch.
+  // Keeping status as "downloading" here made the UI look stuck at 100% with no Retry.
+  // Both conditions are needed: a catalog sizeBytes that under-estimates the real download
+  // saturates pct at 99 while megabytes are still arriving, and allFilesDone alone reads
+  // true in the gap between one file finishing and the next starting.
+  const complete = pct >= 99 && allFilesDone(files);
+  const status = complete ? MODEL_STATUS.INITIALISING : MODEL_STATUS.DOWNLOADING;
   // Monotonic within a download — offscreen.ts clamps against the previous value.
-  postState(modelId, { status: 'downloading', progress: pct, monotonic: true });
+  postState(modelId, { status, progress: pct, monotonic: true });
 }
 
 /** Release in-memory ONNX sessions. WASM heaps rarely shrink; prefer a fresh offscreen doc for large loads. */
@@ -98,20 +110,35 @@ async function getPipeline(modelId) {
   const spec = getLocalModel(modelId);
   console.log(LOG, 'worker: loading pipeline', modelId, spec.huggingFaceId);
   // Keep last download % while the pipeline finishes initializing.
-  postState(modelId, { status: 'loading' });
+  postState(modelId, { status: MODEL_STATUS.INITIALISING });
 
-  const pipe = await pipeline(
-    spec.pipeline as import('@huggingface/transformers').PipelineType,
-    spec.huggingFaceId,
-    {
-      progress_callback: (p) => reportProgress(modelId, p),
-      ...(spec.pipelineOptions || {}),
-    }
-  );
+  // Every failure has to leave a terminal status behind. A warm LOAD_MODEL that threw used
+  // to stay 'loading' forever: Settings spun, the poll timer never stopped, and analysis
+  // skipped the model on every later page because it was not 'ready'.
+  let pipe;
+  try {
+    pipe = await pipeline(
+      spec.pipeline as import('@huggingface/transformers').PipelineType,
+      spec.huggingFaceId,
+      {
+        progress_callback: (p) => reportProgress(modelId, p),
+        ...(spec.pipelineOptions || {}),
+      }
+    );
+  } catch (err) {
+    downloadFiles.delete(modelId);
+    postState(modelId, { status: MODEL_STATUS.ERROR, error: formatOnnxError(err) });
+    throw err;
+  }
 
   pipelines.set(modelId, pipe);
   downloadFiles.delete(modelId);
-  postState(modelId, { status: 'ready', progress: 100, error: undefined });
+  postState(modelId, {
+    status: MODEL_STATUS.READY,
+    progress: 100,
+    error: undefined,
+    installed: true,
+  });
   console.log(LOG, 'worker: pipeline ready', modelId);
   return pipe;
 }
@@ -221,7 +248,12 @@ async function removeModel(modelId) {
       console.warn(LOG, 'worker: dispose on remove failed', modelId, err);
     }
   }
-  postState(modelId, { status: 'not_installed', progress: 0, error: undefined });
+  postState(modelId, {
+    status: MODEL_STATUS.NOT_INSTALLED,
+    progress: 0,
+    error: undefined,
+    installed: false,
+  });
   try {
     const keys = await caches.keys();
     await Promise.all(keys.map((k) => caches.delete(k)));
@@ -230,18 +262,40 @@ async function removeModel(modelId) {
   }
 }
 
+function withTimeout(promise, ms, message) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
 function startDownload(modelId) {
   if (!modelId) {
     return Promise.reject(new Error('modelId required'));
   }
   console.log(LOG, 'worker: startDownload', modelId);
   downloadFiles.set(modelId, new Map());
-  postState(modelId, { status: 'downloading', progress: 0, error: undefined });
-  return getPipeline(modelId).catch((err) => {
+  postState(modelId, { status: MODEL_STATUS.DOWNLOADING, progress: 0, error: undefined });
+  return withTimeout(
+    getPipeline(modelId),
+    DOWNLOAD_TIMEOUT_MS,
+    'Model download timed out after 15 minutes. Check the network, then retry.'
+  ).catch((err) => {
+    // getPipeline reports its own failures; this also covers the timeout, which fires
+    // while getPipeline is still running and so would otherwise leave no terminal status.
     const msg = formatOnnxError(err);
     console.error(LOG, 'worker: download failed', modelId, msg, err);
     downloadFiles.delete(modelId);
-    postState(modelId, { status: 'error', error: msg });
+    postState(modelId, { status: MODEL_STATUS.ERROR, error: msg });
     throw err;
   });
 }
@@ -293,6 +347,13 @@ async function handleAction(action, message) {
       return { ok: true };
     case 'GET_MEMORY':
       return { ...(workerHeap() || {}), loadedModelIds: [...pipelines.keys()] };
+    case 'LOAD_MODEL': {
+      if (!message.modelId) return { error: 'modelId required' };
+      const cached = pipelines.has(message.modelId);
+      const traceSteps: TraceStep[] = [];
+      await loadPipelineStep(traceSteps, message.modelId);
+      return { ok: true, modelId: message.modelId, cached, traceSteps };
+    }
     case 'ZERO_SHOT':
       return zeroShot(message);
     case 'GENERATE':
