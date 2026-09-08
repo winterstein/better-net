@@ -1,42 +1,56 @@
 /**
- * Feedback client: what each target requires, the ground truth a thumb turns into, and
- * the derived localId that makes a follow-up an update rather than a second row.
- * See specs/feedback.md.
+ * Feedback client. Two shapes of statement: a **tag edit** (`module` and `chunk`, where
+ * the user corrects our tags directly) and a **thumb** (`summary` and `chunker`, whose
+ * output has no tags). Plus the derived localId that makes a correction an update rather
+ * than a second row. See specs/feedback.md.
  */
 
 import assert from 'node:assert/strict';
 import {
 	buildFeedbackSubmission,
+	editableTags,
 	feedbackLocalId,
 	isFeedbackEnabled,
 	MAX_FEEDBACK_MESSAGE_LENGTH,
 } from '../src/feedback/feedback-client.js';
 import type { FeedbackPayload } from '../src/feedback/feedback-client.js';
 import { issuesForTarget, issueLabel, OTHER_ISSUE_ID } from '../src/feedback/feedback-issues.js';
-import { primaryTagForModule, MODULE_PRIMARY_TAG } from '../src/types/ModuleAnalysis.js';
+import { tagsForModule, ANALYSIS_MODULE_IDS } from '../src/features/registry.js';
 import type { FeedbackSubmission } from '../src/types/Feedback.js';
-
-assert.equal(primaryTagForModule('clickUnbait'), 'clickbait');
-assert.equal(primaryTagForModule('factChecker', ['false-claim']), 'false-claim');
-assert.equal(primaryTagForModule('unknown'), undefined);
-assert.ok(Object.keys(MODULE_PRIMARY_TAG).length >= 5);
 
 assert.equal(isFeedbackEnabled({ shareAnonymous: false, serverEndpoint: 'http://x' }), false);
 assert.equal(isFeedbackEnabled({ shareAnonymous: true, serverEndpoint: '' }), false);
 assert.equal(isFeedbackEnabled({ shareAnonymous: true, serverEndpoint: 'http://localhost:3001' }), true);
 
-// --- preset issue lists ---
+// --- every analysis module declares a tag vocabulary, or its card has no feedback ---
 
-for (const target of ['summary', 'module', 'chunker', 'chunk'] as const) {
+for (const moduleId of ANALYSIS_MODULE_IDS) {
+	const tags = tagsForModule(moduleId);
+	assert.ok(tags.length, `${moduleId} needs a {module}-tags.ts vocabulary`);
+	assert.equal(new Set(tags.map((t) => t.id)).size, tags.length, `${moduleId} tag ids are unique`);
+	for (const spec of tags) assert.ok(spec.label, `${moduleId}:${spec.id} needs a label`);
+}
+assert.deepEqual(tagsForModule('nonsense'), [], 'unknown modules offer nothing');
+
+assert.ok(editableTags('module', 'clickUnbait').some((t) => t.id === 'clickbait'));
+assert.ok(editableTags('chunk').some((t) => t.id === 'chunk-type:article'));
+assert.deepEqual(editableTags('summary'), [], 'the summary has no tags of its own');
+assert.deepEqual(editableTags('chunker'), []);
+
+// --- preset issues: thumb targets only ---
+
+assert.deepEqual(issuesForTarget('module'), [], 'module feedback is tag editing, not presets');
+for (const target of ['summary', 'chunker', 'chunk'] as const) {
 	const issues = issuesForTarget(target);
 	assert.ok(issues.length >= 3, `${target} needs presets`);
 	assert.equal(issues[issues.length - 1].id, OTHER_ISSUE_ID, `${target} ends with Other`);
 	assert.equal(new Set(issues.map((i) => i.id)).size, issues.length, `${target} ids are unique`);
 }
-// "Does not apply" is phrased in the user's words, per module.
-assert.equal(issueLabel('module', 'not-applicable', 'clickUnbait'), "This isn't clickbait");
-assert.equal(issueLabel('module', 'not-applicable'), 'Does not apply');
 assert.equal(issueLabel('chunk', 'not-a-chunk'), "This shouldn't be a chunk");
+assert.ok(
+	!issuesForTarget('chunk').some((i) => i.id === 'wrong-tag'),
+	'"Wrong tag" is superseded by editing the tag itself'
+);
 
 // --- helpers ---
 
@@ -45,14 +59,10 @@ const CHUNK = {
 	chunkUrl: 'https://example.com/article',
 	pageUrl: 'https://example.com/article',
 };
+const MODULE = { target: 'module' as const, moduleId: 'clickUnbait', ...CHUNK };
 
-async function build(payload: Partial<FeedbackPayload>, userId = 'user-1') {
-	const built = await buildFeedbackSubmission(
-		{ target: 'summary', thumbsUp: true, ...payload } as FeedbackPayload,
-		userId
-	);
-	return built;
-}
+const build = (payload: Partial<FeedbackPayload>, userId = 'user-1') =>
+	buildFeedbackSubmission({ target: 'summary', ...payload } as FeedbackPayload, userId);
 
 async function ok(payload: Partial<FeedbackPayload>, userId = 'user-1'): Promise<FeedbackSubmission> {
 	const built = await build(payload, userId);
@@ -66,96 +76,102 @@ const errorOf = async (payload: Partial<FeedbackPayload>) => {
 	return (built as { error: string }).error;
 };
 
-// --- the localId is derived, so the same rating always lands on the same row ---
+// --- tag edits are ground truth, with nothing inferred ---
 
-const idParts = { userId: 'user-1', target: 'module' as const, moduleId: 'clickUnbait', chunkFingerprint: 'abc' };
-assert.equal(await feedbackLocalId(idParts), await feedbackLocalId(idParts), 'same rating, same id');
-assert.notEqual(
-	await feedbackLocalId(idParts),
-	await feedbackLocalId({ ...idParts, userId: 'user-2' }),
-	'one row per user, not per chunk'
-);
-for (const differs of [
-	{ target: 'chunk' as const },
-	{ moduleId: 'factChecker' },
-	{ chunkFingerprint: 'def' },
-]) {
-	assert.notEqual(
-		await feedbackLocalId(idParts),
-		await feedbackLocalId({ ...idParts, ...differs }),
-		`${JSON.stringify(differs)} is a different thing to rate`
-	);
-}
-// Chunker feedback has no chunk, so the page is the subject.
-assert.notEqual(
-	await feedbackLocalId({ userId: 'u', target: 'chunker', pageUrl: 'https://a.com' }),
-	await feedbackLocalId({ userId: 'u', target: 'chunker', pageUrl: 'https://b.com' })
-);
+// The x on a tag we applied: it does not belong.
+const removed = await ok({ ...MODULE, tag: 'clickbait', tagOn: false, problemScore: 0.8 });
+assert.equal(removed.tag, 'clickbait');
+assert.equal(removed.tagOn, false);
+assert.equal(removed.thumbsUp, undefined, 'a tag edit is not a thumb');
+assert.equal(removed.retracted, undefined);
+assert.equal(removed.moduleId, 'clickUnbait');
+assert.equal(removed.problemScore, 0.8, 'what we claimed, for weighing the correction');
 
-// A thumb and the preset issue that follows derive the same id, so one thumbs down is one row.
-const thumb = await ok({ target: 'module', thumbsUp: false, moduleId: 'clickUnbait', problemScore: 0.8, ...CHUNK });
-const followUp = await ok({
+// "+" then picking a tag: we missed it.
+const added = await ok({ ...MODULE, tag: 'clickbait', tagOn: true });
+assert.equal(added.tagOn, true);
+
+/*
+ * The reading of a tag edit must not depend on the module's own verdict — that dependency
+ * is what made thumbs ambiguous. A benign primary tag is the case that used to invert:
+ * agreeing there is no bias has to record bias:neutral as ON.
+ */
+const neutral = await ok({
 	target: 'module',
-	thumbsUp: false,
-	moduleId: 'clickUnbait',
-	problemScore: 0.8,
-	issueId: 'overstated',
-	issueLabel: 'Overstated',
+	moduleId: 'biasDetector',
+	tag: 'bias:neutral',
+	tagOn: true,
+	problemScore: 0.05,
 	...CHUNK,
 });
-assert.equal(followUp.localId, thumb.localId);
-assert.equal(followUp.issueId, 'overstated');
-assert.ok(thumb.localId.startsWith('fb-'));
+assert.equal(neutral.tag, 'bias:neutral');
+assert.equal(neutral.tagOn, true, 'a low-scoring module does not flip its own tag edit');
 
-// --- a thumb clears what the previous one collected ---
+const verified = await ok({
+	target: 'module',
+	moduleId: 'factChecker',
+	tag: 'verified-claims',
+	tagOn: true,
+	problemScore: 0.05,
+	...CHUNK,
+});
+assert.equal(verified.tagOn, true);
 
-assert.equal(thumb.issueId, null, 'a thumb wipes the stored issue');
-assert.equal(thumb.issueLabel, null);
-assert.equal(thumb.message, null, 'and the stored note');
-assert.equal(thumb.retracted, false, 'and is explicit that it is not a retraction');
-// The follow-up must not wipe the issue it is itself setting.
-assert.equal(followUp.retracted, false);
+// The chunk's own tags are editable the same way.
+const chunkTag = await ok({ target: 'chunk', tag: 'advert', tagOn: true, ...CHUNK });
+assert.equal(chunkTag.tag, 'advert');
+assert.equal(chunkTag.tagOn, true);
+assert.equal(chunkTag.thumbsUp, undefined);
 
-// --- thumbs become ground truth: tag X is on / off ---
+// --- a tag edit is checked against the vocabulary that was on offer ---
 
-const flagged = { target: 'module' as const, moduleId: 'clickUnbait', problemScore: 0.8, ...CHUNK };
-const unflagged = { ...flagged, problemScore: 0.05 };
-
-// 👍 on "this is clickbait" and 👎 on "this is not clickbait" both mean clickbait is on.
-assert.equal((await ok({ ...flagged, thumbsUp: true })).tagOn, true);
-assert.equal((await ok({ ...unflagged, thumbsUp: false })).tagOn, true);
-// And the other way round.
-assert.equal((await ok({ ...flagged, thumbsUp: false })).tagOn, false);
-assert.equal((await ok({ ...unflagged, thumbsUp: true })).tagOn, false);
-
-const module = await ok({ ...flagged, thumbsUp: false });
-assert.equal(module.tag, 'clickbait', 'the tag being judged');
-assert.equal(module.moduleId, 'clickUnbait');
-assert.equal(module.thumbsUp, false, 'the raw click is kept too');
-assert.equal(module.problemScore, 0.8, 'what we claimed, so a borderline score is recoverable');
-
-// Retracting withdraws the rating, so there is no ground truth left to record.
-const retracted = await ok({ ...flagged, thumbsUp: false, retracted: true });
-assert.equal(retracted.retracted, true);
-assert.equal(retracted.tagOn, null, 'a withdrawn rating asserts nothing about the tag');
-
-// Only the module target judges a single tag; the rest rate our output as a whole.
-for (const target of ['summary', 'chunk'] as const) {
-	const other = await ok({ target, thumbsUp: false, ...CHUNK });
-	assert.equal(other.tag, undefined, `${target} feedback is not about one tag`);
-	assert.equal(other.tagOn, undefined);
-}
-
-// --- every target records the page it came from ---
-
-const chunk = await ok({ target: 'chunk', thumbsUp: false, issueId: 'not-a-chunk', ...CHUNK });
-assert.equal(chunk.pageUrl, CHUNK.pageUrl, 'chunk feedback knows which page it was given on');
-assert.equal((await ok({ target: 'summary', thumbsUp: true, ...CHUNK })).pageUrl, CHUNK.pageUrl);
-assert.equal(
-	(await ok({ ...flagged, thumbsUp: true })).pageUrl,
-	CHUNK.pageUrl,
-	'module feedback too'
+assert.match(
+	await errorOf({ ...MODULE, tag: 'ragebait', tagOn: false }),
+	/Tag not offered here/,
+	"a module cannot be told about another module's tag"
 );
+assert.match(
+	await errorOf({ target: 'chunk', tag: 'clickbait', tagOn: true, ...CHUNK }),
+	/Tag not offered here/
+);
+assert.match(
+	await errorOf({ target: 'summary', tag: 'clickbait', tagOn: true, ...CHUNK }),
+	/no editable tags/
+);
+assert.match(await errorOf({ ...MODULE, tag: 'clickbait' }), /needs tagOn/);
+assert.match(
+	await errorOf({ target: 'module', moduleId: 'nonsense', tag: 'clickbait', tagOn: true, ...CHUNK }),
+	/no editable tags/
+);
+
+// --- thumbs, for the output that has no tags ---
+
+const summary = await ok({ target: 'summary', thumbsUp: false, ...CHUNK });
+assert.equal(summary.thumbsUp, false);
+assert.equal(summary.tag, undefined, 'a thumb names no tag');
+assert.equal(summary.retracted, false, 'explicit, so voting again is not still a withdrawal');
+assert.equal(summary.issueId, null, 'and a fresh thumb drops the previous complaint');
+assert.equal(summary.message, null);
+
+const withIssue = await ok({
+	target: 'summary',
+	thumbsUp: false,
+	issueId: 'score-too-high',
+	...CHUNK,
+});
+assert.equal(withIssue.issueId, 'score-too-high', 'the follow-up keeps the issue it sets');
+
+const retracted = await ok({ target: 'summary', thumbsUp: true, retracted: true, ...CHUNK });
+assert.equal(retracted.retracted, true);
+
+// The chunk target keeps its thumb: no tag edit can say "this shouldn't be a chunk".
+const chunkThumb = await ok({ target: 'chunk', thumbsUp: false, issueId: 'not-a-chunk', ...CHUNK });
+assert.equal(chunkThumb.thumbsUp, false);
+assert.equal(chunkThumb.issueId, 'not-a-chunk');
+
+// The module card has no thumb, on either side of the wire.
+assert.match(await errorOf({ ...MODULE, thumbsUp: false }), /Module feedback is a tag edit/);
+assert.match(await errorOf({ target: 'summary', ...CHUNK }), /needs a thumb or a tag edit/);
 
 // Chunker feedback is about the page: no chunk needed, page url required.
 const chunker = await ok({
@@ -169,28 +185,68 @@ assert.equal(chunker.chunkCount, 12);
 assert.equal(chunker.chunkFingerprint, undefined);
 assert.equal(chunker.pageUrl, 'https://example.com/feed');
 
-const summary = await ok({
-	target: 'summary',
-	thumbsUp: false,
-	issueId: 'score-too-high',
-	problemScore: 0.9,
-	...CHUNK,
-});
-assert.equal(summary.moduleId, undefined, 'summary feedback has no module');
-assert.equal(summary.problemScore, 0.9);
+// --- every target records the page it came from ---
 
-// --- validation ---
+for (const s of [summary, chunkTag, removed]) {
+	assert.equal(s.pageUrl, CHUNK.pageUrl, `${s.target} knows which page it came from`);
+}
+
+// --- the localId keys one statement, and the tag is part of the statement ---
+
+const idOf = (extra: Record<string, unknown>) =>
+	feedbackLocalId({
+		userId: 'user-1',
+		target: 'module',
+		moduleId: 'clickUnbait',
+		chunkFingerprint: 'abc',
+		...extra,
+	});
+
+assert.equal(await idOf({ tag: 'clickbait' }), await idOf({ tag: 'clickbait' }), 'same statement, same id');
+// Removing a tag then re-adding it is the same statement corrected, so it is one row.
+assert.equal(removed.localId, added.localId, 're-adding a removed tag updates that row');
+
+for (const differs of [
+	{ tag: 'urgency' },
+	{ userId: 'user-2' },
+	{ target: 'chunk' as const },
+	{ moduleId: 'factChecker' },
+	{ chunkFingerprint: 'def' },
+]) {
+	assert.notEqual(
+		await idOf({ tag: 'clickbait' }),
+		await idOf({ tag: 'clickbait', ...differs }),
+		`${JSON.stringify(differs)} is a different statement`
+	);
+}
+// Two tags edited on one module are independent corrections, not one overwriting the other.
+const editA = await ok({ ...MODULE, moduleId: 'antiManipulation', tag: 'urgency', tagOn: false });
+const editB = await ok({ ...MODULE, moduleId: 'antiManipulation', tag: 'fear', tagOn: true });
+assert.notEqual(editA.localId, editB.localId);
+assert.ok(editA.localId.startsWith('fb-'));
+
+// A thumb and a tag edit on the same chunk are different statements too.
+assert.notEqual(chunkThumb.localId, chunkTag.localId);
+
+// Chunker feedback has no chunk, so the page is the subject.
+assert.notEqual(
+	await feedbackLocalId({ userId: 'u', target: 'chunker', pageUrl: 'https://a.com' }),
+	await feedbackLocalId({ userId: 'u', target: 'chunker', pageUrl: 'https://b.com' })
+);
+
+// --- remaining validation ---
 
 assert.match(await errorOf({ target: 'nonsense' as any }), /Unknown feedback target/);
-assert.match(await errorOf({ target: 'chunker' }), /page context/);
-assert.match(await errorOf({ target: 'summary' }), /chunk context/);
+assert.match(await errorOf({ target: 'chunker', thumbsUp: true }), /page context/);
+assert.match(await errorOf({ target: 'summary', thumbsUp: true }), /chunk context/);
 assert.match(
-	await errorOf({ ...CHUNK, message: 'x'.repeat(MAX_FEEDBACK_MESSAGE_LENGTH + 1) }),
+	await errorOf({
+		target: 'summary',
+		thumbsUp: false,
+		message: 'x'.repeat(MAX_FEEDBACK_MESSAGE_LENGTH + 1),
+		...CHUNK,
+	}),
 	/too long/
-);
-assert.match(
-	await errorOf({ target: 'module', moduleId: 'notAModule', ...CHUNK }),
-	/Unknown analysis module/
 );
 
 console.log('✅ feedback tests passed');

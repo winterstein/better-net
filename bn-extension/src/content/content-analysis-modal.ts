@@ -7,7 +7,8 @@ import { fractionFromProblemScore, issueTagIds } from '../types/Score.js';
 import type { FeedbackTarget } from '../types/Feedback.js';
 import { riskLevelForScore } from '../types/RiskLevel.js';
 import { issuesForTarget, issueLabel, OTHER_ISSUE_ID } from '../feedback/feedback-issues.js';
-import { MAX_FEEDBACK_MESSAGE_LENGTH } from '../feedback/feedback-client.js';
+import { editableTags, MAX_FEEDBACK_MESSAGE_LENGTH } from '../feedback/feedback-client.js';
+import { tagLabel } from '../types/Tag.js';
 import { aiqaTraceUrl } from '../tracing/aiqa-trace-url.js';
 import { logit } from '../utils/logger.js';
 
@@ -121,12 +122,14 @@ export interface FeedbackContext {
   aiqaOrganisationId?: string;
 }
 
-const FEEDBACK_PROMPTS: Record<FeedbackTarget, string> = {
+const FEEDBACK_PROMPTS: Partial<Record<FeedbackTarget, string>> = {
   summary: 'Is this overall verdict right?',
-  module: 'Does this assessment fit?',
   chunker: 'Did we split this page up sensibly?',
-  chunk: 'Is this the right chunk, with the right tags?',
+  chunk: 'Is this the right region, with the right title?',
 };
+
+/** Shown above the editable tag row. */
+const TAG_EDIT_PROMPT = 'Tags — remove what does not fit, add what we missed:';
 
 const THUMB_STYLE = `
   border: 1px solid #ddd;
@@ -136,6 +139,37 @@ const THUMB_STYLE = `
   cursor: pointer;
   font-size: 14px;
   line-height: 1.2;
+`;
+
+const TAG_CHIP_STYLE = `
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f5f5f5;
+  color: #555;
+  padding: 3px 6px 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+`;
+
+const TAG_X_STYLE = `
+  border: none;
+  background: transparent;
+  color: #999;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 2px;
+`;
+
+const TAG_ADD_STYLE = `
+  border: 1px dashed #bbb;
+  background: white;
+  color: #666;
+  border-radius: 12px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: 12px;
 `;
 
 const ISSUE_STYLE = `
@@ -149,19 +183,79 @@ const ISSUE_STYLE = `
 `;
 
 /**
+ * Editable tag row: every tag we applied gets an ✕, and "+" opens a select of the rest of
+ * that target's vocabulary. This is the whole of module feedback — a removal says the tag
+ * does not belong, an addition says we missed it, and neither needs interpreting against
+ * what we claimed. Vocabularies come from `{module}-tags.ts` via the registry, so a module
+ * that grows a tag needs no change here. See specs/feedback.md.
+ */
+function renderTagEditor(opts: {
+  target: FeedbackTarget;
+  moduleId?: string;
+  tags: string[];
+  spanId?: string;
+  problemScore?: number;
+}): string {
+  const { target, moduleId, tags, spanId, problemScore } = opts;
+  const vocabulary = editableTags(target, moduleId);
+  if (!vocabulary.length) return '';
+
+  const chips = tags
+    .map(
+      (tag) => `
+      <span data-tag-chip="${escapeHtml(tag)}" style="${TAG_CHIP_STYLE}">
+        ${escapeHtml(tagLabel(vocabulary, tag))}
+        <button type="button" data-tag-remove="${escapeHtml(tag)}" title="Not this tag" style="${TAG_X_STYLE}">✕</button>
+      </span>`
+    )
+    .join('');
+
+  // Only tags we have not already applied are worth offering.
+  const addable = vocabulary.filter((spec) => !tags.includes(spec.id));
+  const options = addable
+    .map((spec) => `<option value="${escapeHtml(spec.id)}">${escapeHtml(spec.label)}</option>`)
+    .join('');
+
+  return `
+    <div data-feedback data-feedback-kind="tags"
+      data-target="${escapeHtml(target)}"
+      data-module-id="${escapeHtml(moduleId ?? '')}"
+      data-score="${problemScore ?? 0}"
+      data-span-id="${escapeHtml(spanId ?? '')}"
+      style="margin-top: 10px; border-top: 1px solid #eee; padding-top: 8px;">
+      <div style="font-size: 11px; color: #666; margin-bottom: 6px;">${TAG_EDIT_PROMPT}</div>
+      <div data-tag-row style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+        ${chips}
+        <!-- Always present, just hidden when every tag is already applied: removing the
+             last one has to leave a way to put it back. -->
+        <button type="button" data-tag-add ${addable.length ? '' : 'hidden'} style="${TAG_ADD_STYLE}">+</button>
+        <select data-tag-select hidden style="font-size: 12px; padding: 3px;">
+          <option value="">Add a tag…</option>
+          ${options}
+        </select>
+        <span data-status style="font-size: 11px; color: #666;"></span>
+      </div>
+      <div data-trace style="display: none; margin-top: 6px; font-size: 11px; color: #888;"></div>
+    </div>
+  `;
+}
+
+/**
  * Thumbs up/down for one rateable thing, plus the preset issues shown after a thumbs
  * down. Preset lists come from feedback/feedback-issues.ts, so a target's vocabulary is
- * data, not widget code. See specs/feedback.md.
+ * data, not widget code.
+ *
+ * Used by the targets a thumb still suits: `summary` and `chunker` rate output that has no
+ * tags, and `chunk` rates the region itself — whether it should be a chunk, and where its
+ * edges are — alongside its own tag editor. See specs/feedback.md.
  */
 function renderFeedbackWidget(opts: {
   target: FeedbackTarget;
-  moduleId?: string;
   problemScore?: number;
   spanId?: string;
-  tags?: string[];
 }): string {
-  const { target, moduleId, problemScore, spanId, tags } = opts;
-  const issues = issuesForTarget(target, moduleId)
+  const { target, problemScore, spanId } = opts;
+  const issues = issuesForTarget(target)
     .map(
       (issue) =>
         `<button type="button" data-issue="${escapeHtml(issue.id)}" style="${ISSUE_STYLE}">${escapeHtml(issue.label)}</button>`
@@ -169,15 +263,13 @@ function renderFeedbackWidget(opts: {
     .join('');
 
   return `
-    <div data-feedback
+    <div data-feedback data-feedback-kind="thumb"
       data-target="${escapeHtml(target)}"
-      data-module-id="${escapeHtml(moduleId ?? '')}"
       data-score="${problemScore ?? 0}"
       data-span-id="${escapeHtml(spanId ?? '')}"
-      data-tags="${escapeHtml((tags ?? []).join(','))}"
       style="margin-top: 10px; border-top: 1px solid #eee; padding-top: 8px;">
       <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-        <span style="font-size: 11px; color: #666;">${FEEDBACK_PROMPTS[target]}</span>
+        <span style="font-size: 11px; color: #666;">${FEEDBACK_PROMPTS[target] ?? ''}</span>
         <button type="button" data-thumb="up" title="This is right" style="${THUMB_STYLE}">👍</button>
         <button type="button" data-thumb="down" title="This is wrong" style="${THUMB_STYLE}">👎</button>
         <span data-status style="font-size: 11px; color: #666;"></span>
@@ -203,6 +295,12 @@ function renderFeedbackWidget(opts: {
 function setStatus(widget: HTMLElement, text: string): void {
   const status = widget.querySelector('[data-status]') as HTMLElement | null;
   if (status) status.textContent = text;
+}
+
+/** `hidden` rather than inline display, so the tag controls have one source of truth. */
+function setHidden(widget: HTMLElement, selector: string, hidden: boolean): void {
+  const el = widget.querySelector(selector) as HTMLElement | null;
+  if (el) el.hidden = hidden;
 }
 
 function show(widget: HTMLElement, selector: string, display: string): void {
@@ -250,14 +348,17 @@ function revealTrace(widget: HTMLElement, ctx: FeedbackContext): void {
 async function sendFeedback(
   widget: HTMLElement,
   ctx: FeedbackContext,
-  patch: { thumbsUp: boolean; retracted?: boolean; issueId?: string; message?: string }
+  patch: {
+    thumbsUp?: boolean;
+    retracted?: boolean;
+    tag?: string;
+    tagOn?: boolean;
+    issueId?: string;
+    message?: string;
+  }
 ): Promise<boolean> {
   const target = widget.dataset.target as FeedbackTarget;
   const moduleId = widget.dataset.moduleId || undefined;
-  const tags = (widget.dataset.tags || '')
-    .split(',')
-    .map((t) => t.trim())
-    .filter(Boolean);
   setStatus(widget, 'Sending…');
   try {
     const res = await chrome.runtime.sendMessage({
@@ -266,8 +367,10 @@ async function sendFeedback(
         target,
         thumbsUp: patch.thumbsUp,
         retracted: patch.retracted,
+        tag: patch.tag,
+        tagOn: patch.tagOn,
         issueId: patch.issueId,
-        issueLabel: patch.issueId ? issueLabel(target, patch.issueId, moduleId) : undefined,
+        issueLabel: patch.issueId ? issueLabel(target, patch.issueId) : undefined,
         message: patch.message,
         chunkFingerprint: ctx.chunkFingerprint,
         chunkUrl: ctx.chunkUrl,
@@ -275,7 +378,6 @@ async function sendFeedback(
         pageUrl: ctx.pageUrl,
         chunkCount: ctx.chunkCount,
         moduleId,
-        tags,
         problemScore: Number(widget.dataset.score || '0'),
         traceId: ctx.traceId,
         spanId: widget.dataset.spanId || ctx.chunkSpanId,
@@ -290,19 +392,100 @@ async function sendFeedback(
 }
 
 /**
- * One delegated listener for every widget in the modal, so the buttons revealed after a
- * thumbs down need no wiring of their own.
+ * Put a tag back on the row after the user re-adds it, with its ✕ so it can go again.
+ * Built here rather than re-rendering the modal, so the rest of the analysis stays put.
+ */
+function addTagChip(widget: HTMLElement, tag: string, label: string): void {
+  const row = widget.querySelector('[data-tag-row]');
+  const addBtn = widget.querySelector('[data-tag-add]');
+  if (!row) return;
+  const chip = document.createElement('span');
+  chip.setAttribute('data-tag-chip', tag);
+  chip.setAttribute('style', TAG_CHIP_STYLE);
+  chip.textContent = label;
+  const x = document.createElement('button');
+  x.type = 'button';
+  x.setAttribute('data-tag-remove', tag);
+  x.title = 'Not this tag';
+  x.setAttribute('style', TAG_X_STYLE);
+  x.textContent = '✕';
+  chip.appendChild(x);
+  row.insertBefore(chip, addBtn ?? null);
+}
+
+/** Drop a tag from the "+" select once it is on the row, and put it back when removed. */
+function setSelectOption(widget: HTMLElement, tag: string, label: string, present: boolean): void {
+  const select = widget.querySelector('[data-tag-select]') as HTMLSelectElement | null;
+  if (!select) return;
+  const existing = Array.from(select.options).find((o) => o.value === tag);
+  if (present && existing) existing.remove();
+  if (!present && !existing) {
+    const option = document.createElement('option');
+    option.value = tag;
+    option.textContent = label;
+    select.add(option);
+  }
+}
+
+/**
+ * One delegated listener for every widget in the modal, so the tag chips and the buttons
+ * revealed after a thumbs down need no wiring of their own.
  *
- * A thumb submits straight away — feedback is never lost because the user walked away —
- * and a preset issue or note follows as an update to the same record, which they reach by
- * deriving the same localId from what is being rated (feedback/feedback-client.ts).
+ * Every edit submits straight away — feedback is never lost because the user walked away —
+ * and a preset issue or note follows as an update to the record its thumb created, which
+ * it reaches by deriving the same localId (feedback/feedback-client.ts).
  */
 function attachFeedbackHandlers(modal: HTMLElement, ctx: FeedbackContext): void {
+  // The "+" select: choosing a tag says we missed it.
+  modal.addEventListener('change', async (e) => {
+    const select = e.target instanceof Element ? (e.target.closest('[data-tag-select]') as HTMLSelectElement | null) : null;
+    if (!select) return;
+    const widget = select.closest('[data-feedback]') as HTMLElement | null;
+    const tag = select.value;
+    if (!widget || !tag) return;
+    const label = select.options[select.selectedIndex]?.text ?? tag;
+    select.value = '';
+    if (!(await sendFeedback(widget, ctx, { tag, tagOn: true }))) return;
+    addTagChip(widget, tag, label);
+    setSelectOption(widget, tag, label, true);
+    select.hidden = true;
+    // Nothing left to offer, so the "+" has nothing to open.
+    const remaining = Array.from(select.options).filter((o) => o.value).length;
+    setHidden(widget, '[data-tag-add]', !remaining);
+    setStatus(widget, 'Added — thanks!');
+    revealTrace(widget, ctx);
+  });
+
   modal.addEventListener('click', async (e) => {
     const target = e.target instanceof Element ? e.target : null;
     if (!target) return;
     const widget = target.closest('[data-feedback]') as HTMLElement | null;
     if (!widget) return;
+
+    // ✕ on a chip: this tag does not belong on this chunk.
+    const remove = target.closest('[data-tag-remove]') as HTMLElement | null;
+    if (remove) {
+      e.preventDefault();
+      const tag = remove.dataset.tagRemove!;
+      // The x lives inside its chip, so there is no selector to escape a tag id into.
+      const chip = remove.closest('[data-tag-chip]') as HTMLElement | null;
+      const label = chip?.textContent?.replace('✕', '').trim() || tag;
+      if (!(await sendFeedback(widget, ctx, { tag, tagOn: false }))) return;
+      chip?.remove();
+      // Offer it again, so a mis-click is one click to undo.
+      setSelectOption(widget, tag, label, false);
+      setHidden(widget, '[data-tag-add]', false);
+      setStatus(widget, 'Removed — thanks!');
+      revealTrace(widget, ctx);
+      return;
+    }
+
+    if (target.closest('[data-tag-add]')) {
+      e.preventDefault();
+      setHidden(widget, '[data-tag-select]', false);
+      (widget.querySelector('[data-tag-select]') as HTMLSelectElement | null)?.focus();
+      return;
+    }
 
     const thumb = target.closest('[data-thumb]') as HTMLElement | null;
     if (thumb) {
@@ -610,6 +793,7 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
               )
               .join('')}
           </div>
+          ${canFeedback ? renderTagEditor({ target: 'chunk', tags, spanId }) : ''}
           ${canFeedback ? renderFeedbackWidget({ target: 'chunk', spanId }) : ''}
         </div>
         `
@@ -688,12 +872,12 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
               ${factCheckHTML}
               ${
                 canFeedback
-                  ? renderFeedbackWidget({
+                  ? renderTagEditor({
                       target: 'module',
                       moduleId,
+                      tags,
                       problemScore: score,
                       spanId: result.spanId,
-                      tags,
                     })
                   : ''
               }

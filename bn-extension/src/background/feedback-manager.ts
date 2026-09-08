@@ -38,9 +38,9 @@ export function setupFeedbackManager() {
 /** What the AIQA trace view shows for this feedback: the target, and why it was wrong. */
 function traceComment(entry: FeedbackSubmission): string {
 	const parts = [entry.moduleId ? `${entry.target}:${entry.moduleId}` : entry.target];
-	// The ground truth is the useful half for anyone reading the trace: not "wrong", but
-	// which way round it should have gone.
-	if (entry.tag && entry.tagOn != null) parts.push(`${entry.tag}=${entry.tagOn ? 'on' : 'off'}`);
+	// A tag edit is the useful kind for anyone reading the trace: not "wrong", but which
+	// way round it should have gone. terminology.md writes "off" as !tag.
+	if (entry.tag && entry.tagOn != null) parts.push(entry.tagOn ? entry.tag : `!${entry.tag}`);
 	if (entry.issueLabel) parts.push(entry.issueLabel);
 	if (entry.message) parts.push(`"${entry.message}"`);
 	return parts.join(' — ');
@@ -49,8 +49,12 @@ function traceComment(entry: FeedbackSubmission): string {
 function toPayload(p: Record<string, unknown>): FeedbackPayload {
 	return {
 		target: p.target as FeedbackTarget,
-		thumbsUp: !!p.thumbsUp,
+		// Left undefined when absent: a tag edit has no thumb, and !!undefined would
+		// invent a thumbs down.
+		thumbsUp: typeof p.thumbsUp === 'boolean' ? p.thumbsUp : undefined,
 		retracted: !!p.retracted,
+		tag: p.tag ? String(p.tag) : undefined,
+		tagOn: typeof p.tagOn === 'boolean' ? p.tagOn : undefined,
 		issueId: p.issueId ? String(p.issueId) : undefined,
 		issueLabel: p.issueLabel ? String(p.issueLabel) : undefined,
 		message: p.message ? String(p.message) : undefined,
@@ -100,7 +104,8 @@ async function mirrorToAiqa(entry: FeedbackSubmission, settings: Record<string, 
 		// The worker may have been suspended since the analysis, so the exporter is rebuilt.
 		if (!(await configureAiqaTracing(settings))) return;
 		await mirrorFeedbackToAiqa(entry.traceId, {
-			thumbsUp: entry.retracted ? undefined : entry.thumbsUp,
+			// A tag edit carries its verdict in the comment, so leave the thumb neutral.
+			thumbsUp: entry.retracted || entry.tag ? undefined : entry.thumbsUp,
 			comment: traceComment(entry),
 			parentSpanId: entry.spanId,
 		});

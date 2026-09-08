@@ -9,18 +9,26 @@
  * (background/feedback-manager.ts).
  */
 
-import { MODULE_PRIMARY_TAG, primaryTagForModule } from '../types/ModuleAnalysis.js';
-import type { IssueTag } from '../types/Score.js';
+import { tagsForModule } from '../features/registry.js';
 import { fractionFromProblemScore, type ProblemScore } from '../types/Score.js';
 import { FEEDBACK_TARGETS } from '../types/Feedback.js';
 import type { FeedbackSubmission, FeedbackTarget } from '../types/Feedback.js';
-import { riskLevelForScore } from '../types/RiskLevel.js';
+import { CHUNK_TAG_SPECS } from '../types/Tag.js';
+import type { TagSpec } from '../types/Tag.js';
 
 export const FEEDBACK_QUEUE_KEY = 'bnFeedbackQueue';
 const DEVICE_ID_KEY = 'bnDeviceId';
 export const MAX_FEEDBACK_MESSAGE_LENGTH = 500;
 
-const ANALYSIS_MODULE_IDS = new Set(Object.keys(MODULE_PRIMARY_TAG));
+/**
+ * Which tags a target may edit. A tag outside its own vocabulary is a bug in the caller,
+ * not a user opinion, so it is rejected rather than stored.
+ */
+export function editableTags(target: FeedbackTarget, moduleId?: string): TagSpec[] {
+	if (target === 'chunk') return CHUNK_TAG_SPECS;
+	if (target === 'module') return tagsForModule(moduleId ?? '');
+	return [];
+}
 
 export function isFeedbackEnabled(settings: {
 	shareAnonymous?: boolean;
@@ -87,12 +95,15 @@ export async function flushFeedbackQueue(
 	return sent;
 }
 
-/** What the modal sends in BN_SUBMIT_FEEDBACK. */
+/** What the modal sends in BN_SUBMIT_FEEDBACK: either a thumb or one tag edit. */
 export interface FeedbackPayload {
 	target: FeedbackTarget;
-	/** The click: true = 👍, false = 👎. */
-	thumbsUp: boolean;
+	/** A thumb, for the targets that still have one (`summary`, `chunker`, `chunk`). */
+	thumbsUp?: boolean;
 	retracted?: boolean;
+	/** A tag edit: the tag, and whether the user says it belongs. */
+	tag?: string;
+	tagOn?: boolean;
 	issueId?: string;
 	issueLabel?: string;
 	message?: string;
@@ -102,8 +113,6 @@ export interface FeedbackPayload {
 	pageUrl?: string;
 	chunkCount?: number;
 	moduleId?: string;
-	/** Product tags from the module result; primary is chosen by severity. */
-	tags?: Array<string | IssueTag>;
 	analysisId?: string;
 	problemScore?: ProblemScore | number;
 	confidence?: number;
@@ -112,10 +121,14 @@ export interface FeedbackPayload {
 }
 
 /**
- * One record per (user, thing rated). Deterministic, which does three jobs: the thumb and
- * the preset issue that follows land on the same row without passing an id around, a
- * follow-up made offline replaces the queued thumb, and re-rating the same chunk after a
- * reload corrects the earlier verdict instead of filing a second opinion against it.
+ * One record per (user, statement). Deterministic, which does three jobs: a preset issue
+ * lands on the row its thumb created without passing an id around, a follow-up made
+ * offline replaces the queued thumb, and saying the same thing again after a reload
+ * corrects the earlier record instead of filing a second opinion against it.
+ *
+ * The tag is part of the key, because each tag is its own statement: removing `clickbait`
+ * and adding `urgency` on one module are two independent corrections, not one overwriting
+ * the other. Re-adding a tag you removed *is* the same statement, so it updates that row.
  *
  * A chunk's fingerprint is its url + title (types/Chunk.ts), so a page whose body changed
  * keeps its id, while a different page — or a retitled one — is treated as a new subject.
@@ -126,35 +139,23 @@ export async function feedbackLocalId(parts: {
 	moduleId?: string;
 	chunkFingerprint?: string;
 	pageUrl?: string;
+	tag?: string;
 }): Promise<string> {
 	// The chunk when there is one; the page for chunker feedback, which has no chunk.
 	const subject = parts.chunkFingerprint || parts.pageUrl || '';
-	const key = [parts.userId, parts.target, parts.moduleId ?? '', subject].join('|');
+	const key = [parts.userId, parts.target, parts.moduleId ?? '', subject, parts.tag ?? ''].join('|');
 	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key));
 	const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
 	return `fb-${hex.slice(0, 24)}`;
 }
 
 /**
- * Did the analysis claim this tag is on? The thumb is a verdict on that claim, so turning
- * it into ground truth needs it. 'safe' is the band where we flag nothing, the same line
- * the Nutrient Label draws (types/RiskLevel.ts) — so it is the line the user was reacting
- * to. Borderline scores therefore hinge on a display threshold, which is why
- * `problemScore` is stored alongside.
- */
-function analysisFlaggedIt(problemScore?: ProblemScore | number): boolean {
-	const fraction =
-		typeof problemScore === 'number'
-			? problemScore
-			: problemScore
-				? fractionFromProblemScore(problemScore)
-				: 0;
-	return riskLevelForScore(fraction).id !== 'safe';
-}
-
-/**
- * Validate and complete a submission. Required context differs by target: 'chunker' is
- * about the page, the other three are about a chunk, and 'module' also needs a module.
+ * Validate and complete a submission — either a thumb or one tag edit.
+ *
+ * Required context differs by target: 'chunker' is about the page, the other three are
+ * about a chunk, and 'module' also needs a module. A tag edit is checked against that
+ * target's own vocabulary, so a tag the UI never offered is a caller bug and is rejected
+ * rather than stored as an opinion.
  */
 export async function buildFeedbackSubmission(
 	payload: FeedbackPayload,
@@ -172,12 +173,29 @@ export async function buildFeedbackSubmission(
 		return { error: 'Missing chunk context' };
 	}
 
+	// A tag edit and a thumb are different statements, and every submission is one of them.
+	const isTagEdit = payload.tag !== undefined;
+	if (isTagEdit) {
+		if (typeof payload.tagOn !== 'boolean') return { error: 'Tag edit needs tagOn' };
+		const vocabulary = editableTags(payload.target, payload.moduleId);
+		if (!vocabulary.length) return { error: `${payload.target} feedback has no editable tags` };
+		if (!vocabulary.some((t) => t.id === payload.tag)) {
+			return { error: `Tag not offered here: ${payload.tag}` };
+		}
+	} else if (typeof payload.thumbsUp !== 'boolean') {
+		return { error: 'Feedback needs a thumb or a tag edit' };
+	} else if (payload.target === 'module') {
+		// The module card has no thumb — its tags are edited directly. bn-server agrees,
+		// so catching it here turns a 400 into a caller-side error.
+		return { error: 'Module feedback is a tag edit' };
+	}
+
 	/**
 	 * A thumb starts the rating over, so it has to wipe the preset issue and note the
-	 * previous one collected — otherwise a 👍 keeps "this isn't clickbait" hanging off it.
+	 * previous one collected — otherwise a 👍 keeps a complaint hanging off it.
 	 * null clears the stored value; undefined would leave it in place.
 	 */
-	const isThumb = !payload.issueId && !payload.message;
+	const isThumb = !isTagEdit && !payload.issueId && !payload.message;
 
 	const submission: FeedbackSubmission = {
 		localId: await feedbackLocalId({
@@ -186,20 +204,28 @@ export async function buildFeedbackSubmission(
 			moduleId: payload.moduleId,
 			chunkFingerprint: payload.chunkFingerprint,
 			pageUrl: payload.pageUrl,
+			tag: payload.tag,
 		}),
 		target: payload.target,
-		thumbsUp: payload.thumbsUp,
-		// Explicit, so rating again after a retraction is not still marked as withdrawn.
-		retracted: !!payload.retracted,
-		issueId: isThumb ? null : payload.issueId,
-		issueLabel: isThumb ? null : payload.issueLabel,
-		message: isThumb ? null : payload.message?.trim() || null,
 		// Which page the feedback came from, for every target — chunker has only this.
 		pageUrl: payload.pageUrl,
 		traceId: payload.traceId,
 		spanId: payload.spanId,
 		userId,
 	};
+
+	if (isTagEdit) {
+		// Nothing is inferred: the user said which tag, and whether it belongs.
+		submission.tag = payload.tag;
+		submission.tagOn = payload.tagOn;
+	} else {
+		submission.thumbsUp = payload.thumbsUp;
+		// Explicit, so rating again after a retraction is not still marked as withdrawn.
+		submission.retracted = !!payload.retracted;
+		submission.issueId = isThumb ? null : payload.issueId;
+		submission.issueLabel = isThumb ? null : payload.issueLabel;
+		submission.message = isThumb ? null : payload.message?.trim() || null;
+	}
 
 	if (payload.target === 'chunker') {
 		submission.chunkCount = payload.chunkCount;
@@ -209,26 +235,20 @@ export async function buildFeedbackSubmission(
 	submission.chunkFingerprint = payload.chunkFingerprint;
 	submission.chunkUrl = payload.chunkUrl;
 	submission.chunkTitle = payload.chunkTitle;
-	submission.problemScore =
-		typeof payload.problemScore === 'number'
-			? payload.problemScore
-			: payload.problemScore
-				? fractionFromProblemScore(payload.problemScore)
-				: payload.problemScore;
+	// What we claimed, so a correction can be weighed against how sure we were.
+	if (payload.problemScore !== undefined) {
+		submission.problemScore =
+			typeof payload.problemScore === 'number'
+				? payload.problemScore
+				: fractionFromProblemScore(payload.problemScore);
+	}
 
 	if (payload.target === 'module') {
 		const moduleId = payload.moduleId || '';
-		if (!ANALYSIS_MODULE_IDS.has(moduleId)) return { error: 'Unknown analysis module' };
-		const tag = primaryTagForModule(moduleId, payload.tags);
-		if (!tag) return { error: 'Unknown analysis module' };
+		if (!tagsForModule(moduleId).length) return { error: 'Unknown analysis module' };
 		submission.moduleId = moduleId;
 		submission.analysisId = payload.analysisId;
 		submission.confidence = payload.confidence;
-		submission.tag = tag;
-		// A retraction withdraws the rating, so there is no ground truth left to record.
-		submission.tagOn = payload.retracted
-			? null
-			: payload.thumbsUp === analysisFlaggedIt(payload.problemScore);
 	}
 
 	return submission;

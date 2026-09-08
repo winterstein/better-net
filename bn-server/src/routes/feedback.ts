@@ -11,6 +11,10 @@
  * An update merges onto what is stored, so a field the client omits keeps its value. That
  * is what lets a follow-up be partial, and it is why the client sends an explicit null to
  * clear: a fresh thumb has to drop the complaint the previous one collected.
+ *
+ * A submission is either a **thumb** (`thumbsUp`, for output with no tags of its own) or a
+ * **tag edit** (`tag` + `tagOn`, the user's own correction). The `module` and `chunk`
+ * targets send tag edits; see bn-extension/specs/feedback.md.
  */
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
@@ -68,8 +72,12 @@ function validateBody(body: Partial<FeedbackSubmission>): string | null {
 	if (!body.target || !VALID_TARGETS.has(body.target)) {
 		return 'target is invalid';
 	}
-	if (typeof body.thumbsUp !== 'boolean') {
-		return 'thumbsUp must be a boolean';
+	// Either a thumb or a tag edit — a record with neither states nothing.
+	const isTagEdit = typeof body.tag === 'string' && body.tag !== '';
+	if (isTagEdit) {
+		if (typeof body.tagOn !== 'boolean') return 'tagOn must be a boolean for a tag edit';
+	} else if (typeof body.thumbsUp !== 'boolean') {
+		return 'feedback needs a thumb or a tag edit';
 	}
 	// null is how a new thumb clears the note an earlier one collected, so only reject a
 	// message that is present and wrong.
@@ -90,6 +98,14 @@ function validateBody(body: Partial<FeedbackSubmission>): string | null {
 	}
 	if (body.target === 'module') {
 		if (!body.moduleId || typeof body.moduleId !== 'string') return 'moduleId is required';
+		/*
+		 * The module target has no thumb any more: its feedback is which tags belong. The
+		 * exception is a pre-rename payload, which is a thumb by definition — a tab left
+		 * open across the update still sends one, and dropping it would lose real feedback
+		 * for no gain. `aspectType` is what marks it; it names no tag we could translate
+		 * to, so it is stored as the thumb it is.
+		 */
+		if (!isTagEdit && !body.aspectType) return 'module feedback is a tag edit';
 	}
 	return null;
 }

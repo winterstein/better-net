@@ -20,23 +20,30 @@ export interface FeedbackSubmission {
 	 */
 	localId: string;
 	target: FeedbackTarget;
-	/** The click itself: true = 👍, false = 👎. Uninterpreted, so it always means one thing. */
-	thumbsUp: boolean;
-	/** Same thumb clicked twice: rating withdrawn, record kept. */
+	/**
+	 * A thumb: true = 👍, false = 👎. Rates our output as a whole, so it is what `summary`
+	 * and `chunker` send. Absent on a tag edit, which says something more specific.
+	 */
+	thumbsUp?: boolean;
+	/** Same thumb clicked twice: rating withdrawn, record kept. Thumbs only. */
 	retracted?: boolean;
 	/**
-	 * The thumb read as ground truth: tag `tag` is / is not on this chunk.
+	 * A tag edit — the user's own correction, and the ground truth we actually want:
+	 * **tag `tag` is / is not on this chunk**. `tagOn: false` is the "!tag" of
+	 * terminology.md; the two are the same statement in different shapes, and this one is
+	 * queryable without parsing strings.
 	 *
-	 * A thumb on its own only says "you got this right" or "you got this wrong", which is
-	 * useless without knowing what we claimed. So this pairs the thumb with the verdict it
-	 * was given on: 👍 on "this is clickbait" and 👎 on "this is not clickbait" both record
-	 * clickbait as on. Set for target 'module', where exactly one product tag is being judged;
-	 * absent for the others, where a thumb rates our whole output rather than a tag.
-	 * See specs/feedback.md.
+	 * No inference is involved: removing a tag we applied says it does not belong, adding
+	 * one says we missed it. That is why the `module` and `chunk` targets send these
+	 * instead of a thumb — a thumb on a tagged verdict cannot be read without knowing
+	 * which way round the verdict went. See specs/feedback.md.
 	 */
 	tag?: string;
 	tagOn?: Clearable<boolean>;
-	/** Preset issue picked after a thumbs down, e.g. 'not-a-chunk'. feedback/feedback-issues.ts */
+	/**
+	 * Preset issue picked after a thumbs down, e.g. 'not-a-chunk'. Thumbs only —
+	 * feedback/feedback-issues.ts no longer carries a list for `module`.
+	 */
 	issueId?: Clearable<string>;
 	issueLabel?: Clearable<string>;
 	/** Free text from the "Other" box only. */
@@ -49,7 +56,7 @@ export interface FeedbackSubmission {
 	pageUrl?: string;
 	/** target 'chunker' only */
 	chunkCount?: number;
-	/** target 'module' only */
+	/** Whose tag was edited, for target 'module'. */
 	moduleId?: string;
 	/** Legacy pre-Module rename; accepted by server normalize only */
 	aspectType?: string;

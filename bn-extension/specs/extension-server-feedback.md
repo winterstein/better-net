@@ -9,29 +9,37 @@ lives in `specs/feedback.md`.** This file is the transport + server contract.
 
 ## Goals (v1)
 
-- User can give **+ / −** (thumbs up / down) feedback on a specific **chunk** and **module** (e.g. “this article chunk **is** / **is not** misleading”). The thumb is stored as `thumbsUp`, and for a module it is also recorded as ground truth — `tag` is on / off for this chunk. See `specs/feedback.md`.
+- User can correct a chunk's tags directly — removing one we applied, or adding one we
+  missed — stored as `tag` + `tagOn` ("tag X is / is not on this chunk"). Targets whose
+  output has no tags (`summary`, `chunker`) take a **+ / −** thumb instead, stored as
+  `thumbsUp`. See `specs/feedback.md`.
 - Thumbs down feedback may include an **optional short message** (free text, length-capped).
 - Extension sends feedback to the server when the user has opted in and a server endpoint is configured (see Settings → Account / Data Sharing).
 
 ## User experience
 
 - Entry point: **Content Analysis** modal on a chunk (same place the user already sees module results).
-- User picks the **module** being rated
-- **+** = our verdict on this module is right.
-- **−** = our verdict is wrong.
+- On a module card, and on the chunk's own tags:
+  - **✕** on a tag = it does not belong on this chunk (`tagOn: false`, the `!tag` of
+    terminology.md).
+  - **+** then a tag from that module's vocabulary = we missed it (`tagOn: true`).
+- Where there are no tags to correct (`summary`, `chunker`), and for the chunk region
+  itself: **+ / −** = our verdict is right / wrong, with optional preset issues and a
+  **message** field (collapsed by default).
+- Brief confirmation in UI; failures show a non-blocking error, and leave the tag row as
+  it was rather than pretending the edit landed.
 
-Either way the record carries what the tag actually is, not just whether we got it
-right (`specs/feedback.md`, "What a thumb records").
-- Optional **message** field (collapsed by default).
-- Brief confirmation in UI; failures show a non-blocking error.
-
-Feedback is keyed by settings `moduleId` and a product `tag` from terminology.md
-(`clickbait`, `false-claim`, `bias:left`, …).
+Every record is either a tag edit or a thumb; the server rejects one that is neither.
+Tag edits are keyed by settings `moduleId` and a product `tag` from terminology.md
+(`clickbait`, `false-claim`, `bias:left`, …), validated against that target's own
+vocabulary.
 
 ## Data sent
 
 Use `ModuleAnalysis` / `FeedbackSubmission` as the basis for data sent / received.
-Legacy `target: aspect` and `aspectType` are normalized to `module` + `moduleId` on the server.
+Legacy `target: aspect` and `aspectType` are normalized to `module` + `moduleId` on the
+server, and legacy `applies` to `thumbsUp`. Such a payload is a thumb on `module`, which
+has none any more, so it is the one case exempt from "module feedback is a tag edit".
 
 ## Server API
 

@@ -1,10 +1,10 @@
 /**
  * Feedback widgets in the Content Analysis modal (src/content/content-analysis-modal.ts).
  *
- * What matters here is the wiring, not the layout: one widget per rateable thing, a thumb
- * that submits immediately, preset issues that appear only after a thumbs down, and the
- * trace link that Developer Mode adds. The localId that ties a follow-up to its thumb is
- * derived in the background from what is being rated, so it is not tested here — see
+ * What matters here is the wiring, not the layout: editable tag rows on the module cards
+ * and the chunk, thumbs where a thumb still fits, preset issues that appear only after a
+ * thumbs down, and the trace link that Developer Mode adds. The localId that ties a
+ * follow-up to its thumb is derived in the background, so it is not tested here — see
  * test/feedback.test.ts. See specs/feedback.md.
  */
 
@@ -19,6 +19,7 @@ let reply: any = { ok: true };
 
 Object.assign(globalThis as any, {
   window: dom.window,
+  HTMLSelectElement: dom.window.HTMLSelectElement,
   document: dom.window.document,
   Node: dom.window.Node,
   Element: dom.window.Element,
@@ -78,36 +79,144 @@ const click = (el: Element | null) => {
 };
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
-// --- one widget per rateable thing ---
+// --- what is rateable, and how ---
 
 let modal = openModal();
 let widgets = widgetsOf(modal);
+const kindOf = (w: HTMLElement) => `${w.dataset.target}:${w.dataset.feedbackKind}`;
 assert.deepEqual(
-  widgets.map((w) => w.dataset.target).sort(),
-  ['chunk', 'chunker', 'module', 'summary'],
-  'summary, each feature, the chunk and the chunker are all rateable'
+  widgets.map(kindOf).sort(),
+  ['chunk:tags', 'chunk:thumb', 'chunker:thumb', 'module:tags', 'summary:thumb'],
+  'modules are rated by editing their tags; the chunk gets both, since a tag edit cannot say "not a chunk"'
 );
 
-const moduleWidget = widgets.find((w) => w.dataset.target === 'module')!;
-assert.equal(moduleWidget.dataset.moduleId, 'clickUnbait');
-assert.equal(moduleWidget.dataset.spanId, 'd'.repeat(16), 'module feedback points at its own span');
-assert.equal(moduleWidget.dataset.score, '0.75', 'the widget carries what we claimed');
+const tagEditor = (target: string) =>
+  widgets.find((w) => w.dataset.target === target && w.dataset.feedbackKind === 'tags')!;
+const thumbWidget = (target: string) =>
+  widgets.find((w) => w.dataset.target === target && w.dataset.feedbackKind === 'thumb')!;
 
-// Presets are hidden until a thumbs down, and every widget offers its own vocabulary.
-const issuesRow = moduleWidget.querySelector('[data-issues]') as HTMLElement;
-assert.equal(issuesRow.style.display, 'none');
+const moduleTags = tagEditor('module');
+assert.equal(moduleTags.dataset.moduleId, 'clickUnbait');
+assert.equal(moduleTags.dataset.spanId, 'd'.repeat(16), 'module feedback points at its own span');
+assert.equal(moduleTags.dataset.score, '0.75', 'the widget carries what we claimed');
+assert.equal(moduleTags.querySelector('[data-thumb]'), null, 'the module card has no thumb');
+assert.equal(moduleTags.querySelector('[data-issue]'), null, 'and no preset issues');
+
+// The tag we applied is on the row, with an x to say it does not belong.
+assert.ok(moduleTags.querySelector('[data-tag-chip="clickbait"]'), 'our tag is shown');
+assert.ok(moduleTags.querySelector('[data-tag-remove="clickbait"]'), 'and can be removed');
+
+// "+" offers the rest of that module's vocabulary, and not the tag already applied.
+const chunkTags = tagEditor('chunk');
+const chunkOptions = Array.from(
+  chunkTags.querySelectorAll('[data-tag-select] option')
+).map((o) => (o as HTMLOptionElement).value);
+assert.ok(chunkOptions.includes('advert'), 'the chunk can be marked an advert');
 assert.ok(
-  Array.from(issuesRow.querySelectorAll('[data-issue]')).some(
-    (b) => b.textContent?.trim() === "This isn't clickbait"
-  ),
-  'clickbait module offers "This isn\'t clickbait"'
+  !chunkOptions.includes('chunk-type:article'),
+  'the tag it already has is not offered again'
 );
-const chunkerIssues = widgets.find((w) => w.dataset.target === 'chunker')!;
+assert.ok(chunkTags.querySelector('[data-tag-chip="chunk-type:article"]'));
+assert.equal(
+  (chunkTags.querySelector('[data-tag-select]') as HTMLElement).hidden,
+  true,
+  'the select stays out of the way until "+" is clicked'
+);
+
+// clickUnbait has one tag, and it is already applied, so "+" has nothing to open yet.
+assert.equal(
+  (moduleTags.querySelector('[data-tag-add]') as HTMLElement).hidden,
+  true,
+  '"+" is hidden while every tag is applied — but still there, so a removal can be undone'
+);
+
+// --- removing a tag says it does not belong ---
+
+click(moduleTags.querySelector('[data-tag-remove="clickbait"]'));
+await settle();
+assert.equal(sent.length, 1, 'the edit submits straight away');
+assert.equal(sent[0].type, 'BN_SUBMIT_FEEDBACK');
+assert.equal(sent[0].payload.target, 'module');
+assert.equal(sent[0].payload.moduleId, 'clickUnbait');
+assert.equal(sent[0].payload.tag, 'clickbait');
+assert.equal(sent[0].payload.tagOn, false);
+assert.equal(sent[0].payload.thumbsUp, undefined, 'a tag edit is not a thumb');
+assert.equal(sent[0].payload.chunkFingerprint, 'fp-1');
+assert.equal(sent[0].payload.traceId, TRACE_ID);
+assert.equal(moduleTags.querySelector('[data-tag-chip="clickbait"]'), null, 'the chip goes');
+assert.match((moduleTags.querySelector('[data-status]') as HTMLElement).textContent!, /Removed/);
+// A mis-click is one click to undo: the tag comes back on offer.
+assert.equal(
+  (moduleTags.querySelector('[data-tag-add]') as HTMLElement).hidden,
+  false,
+  '"+" appears now there is something to add'
+);
+assert.deepEqual(
+  Array.from(moduleTags.querySelectorAll('[data-tag-select] option'))
+    .map((o) => (o as HTMLOptionElement).value)
+    .filter(Boolean),
+  ['clickbait']
+);
+
+// --- adding a tag says we missed it ---
+
+modal = openModal();
+widgets = widgetsOf(modal);
+const addTo = widgets.find((w) => w.dataset.target === 'chunk' && w.dataset.feedbackKind === 'tags')!;
+click(addTo.querySelector('[data-tag-add]'));
+await settle();
+assert.equal(
+  (addTo.querySelector('[data-tag-select]') as HTMLElement).hidden,
+  false,
+  '"+" opens the select'
+);
+assert.equal(sent.length, 0, 'opening the select submits nothing');
+
+const select = addTo.querySelector('[data-tag-select]') as HTMLSelectElement;
+select.value = 'advert';
+select.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+await settle();
+assert.equal(sent.length, 1);
+assert.equal(sent[0].payload.target, 'chunk');
+assert.equal(sent[0].payload.tag, 'advert');
+assert.equal(sent[0].payload.tagOn, true);
+assert.equal(sent[0].payload.thumbsUp, undefined);
+assert.ok(addTo.querySelector('[data-tag-chip="advert"]'), 'the new tag joins the row');
+assert.ok(addTo.querySelector('[data-tag-remove="advert"]'), 'and can be taken off again');
+assert.ok(
+  !Array.from(addTo.querySelectorAll('[data-tag-select] option')).some(
+    (o) => (o as HTMLOptionElement).value === 'advert'
+  ),
+  'and is no longer offered'
+);
+
+// A failed send leaves the row alone rather than pretending the edit landed.
+reply = { ok: false, error: 'Feedback sharing is disabled in Settings → Data Sharing' };
+modal = openModal();
+widgets = widgetsOf(modal);
+const failingTags = widgets.find(
+  (w) => w.dataset.target === 'module' && w.dataset.feedbackKind === 'tags'
+)!;
+click(failingTags.querySelector('[data-tag-remove="clickbait"]'));
+await settle();
+assert.ok(failingTags.querySelector('[data-tag-chip="clickbait"]'), 'the tag is still there');
+assert.match((failingTags.querySelector('[data-status]') as HTMLElement).textContent!, /disabled/);
+reply = { ok: true };
+
+modal = openModal();
+widgets = widgetsOf(modal);
+const chunkerIssues = thumbWidget('chunker');
 assert.ok(
   Array.from(chunkerIssues.querySelectorAll('[data-issue]')).some((b) =>
     b.textContent?.includes('Missed content')
   ),
   'chunker offers chunker issues'
+);
+assert.ok(
+  !Array.from(thumbWidget('chunk').querySelectorAll('[data-issue]')).some((b) =>
+    b.textContent?.includes('Wrong tag')
+  ),
+  '"Wrong tag" is gone: the tags are editable in place'
 );
 
 // --- thumbs up submits straight away ---
@@ -125,47 +234,49 @@ assert.equal(sent[0].payload.chunkFingerprint, 'fp-1');
 
 modal = openModal();
 widgets = widgetsOf(modal);
-const moduleFb = widgets.find((w) => w.dataset.target === 'module')!;
-click(moduleFb.querySelector('[data-thumb="down"]'));
+const summaryFb = widgets.find((w) => w.dataset.target === 'summary')!;
+click(summaryFb.querySelector('[data-thumb="down"]'));
 await settle();
 assert.equal(sent.length, 1, 'the thumb itself is already recorded');
 assert.equal(sent[0].payload.thumbsUp, false);
+assert.equal(sent[0].payload.tag, undefined, 'a thumb names no tag');
 assert.equal(
-  (moduleFb.querySelector('[data-issues]') as HTMLElement).style.display,
+  (summaryFb.querySelector('[data-issues]') as HTMLElement).style.display,
   'flex',
   'presets open on thumbs down'
 );
 
-click(moduleFb.querySelector('[data-issue="not-applicable"]'));
+click(summaryFb.querySelector('[data-issue="score-too-high"]'));
 await settle();
 assert.equal(sent.length, 2);
-assert.equal(sent[1].payload.target, 'module', 'the follow-up rates the same thing');
-assert.equal(sent[1].payload.moduleId, 'clickUnbait');
+assert.equal(sent[1].payload.target, 'summary', 'the follow-up rates the same thing');
 assert.equal(sent[1].payload.chunkFingerprint, 'fp-1');
-assert.equal(sent[1].payload.issueId, 'not-applicable');
-assert.equal(sent[1].payload.issueLabel, "This isn't clickbait");
-assert.equal((moduleFb.querySelector('[data-issues]') as HTMLElement).style.display, 'none');
+assert.equal(sent[1].payload.issueId, 'score-too-high');
+assert.equal(sent[1].payload.issueLabel, 'Score too high');
+assert.equal((summaryFb.querySelector('[data-issues]') as HTMLElement).style.display, 'none');
 
 // --- Other… opens the free-text box ---
 
 modal = openModal();
 widgets = widgetsOf(modal);
-const chunkWidget = widgets.find((w) => w.dataset.target === 'chunk')!;
-click(chunkWidget.querySelector('[data-thumb="down"]'));
+const chunkThumbFb = widgets.find(
+  (w) => w.dataset.target === 'chunk' && w.dataset.feedbackKind === 'thumb'
+)!;
+click(chunkThumbFb.querySelector('[data-thumb="down"]'));
 await settle();
-click(chunkWidget.querySelector('[data-issue="other"]'));
+click(chunkThumbFb.querySelector('[data-issue="other"]'));
 await settle();
 assert.equal(sent.length, 1, 'Other… only reveals the box, it does not submit');
-const note = chunkWidget.querySelector('[data-note]') as HTMLElement;
+const note = chunkThumbFb.querySelector('[data-note]') as HTMLElement;
 assert.equal(note.style.display, 'block');
 
-const textarea = chunkWidget.querySelector('[data-note-text]') as HTMLTextAreaElement;
-click(chunkWidget.querySelector('[data-send-note]'));
+const textarea = chunkThumbFb.querySelector('[data-note-text]') as HTMLTextAreaElement;
+click(chunkThumbFb.querySelector('[data-send-note]'));
 await settle();
 assert.equal(sent.length, 1, 'an empty note is not sent');
 
 textarea.value = 'this div is a sidebar';
-click(chunkWidget.querySelector('[data-send-note]'));
+click(chunkThumbFb.querySelector('[data-send-note]'));
 await settle();
 assert.equal(sent.length, 2);
 assert.equal(sent[1].payload.message, 'this div is a sidebar');

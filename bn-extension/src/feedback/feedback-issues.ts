@@ -3,6 +3,11 @@
  * passes a list into the widget, so each target keeps its own vocabulary without the
  * widget knowing anything about them. See specs/feedback.md.
  *
+ * Only the thumb targets have a list. `module` has none: its feedback is tag editing, so
+ * "does not apply" is expressed by removing the tag rather than by naming a complaint.
+ * `chunk` keeps a list, because a thumb there is about the region — whether it should be
+ * a chunk at all, and where its edges are — which no tag edit can say.
+ *
  * Ids are stable and get counted server-side; labels can be reworded freely.
  */
 
@@ -27,15 +32,6 @@ const SUMMARY_ISSUES: FeedbackIssue[] = [
 	OTHER,
 ];
 
-const MODULE_ISSUES: FeedbackIssue[] = [
-	{ id: 'not-applicable', label: 'Does not apply' },
-	{ id: 'overstated', label: 'Overstated' },
-	{ id: 'understated', label: 'Understated' },
-	{ id: 'wrong-explanation', label: 'Explanation is wrong' },
-	{ id: 'wrong-quote', label: 'Quoted the wrong bit' },
-	OTHER,
-];
-
 const CHUNKER_ISSUES: FeedbackIssue[] = [
 	{ id: 'missed-content', label: 'Missed content on the page' },
 	{ id: 'split-one-item', label: 'Split one article into pieces' },
@@ -44,43 +40,24 @@ const CHUNKER_ISSUES: FeedbackIssue[] = [
 	OTHER,
 ];
 
+/** No `wrong-tag`: the chunk's tags are editable in place, which says which one. */
 const CHUNK_ISSUES: FeedbackIssue[] = [
 	{ id: 'not-a-chunk', label: "This shouldn't be a chunk" },
 	{ id: 'wrong-boundaries', label: 'Boundaries are wrong' },
-	{ id: 'wrong-tag', label: 'Wrong tag' },
 	{ id: 'wrong-title', label: 'Wrong title' },
 	OTHER,
 ];
 
-const ISSUES_BY_TARGET: Record<FeedbackTarget, FeedbackIssue[]> = {
+const ISSUES_BY_TARGET: Partial<Record<FeedbackTarget, FeedbackIssue[]>> = {
 	summary: SUMMARY_ISSUES,
-	module: MODULE_ISSUES,
 	chunker: CHUNKER_ISSUES,
 	chunk: CHUNK_ISSUES,
 };
 
-/**
- * "Does not apply" in the user's words, per module — the complaint people actually
- * make is "this wasn't clickbait", not "module clickbait does not apply".
- */
-const NOT_APPLICABLE_LABELS: Record<string, string> = {
-	factChecker: 'The claims are accurate',
-	biasDetector: "This isn't biased",
-	antiManipulation: "This isn't manipulative",
-	defuseRagebait: "This isn't ragebait",
-	clickUnbait: "This isn't clickbait",
-};
-
-/** @param moduleId for target 'module', to phrase the "does not apply" preset. */
-export function issuesForTarget(target: FeedbackTarget, moduleId?: string): FeedbackIssue[] {
-	const issues = ISSUES_BY_TARGET[target] ?? [];
-	const notApplicable = moduleId ? NOT_APPLICABLE_LABELS[moduleId] : undefined;
-	if (!notApplicable) return issues;
-	return issues.map((issue) =>
-		issue.id === 'not-applicable' ? { ...issue, label: notApplicable } : issue
-	);
+export function issuesForTarget(target: FeedbackTarget): FeedbackIssue[] {
+	return ISSUES_BY_TARGET[target] ?? [];
 }
 
-export function issueLabel(target: FeedbackTarget, issueId: string, moduleId?: string): string {
-	return issuesForTarget(target, moduleId).find((i) => i.id === issueId)?.label ?? issueId;
+export function issueLabel(target: FeedbackTarget, issueId: string): string {
+	return issuesForTarget(target).find((i) => i.id === issueId)?.label ?? issueId;
 }

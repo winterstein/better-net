@@ -41,10 +41,8 @@ tap.test('Feedback_POST_creates_chunk_and_record', async (t) => {
 		chunkUrl: 'https://example.com/article',
 		chunkTitle: 'Test Article',
 		moduleId: 'factChecker',
-		thumbsUp: false,
 		tag: 'false-claim',
 		tagOn: false,
-		message: 'Seems accurate to me',
 		problemScore: 0.7,
 		confidence: 0.8,
 		userId: 'test-user',
@@ -60,14 +58,62 @@ tap.test('Feedback_POST_creates_chunk_and_record', async (t) => {
 	const stored = (await get_item('feedback', body.id)) as any;
 	t.ok(stored, 'Feedback should be stored');
 	t.equal(stored.moduleId, 'factChecker');
-	t.equal(stored.thumbsUp, false);
-	t.equal(stored.tag, 'false-claim', 'the tag the thumb was a verdict on');
-	t.equal(stored.tagOn, false, 'ground truth: that tag is not on this chunk');
+	t.equal(stored.tag, 'false-claim', 'the tag the user corrected');
+	t.equal(stored.tagOn, false, 'ground truth: that tag does not belong here');
+	t.equal(stored.thumbsUp, undefined, 'a tag edit is not a thumb');
 	t.equal(stored.target, 'module');
 	t.ok(stored.chunkId, 'module feedback is linked to a chunk');
 	t.ok(stored.pageId == null, 'no page url was sent, so no page row');
 	t.equal(stored.traceId, 'a'.repeat(32), 'the AIQA trace is kept for follow-up');
 	t.equal(stored.spanId, 'b'.repeat(16));
+});
+
+/**
+ * A tag edit needs its tag and which way round it goes; the module target needs to be one,
+ * because its card has no thumb. specs/feedback.md
+ */
+tap.test('Feedback_POST_validates_tag_edits', async (t) => {
+	const base = {
+		target: 'module',
+		moduleId: 'clickUnbait',
+		chunkFingerprint: 'test-fp-feedback-tagvalid',
+		chunkUrl: 'https://example.com/article',
+	};
+	t.equal(
+		(await post({ ...base, localId: localId('bad'), tag: 'clickbait' })).statusCode,
+		400,
+		'a tag with no tagOn states nothing'
+	);
+	t.equal(
+		(await post({ ...base, localId: localId('bad'), thumbsUp: false })).statusCode,
+		400,
+		'the module target has no thumb'
+	);
+	t.equal(
+		(await post({ ...base, localId: localId('ok'), tag: 'clickbait', tagOn: false })).statusCode,
+		201,
+		'a tag edit is what it wants'
+	);
+});
+
+// A tag edit works on the chunk's own tags too, alongside the thumb for the region.
+tap.test('Feedback_POST_chunk_tag_edit', async (t) => {
+	const res = await post({
+		localId: localId('chunktag'),
+		target: 'chunk',
+		chunkFingerprint: 'test-fp-feedback-chunktag',
+		chunkUrl: 'https://example.com/article',
+		pageUrl: 'https://example.com/article',
+		tag: 'advert',
+		tagOn: true,
+	});
+	t.equal(res.statusCode, 201);
+	const stored = (await get_item('feedback', (res.json() as any).id)) as any;
+	t.equal(stored.tag, 'advert');
+	t.equal(stored.tagOn, true, 'the user says we missed it');
+	t.equal(stored.thumbsUp, undefined);
+	t.ok(stored.chunkId);
+	t.ok(stored.pageId, 'and the page it was on');
 });
 
 // The thumb inserts; the preset issue that follows updates the same row. specs/feedback.md
@@ -176,7 +222,10 @@ tap.test('Feedback_POST_validates_body', async (t) => {
 	);
 });
 
-// A tab left open across an extension update still sends the pre-v0.5 aspect-only shape.
+/**
+ * A tab left open across an extension update still sends the pre-v0.5 aspect-only shape:
+ * a thumb, on a target that no longer has one. It is accepted rather than dropped.
+ */
 tap.test('Feedback_POST_accepts_legacy_payload', async (t) => {
 	const res = await post({
 		chunkFingerprint: 'test-fp-feedback-legacy',

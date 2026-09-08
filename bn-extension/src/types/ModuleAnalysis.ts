@@ -95,30 +95,3 @@ export function findAnalysisByModule(
 	);
 }
 
-/**
- * Primary product tag for feedback ground truth: highest severity active tag.
- * TODO: MODULE_PRIMARY_TAG fallback invents a tag we may never have claimed when
- * `tags` is empty (e.g. API missing). Fix later — require a claimed tag or skip
- * tag/tagOn for empty results.
- */
-export const MODULE_PRIMARY_TAG: Record<string, string> = {
-	factChecker: 'false-claim',
-	biasDetector: 'biased',
-	antiManipulation: 'urgency',
-	defuseRagebait: 'ragebait',
-	clickUnbait: 'clickbait',
-};
-
-export function primaryTagForModule(
-	moduleId: string,
-	tags?: IssueTag[] | string[]
-): string | undefined {
-	if (tags?.length) {
-		const issues: IssueTag[] = tags.map((t) =>
-			typeof t === 'string' ? { tag: t, strength: 'medium' as const, confidence: 0.5 } : t
-		);
-		const picked = pickPrimaryIssueTag(issues);
-		if (picked) return picked.tag;
-	}
-	return MODULE_PRIMARY_TAG[moduleId];
-}
