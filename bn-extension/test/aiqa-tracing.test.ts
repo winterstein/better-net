@@ -144,7 +144,7 @@ const localBackend = {
 };
 
 const CHUNKS = [
-	{ id: 'c1', xpath: '/html/body/div[1]', text: 'Ticket prices rose at the festival.', tags: ['article'] },
+	{ id: 'c1', xpath: '/html/body/div[1]', text: 'Ticket prices rose at the festival.', tags: ['chunk-type:article'] },
 	{
 		id: 'c2',
 		xpath: '/html/body/div[2]',
@@ -604,13 +604,13 @@ async function recordChunkingSteps(enabled: boolean) {
 	assert.match(
 		results[0].analyses[0].spanId!,
 		/^[0-9a-f]{16}$/,
-		'each aspect carries the span of its own feature call'
+		'each module carries the span of its own feature call'
 	);
 
 	assert.equal(
 		await mirrorFeedbackToAiqa(traceId, {
 			thumbsUp: false,
-			comment: 'aspect:biasDetector — This isn\'t biased',
+			comment: 'module:biasDetector — This isn\'t biased',
 			parentSpanId: results[0].analyses[0].spanId,
 		}),
 		true

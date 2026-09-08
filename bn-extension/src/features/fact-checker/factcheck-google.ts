@@ -5,8 +5,7 @@
  */
 
 import { extractClaims } from './extract-claims.js';
-import { AspectType } from '../../types/AspectAnalysis.js';
-import type { AspectAnalysis } from '../../types/AspectAnalysis.js';
+import type { ModuleAnalysis } from '../../types/ModuleAnalysis.js';
 import { getGoogleFactCheckKey } from '../../utils/env-utils.js';
 import { logit } from '../../utils/logger.js';
 
@@ -157,25 +156,23 @@ export async function factCheckContent(chunk, pageMetadata: any = {}, options: a
 
   if (!apiKey) {
     return {
-      type: AspectType.ACCURACY,
       problemScore: 0.5,
       confidence: 0.0,
-      flags: ['no_api_key'],
+      tags: [],
       explanation: 'Google Fact Check API key not configured',
-      metadata: { factChecks: [] },
-    } satisfies Partial<AspectAnalysis>;
+      metadata: { factChecks: [], diagnostic: 'no_api_key' },
+    } satisfies Partial<ModuleAnalysis>;
   }
 
   const text = chunk.text || '';
   if (text.length < MIN_CLAIM_LENGTH) {
     return {
-      type: AspectType.ACCURACY,
       problemScore: 0.5,
       confidence: 0.0,
-      flags: ['insufficient_content'],
+      tags: [],
       explanation: 'Content too short to fact-check',
-      metadata: { factChecks: [] },
-    } satisfies Partial<AspectAnalysis>;
+      metadata: { factChecks: [], diagnostic: 'insufficient_content' },
+    } satisfies Partial<ModuleAnalysis>;
   }
 
   // Extract claims from content
@@ -183,13 +180,12 @@ export async function factCheckContent(chunk, pageMetadata: any = {}, options: a
   
   if (claims.length === 0) {
     return {
-      type: AspectType.ACCURACY,
-      problemScore: 0.5,
-      confidence: 0.0,
-      flags: ['no_claims_found'],
+      problemScore: 0.2,
+      confidence: 0.6,
+      tags: ['no-claims'],
       explanation: 'No verifiable claims found in content',
       metadata: { factChecks: [] },
-    } satisfies Partial<AspectAnalysis>;
+    } satisfies Partial<ModuleAnalysis>;
   }
 
   // Search for fact-checks for each claim
@@ -225,36 +221,33 @@ export async function factCheckContent(chunk, pageMetadata: any = {}, options: a
   const avgRating = checkedClaims > 0 ? totalRatingScore / checkedClaims : 0.5;
   const fakeNewsScore = 1.0 - avgRating; // Invert: false claims = high fake news score
 
-  // Generate flags and explanation
-  const flags = [];
+  const tags: string[] = [];
+  const metadata: Record<string, unknown> = {
+    factChecks: factCheckResults,
+    claimsChecked: claims.length,
+    factChecksFound: factCheckResults.length,
+    averageRating: avgRating,
+  };
   if (factCheckResults.length === 0) {
-    flags.push('no_fact_checks_found');
-  } else {
-    flags.push('fact_checked');
-    if (avgRating < 0.3) {
-      flags.push('mostly_false');
-    } else if (avgRating < 0.5) {
-      flags.push('partially_false');
-    } else if (avgRating > 0.7) {
-      flags.push('mostly_true');
-    }
+    tags.push('suspect-claim');
+    metadata.diagnostic = 'no_fact_checks_found';
+  } else if (avgRating < 0.3) {
+    tags.push('false-claim');
+  } else if (avgRating < 0.5) {
+    tags.push('suspect-claim');
+  } else if (avgRating > 0.7) {
+    tags.push('verified-claims');
   }
 
   const explanation = generateExplanation(factCheckResults, avgRating, fakeNewsScore);
 
   return {
-    type: AspectType.ACCURACY,
     problemScore: fakeNewsScore,
     confidence: factCheckResults.length > 0 ? 0.8 : 0.3,
-    flags,
+    tags,
     explanation,
-    metadata: {
-      factChecks: factCheckResults,
-      claimsChecked: claims.length,
-      factChecksFound: factCheckResults.length,
-      averageRating: avgRating,
-    },
-  } satisfies Partial<AspectAnalysis>;
+    metadata,
+  } satisfies Partial<ModuleAnalysis>;
 }
 
 /**

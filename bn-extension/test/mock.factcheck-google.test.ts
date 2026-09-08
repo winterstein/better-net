@@ -387,7 +387,7 @@ async function testFactCheckContent() {
       });
       
       const factChecks = result.metadata?.factChecks as unknown[] | undefined;
-      if (result.problemScore !== undefined && result.confidence !== undefined && result.flags) {
+      if (result.problemScore !== undefined && result.confidence !== undefined && result.tags) {
         // False claims should have high fake news score (inverted)
         if (result.problemScore > 0.5 || (factChecks?.length ?? 0) > 0) {
           console.log('  ✅ Test 1: Fact-check false claims - PASS');
@@ -421,7 +421,7 @@ async function testFactCheckContent() {
         apiKey: ''
       });
       
-      if (result.flags && result.flags.includes('no_api_key')) {
+      if (result.tags && result.metadata?.diagnostic === 'no_api_key') {
         console.log('  ✅ Test 2: No API key handling - PASS');
         testsPassed++;
       } else {
@@ -448,7 +448,7 @@ async function testFactCheckContent() {
         apiKey: 'test-api-key'
       });
       
-      if (result.flags && result.flags.includes('insufficient_content')) {
+      if (result.tags && result.metadata?.diagnostic === 'insufficient_content') {
         console.log('  ✅ Test 3: Short content handling - PASS');
         testsPassed++;
       } else {
@@ -478,16 +478,16 @@ async function testFactCheckContent() {
       // Should either find claims (fallback to sentences) and return no_fact_checks_found,
       // or return no_claims_found if no sentences are extracted
       const factChecks = result.metadata?.factChecks as unknown[] | undefined;
-      if (result.flags && (
-        result.flags.includes('no_claims_found') || 
-        result.flags.includes('no_fact_checks_found') ||
+      if (result.tags && (
+        result.tags.includes('no-claims') || 
+        result.metadata?.diagnostic === 'no_fact_checks_found' || result.tags.includes('suspect-claim') ||
         (factChecks?.length ?? 0) > 0
       )) {
         console.log('  ✅ Test 4: No claims handling - PASS');
         testsPassed++;
       } else {
         console.log('  ❌ Test 4: No claims handling - FAIL');
-        console.log('     Expected no_claims_found, no_fact_checks_found, or fact-checks, got:', result);
+        console.log('     Expected no-claims, no_fact_checks_found, or fact-checks, got:', result);
         testsFailed++;
       }
     } catch (error) {
@@ -509,7 +509,7 @@ async function testFactCheckContent() {
         apiKey: 'test-api-key'
       });
       
-      const requiredFields = ['problemScore', 'confidence', 'flags', 'explanation', 'metadata'];
+      const requiredFields = ['problemScore', 'confidence', 'tags', 'explanation', 'metadata'];
       const hasAllFields = requiredFields.every(field => field in result)
         && Array.isArray(result.metadata?.factChecks);
       

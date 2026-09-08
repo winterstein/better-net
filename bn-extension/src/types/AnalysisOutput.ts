@@ -1,7 +1,7 @@
 
 // TODO the type that analyzers output
 type AnalysisOutput = {  
-    flags: string[];
+    tags: string[];
     score: number;
     explanation: string;
     confidence: number;

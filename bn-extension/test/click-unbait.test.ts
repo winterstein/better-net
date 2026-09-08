@@ -28,7 +28,7 @@ import { canClassify, canGenerate, getLocalModel } from '../src/ai/model-catalog
 import { findHeadlineLink, pickBestLink } from '../src/chunking/headline-link.js';
 import { readFileSync } from 'node:fs';
 import { applyClickUnbaitRewrite } from '../src/content/apply-click-unbait.js';
-import { completeAspectAnalysis } from '../src/types/AspectAnalysis.js';
+import { completeModuleAnalysis } from '../src/types/ModuleAnalysis.js';
 import { Window } from 'happy-dom';
 
 // --- formatUnbaitTitle ---
@@ -87,9 +87,9 @@ assert.equal(stripsBrackets.displayText, '[Already bracketed] Title');
 
 // --- gate ---
 
-assert.equal(isClickbaitDetection({ problemScore: 0.1, flags: [] }), false);
-assert.equal(isClickbaitDetection({ problemScore: CLICKBAIT_THRESHOLD, flags: [] }), true);
-assert.equal(isClickbaitDetection({ problemScore: 0, flags: ['clickbait'] }), true);
+assert.equal(isClickbaitDetection({ problemScore: 0.1, tags: [] }), false);
+assert.equal(isClickbaitDetection({ problemScore: CLICKBAIT_THRESHOLD, tags: [] }), true);
+assert.equal(isClickbaitDetection({ problemScore: 0, tags: ['clickbait'] }), true);
 
 // A link has to match the headline. "Go" does not, so there is nothing to unravel — the
 // old rule took the first http link in the chunk and confidently summarised whatever it
@@ -279,8 +279,8 @@ const bait = await analyzeChunk(
 	}
 );
 assert.ok(bait.problemScore >= CLICKBAIT_THRESHOLD);
-assert.ok(bait.flags.includes('clickbait'));
-assert.ok(bait.flags.includes('unbaited'));
+assert.ok(bait.tags.includes('clickbait'));
+assert.ok(bait.metadata?.unbaited);
 assert.ok(String(bait.metadata?.displayTitle).startsWith('['));
 assert.equal(
 	bait.metadata?.originalTitle,
@@ -297,11 +297,12 @@ document.body.innerHTML = `
   </div>
 `;
 const chunkEl = document.getElementById('chunk');
-const analysis = completeAspectAnalysis('clickUnbait', {
+const analysis = completeModuleAnalysis('clickUnbait', {
 	problemScore: 0.8,
 	confidence: 0.7,
-	flags: ['clickbait', 'unbaited'],
+	tags: ['clickbait'],
 	metadata: {
+		unbaited: true,
 		displayTitle:
 			"[Try a healthy breakfast] The One Thing You're Doing Wrong Each Morning",
 		originalTitle: "The One Thing You're Doing Wrong Each Morning",
@@ -431,8 +432,8 @@ const echoed = await analyzeChunk(
 		}),
 	}
 );
-assert.ok(echoed.flags.includes('clickbait'));
-assert.ok(!echoed.flags.includes('unbaited'), 'must not claim to have unbaited anything');
+assert.ok(echoed.tags.includes('clickbait'));
+assert.ok(!echoed.metadata?.unbaited, 'must not claim to have unbaited anything');
 assert.equal(echoed.metadata?.displayTitle, undefined, 'no rewrite rather than a false one');
 
 // --- destination budget and cache ---

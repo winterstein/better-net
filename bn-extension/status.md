@@ -5,6 +5,11 @@
 ## Works
 
 - MV3 extension shell: background worker, content script, popup, options
+- **Module / Tag terminology**: analysis results are `ModuleAnalysis` with product `IssueTag[]`
+  (`strength` high|medium|low|none, `problemScore` high|medium|low — see `terminology.md` /
+  `types/Score.ts`); feedback target is `module` (legacy `aspect` accepted by bn-server).
+  Chunk roles use `chunk-type:…` on `chunk.tags[]`; Ad Blocker `advert` / `sponsored` are
+  modifiers on the same array.
 - **TypeScript**: all `src/` modules are `.ts`; esbuild bundles entrypoints to `.js` in `dist/`; `npm run type-check` (`strict: false`, tighten later)
 - **Build**: `npm run build` bundles background, content, offscreen, options, popup, settings defaults + copies WASM
 - **Tests**: `npm test` (via `tsx`) — chunking, chunking on real saved pages, chunk-tags, chunk-title, mock fact-check, Facebook ad-blocker, local model client + model-manager; `npm run test:e2e:smoke` — fast Playwright checks (service worker, popup, options); `npm run test:e2e` — smoke + fixture analysis; `npm run test:online` — Playwright on live sites (network); `npm run test:mobilebert` — real MobileBERT download (manual, not CI)
@@ -61,7 +66,7 @@
   client-generated `localId` that makes `POST /api/feedback` an upsert — one thumbs down is
   one row, offline queue included. Needs Data Sharing + a server endpoint.
   Each record carries the AIQA `traceId` and the `spanId` of the exact step (the feature
-  call for an aspect, the chunk span otherwise), and is mirrored onto that trace as a
+  call for a module, the chunk span otherwise), and is mirrored onto that trace as a
   `feedback` span — best-effort, bn-server stays the store of record. In Developer Mode the
   confirmation shows the trace id and a link to it; otherwise it just says "Thanks!".
 - **AIQA tracing** (opt-in, Settings -> Data Sharing): page analysis, chunking and AI

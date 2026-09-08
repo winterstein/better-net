@@ -18,7 +18,7 @@ import {
 } from '../src/analysis/demo-analysis.js';
 import { riskLevelForScore } from '../src/types/RiskLevel.js';
 import { chunkProblemScore } from '../src/types/ChunkAnalysis.js';
-import { findAnalysisByModule } from '../src/types/AspectAnalysis.js';
+import { findAnalysisByModule } from '../src/types/ModuleAnalysis.js';
 import { applyClickUnbaitFromAnalysis } from '../src/content/apply-click-unbait.js';
 import { DEFAULT_MAX_TITLE_LEN } from '../src/features/click-unbait/format-unbait-title.js';
 
@@ -88,8 +88,8 @@ for (const [page, band] of EXPECTED_BAND) {
 }
 
 // The article is the "true premise, false conclusion" example: one true statement, one not
-const verdicts = fakeArticle.chunks[0].analysis.statements.map((s) => s.analyses[0].flags[0]);
-assert.deepEqual(verdicts, ['false', 'true']);
+const verdicts = fakeArticle.chunks[0].analysis.statements.map((s) => s.analyses[0].tags[0].tag);
+assert.deepEqual(verdicts, ['false-claim', 'verified-claims']);
 
 // --- chunk matching against a live-chunked page ---
 
@@ -161,8 +161,8 @@ const denzel = demoAnalysisForChunk(ARTICLE_URL, DENZEL_LIVE);
 const silverstone = demoAnalysisForChunk(ARTICLE_URL, SILVERSTONE_LIVE);
 assert.ok(denzel?.title.includes('Denzel Washington'), 'editor’s-pick teaser matches its canned analysis');
 assert.ok(silverstone?.title.includes('Alicia Silverstone'), 'spotlight teaser matches its canned analysis');
-assert.equal(denzel.statements[0].analyses[0].flags[0], 'false');
-assert.equal(silverstone.statements[0].analyses[0].flags[0], 'false');
+assert.equal(denzel.statements[0].analyses[0].tags[0].tag, 'false-claim');
+assert.equal(silverstone.statements[0].analyses[0].tags[0].tag, 'false-claim');
 
 // The same headline appears twice on the page (ticker strip and sidebar card): both get
 // the verdict, and a container that merely mentions it does not.
@@ -248,8 +248,8 @@ assert.ok(
 // The one statement is true. Clickbait is a packaging problem, not a truth problem, and the
 // demo is the place that distinction has to be visible.
 assert.deepEqual(
-  teaser.analysis.statements.map((st) => st.analyses[0].flags[0]),
-  ['true']
+  teaser.analysis.statements.map((st) => st.analyses[0].tags[0].tag),
+  ['verified-claims']
 );
 
 // The mirror renders the headline as an anchor, which is what the rewrite needs to target.
@@ -394,8 +394,8 @@ for (const page of [
     `${page.fixture}: should be High Risk`
   );
   // Every verdict cites a published fact-check.
-  for (const aspect of labelled.analysis.analyses) {
-    assert.ok(aspect.url?.startsWith('https://'), `${page.fixture}: ${aspect.methodName} cites no source`);
+  for (const moduleResult of labelled.analysis.analyses) {
+    assert.ok(moduleResult.url?.startsWith('https://'), `${page.fixture}: ${moduleResult.methodName} cites no source`);
   }
 }
 

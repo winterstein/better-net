@@ -4,12 +4,19 @@
 
 For chunks already flagged as clickbait, fetch the linked page, ask the LLM for a short honest summary, and rewrite the on-page link/title as `[honest summary] original title`. Keeps the bait visible but prepends the payoff so users can decide without the click. Surfaces a nutrient label so the rewrite is obvious.
 
-Settings module: `clickUnbait`. Aspect: `AspectType.CLICKBAIT`.
+Settings module: `clickUnbait`. Product tag: `clickbait`.
 
 ## Status
 
 working end-to-end in the default configuration (local mode, no model downloaded, no API
 key). Measured on live pages: upworthy.com 12 of 26 chunks rewritten, bbc.co.uk/ 2 of 50.
+
+Target tags (terminology.md):
+
+- clickbait — signal scorer + optional remote LLM (working)
+
+Remedy: destination fetch + honest summary prefix (working). Non-product diagnostics
+(signal ids, quiz out of scope, unbaited) live in metadata, not tags[].
 
 v1 shipped the four steps but only the formatter worked. Detection scored 0 on every
 headline on upworthy.com and buzzfeed.com; the destination picker took the chunk's first
@@ -24,7 +31,7 @@ page read `[bait] bait`. All four are fixed and covered by tests.
 - Labelled corpus: `test-data/clickbait-headlines.json`
 - Headline → link resolution: `src/chunking/headline-link.ts`
 - Settings module id: `clickUnbait` (`src/settings/defaults.ts`)
-- Aspect: `AspectType.CLICKBAIT` (`src/types/AspectAnalysis.ts`)
+- Product tag: `clickbait` (`terminology.md`, `ModuleAnalysis.tags`)
 - Feature: `src/features/click-unbait/`
 - DOM rewrite: `src/content/apply-click-unbait.ts`
 - Shared analysis: `src/ai/run-feature-analysis.ts`, chunk tags / analysis pipeline
@@ -82,7 +89,7 @@ Held out from tuning: dailymail.co.uk flagged 5 of 34 — three affiliate teaser
 
 ## Build plan
 
-1. Wire `clickUnbait` into the feature analysis pipeline; map module → `AspectType.CLICKBAIT` in aspect maps if missing.
+1. Wire `clickUnbait` into the feature analysis pipeline; emit product tag `clickbait`.
 2. For clickbait-tagged chunks with a usable link: background/offscreen fetch destination HTML (or extractable text); skip quietly on failure / non-HTML / blocked.
 3. LLM prompt: given destination content + original title → short honest summary (bracket-ready).
 4. DOM rewrite: `[summary] original`; truncate original when over a length budget; `title` hover = full original.

@@ -38,6 +38,9 @@ export function setupFeedbackManager() {
 /** What the AIQA trace view shows for this feedback: the target, and why it was wrong. */
 function traceComment(entry: FeedbackSubmission): string {
 	const parts = [entry.moduleId ? `${entry.target}:${entry.moduleId}` : entry.target];
+	// The ground truth is the useful half for anyone reading the trace: not "wrong", but
+	// which way round it should have gone.
+	if (entry.tag && entry.tagOn != null) parts.push(`${entry.tag}=${entry.tagOn ? 'on' : 'off'}`);
 	if (entry.issueLabel) parts.push(entry.issueLabel);
 	if (entry.message) parts.push(`"${entry.message}"`);
 	return parts.join(' — ');
@@ -45,9 +48,8 @@ function traceComment(entry: FeedbackSubmission): string {
 
 function toPayload(p: Record<string, unknown>): FeedbackPayload {
 	return {
-		localId: String(p.localId || ''),
 		target: p.target as FeedbackTarget,
-		applies: !!p.applies,
+		thumbsUp: !!p.thumbsUp,
 		retracted: !!p.retracted,
 		issueId: p.issueId ? String(p.issueId) : undefined,
 		issueLabel: p.issueLabel ? String(p.issueLabel) : undefined,
@@ -76,7 +78,7 @@ export async function handleSubmitFeedback(message: {
 	}
 
 	const userId = (settings.accountEmail as string)?.trim() || (await getOrCreateDeviceId());
-	const built = buildFeedbackSubmission(toPayload(message.payload || {}), userId);
+	const built = await buildFeedbackSubmission(toPayload(message.payload || {}), userId);
 	if ('error' in built) return { ok: false, error: built.error };
 
 	void mirrorToAiqa(built, settings);
@@ -98,7 +100,7 @@ async function mirrorToAiqa(entry: FeedbackSubmission, settings: Record<string, 
 		// The worker may have been suspended since the analysis, so the exporter is rebuilt.
 		if (!(await configureAiqaTracing(settings))) return;
 		await mirrorFeedbackToAiqa(entry.traceId, {
-			thumbsUp: entry.retracted ? undefined : entry.applies,
+			thumbsUp: entry.retracted ? undefined : entry.thumbsUp,
 			comment: traceComment(entry),
 			parentSpanId: entry.spanId,
 		});

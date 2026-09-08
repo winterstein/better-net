@@ -77,10 +77,10 @@ assert.ok(has(headlines, 'Denzel Washington'), 'ticker headline');
 assert.ok(has(headlines, 'Radical Democrats'), 'sidebar headline');
 for (const headline of headlines) {
   assert.ok(headline.xpath, 'headline chunks need an xpath to hang a label on');
-  assert.ok(headline.tags.includes('article'), 'headlines are article teasers');
+  assert.ok(headline.tags.includes('chunk-type:article'), 'headlines are article teasers');
 }
 assert.ok(
-  headlines.find((c) => c.text.includes('Radical Democrats')).tags.includes('sidebar'),
+  headlines.find((c) => c.text.includes('Radical Democrats')).tags.includes('chunk-type:sidebar'),
   'sidebar teasers are tagged sidebar'
 );
 
@@ -99,7 +99,7 @@ const REPEATED = `<!DOCTYPE html><html><body>
 const repeated = await chunk(REPEATED, 'https://example-news.test/story');
 const denzels = repeated.filter((c) => c.text.includes('Denzel Washington'));
 assert.equal(denzels.length, 1, 'the visible copy is chunked, once');
-assert.ok(denzels[0].metadata?.headline && denzels[0].tags.includes('sidebar'), 'and it is the sidebar copy');
+assert.ok(denzels[0].metadata?.headline && denzels[0].tags.includes('chunk-type:sidebar'), 'and it is the sidebar copy');
 
 // A different newsroom's markup, with no title attributes and no theme classes
 const other = await chunk(OTHER_NEWSROOM, 'https://example-news.test/news/transport-plan');

@@ -55,9 +55,9 @@ function headlineOf(chunk: any, pageMetadata: any = {}): string {
 }
 
 interface Detection {
-	problemScore?: number;
+	problemScore?: number | string;
 	confidence?: number;
-	flags?: string[];
+	tags?: Array<string | { tag: string; strength?: string; confidence?: number }>;
 	explanation?: string;
 	metadata?: Record<string, unknown>;
 }
@@ -115,13 +115,13 @@ export async function analyzeChunk(chunk, pageMetadata: any = {}, options: any =
 		return detection;
 	}
 
-	const flags = uniqueFlags([...(detection.flags || []), 'clickbait']);
+	const tags = uniqueTags([...(detection.tags || []), 'clickbait']);
 
 	const destUrl = pickDestinationUrl(chunk, pageMetadata.url, originalTitle);
 	if (!destUrl || !originalTitle) {
 		return {
 			...detection,
-			flags,
+			tags,
 			explanation: withReason(detection.explanation, 'no link on this chunk to unravel'),
 		};
 	}
@@ -131,7 +131,7 @@ export async function analyzeChunk(chunk, pageMetadata: any = {}, options: any =
 	if (!dest) {
 		return {
 			...detection,
-			flags,
+			tags,
 			explanation: withReason(detection.explanation, 'could not read the destination page'),
 			metadata: { destinationUrl: destUrl, originalTitle },
 		};
@@ -141,7 +141,7 @@ export async function analyzeChunk(chunk, pageMetadata: any = {}, options: any =
 	if (!summary) {
 		return {
 			...detection,
-			flags,
+			tags,
 			explanation: withReason(
 				detection.explanation,
 				'the destination gave nothing the headline had not already said'
@@ -154,14 +154,14 @@ export async function analyzeChunk(chunk, pageMetadata: any = {}, options: any =
 	if (!formatted.rewritten) {
 		return {
 			...detection,
-			flags,
+			tags,
 			metadata: { destinationUrl: destUrl, originalTitle },
 		};
 	}
 
 	return {
 		...detection,
-		flags: uniqueFlags([...flags, 'unbaited']),
+		tags,
 		explanation: `Unbaited: ${summary}`,
 		metadata: {
 			destinationUrl: destUrl,
@@ -169,16 +169,20 @@ export async function analyzeChunk(chunk, pageMetadata: any = {}, options: any =
 			honestSummary: summary,
 			displayTitle: formatted.displayText,
 			hoverTitle: formatted.hoverTitle,
+			unbaited: true,
 		},
 	};
 }
 
 export function isClickbaitDetection(detection: {
-	problemScore?: number;
-	flags?: string[];
+	problemScore?: number | string;
+	tags?: Array<string | { tag: string }>;
 }): boolean {
-	if ((detection.flags || []).includes('clickbait')) return true;
-	return (detection.problemScore ?? 0) >= CLICKBAIT_THRESHOLD;
+	const tags = detection.tags || [];
+	const hasClickbait = tags.some((t) => (typeof t === 'string' ? t : t.tag) === 'clickbait');
+	if (hasClickbait) return true;
+	const score = typeof detection.problemScore === 'number' ? detection.problemScore : 0;
+	return score >= CLICKBAIT_THRESHOLD;
 }
 
 /**
@@ -259,8 +263,8 @@ function withReason(explanation: string | undefined, reason: string): string {
 	return `${base.replace(/\.$/, '')}. Not rewritten: ${reason}.`;
 }
 
-function uniqueFlags(flags: string[]): string[] {
-	return [...new Set(flags.filter(Boolean))];
+function uniqueTags(tags: string[]): string[] {
+	return [...new Set(tags.filter(Boolean))];
 }
 
 /**
@@ -276,7 +280,12 @@ function analyzeWithHeuristics(headline: string) {
 	return {
 		problemScore: score,
 		confidence: named.length >= 2 ? 0.75 : named.length === 1 ? 0.6 : 0.5,
-		flags: isBait ? uniqueFlags([...named, 'clickbait']) : named,
+		// Product tag only; signal ids stay in metadata for diagnostics.
+		tags: isBait ? ['clickbait'] : [],
+		metadata: {
+			signals: named,
+			quizOutOfScope: flags.includes('quiz_out_of_scope') || undefined,
+		},
 		explanation: isBait
 			? `Withholds the payoff: ${describeSignals(named)}.`
 			: flags.includes('quiz_out_of_scope')
@@ -301,11 +310,11 @@ function parseAIResponse(responseText: string, headline = '') {
 			const parsed = JSON.parse(jsonMatch[0]);
 			if (isZeroShotPayload(parsed)) {
 				const problemScore = problemScoreFromZeroShotPayload(parsed);
-				const flags = problemScore >= CLICKBAIT_THRESHOLD ? ['clickbait'] : [];
+				const tags = problemScore >= CLICKBAIT_THRESHOLD ? ['clickbait'] : [];
 				return {
 					problemScore,
 					confidence: Math.max(0.5, Math.min(0.95, parsed.scores?.[0] ?? 0.7)),
-					flags,
+					tags,
 					explanation:
 						problemScore >= CLICKBAIT_THRESHOLD
 							? 'Headline looks like clickbait (withholding or sensational framing).'
@@ -316,14 +325,14 @@ function parseAIResponse(responseText: string, headline = '') {
 				0,
 				Math.min(1, parsed.problemScore ?? parsed.score ?? 0)
 			);
-			const flags = parsed.flags || [];
-			if (problemScore >= CLICKBAIT_THRESHOLD && !flags.includes('clickbait')) {
-				flags.push('clickbait');
+			const tags = parsed.tags || parsed.flags || [];
+			if (problemScore >= CLICKBAIT_THRESHOLD && !tags.includes('clickbait')) {
+				tags.push('clickbait');
 			}
 			return {
 				problemScore,
 				confidence: Math.max(0, Math.min(1, parsed.confidence || 0.7)),
-				flags,
+				tags: tags.filter((t: string) => t === 'clickbait'),
 				explanation: parsed.explanation || 'Analysis completed',
 			};
 		}
@@ -341,7 +350,7 @@ function parseAIResponse(responseText: string, headline = '') {
 	return {
 		problemScore: score,
 		confidence: 0.5,
-		flags: score >= CLICKBAIT_THRESHOLD ? ['clickbait'] : [],
+		tags: score >= CLICKBAIT_THRESHOLD ? ['clickbait'] : [],
 		explanation: responseText.substring(0, 200),
 	};
 }

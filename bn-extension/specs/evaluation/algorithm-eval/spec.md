@@ -72,7 +72,7 @@ Runtime / latency / memory is a different question (empty `specs/performance-tes
 - Existing clickbait gold: `test-data/clickbait-headlines.json` + detector asserts in `test/click-unbait.test.ts`
 - Click Unbait steps (worked example): `specs/click-unbait/unravel/spec.md`
 - Live traces: `src/tracing/`, Settings → Data Sharing → AIQA
-- Terminology: chunk, module, aspect (`terminology.md`)
+- Terminology: chunk, module, tag (`terminology.md`)
 
 ## Units of evaluation
 
@@ -123,7 +123,7 @@ Start from what we actually output, not from the full metric menu.
 | Output shape | When | Checker | Role |
 |--------------|------|---------|------|
 | Soft paraphrase of a short summary | extract-summary / e2e when many wordings are fine | `similar` or `llm` | Secondary on `slow`; not the merge gate |
-| Free-text explanation quality | aspect `explanation` | Usually ignore for CI | Optional `llm` later if we care |
+| Free-text explanation quality | module `explanation` | Usually ignore for CI | Optional `llm` later if we care |
 | Duration / tokens | experiment runs | `system` | Report only |
 
 ### Policy

@@ -1,20 +1,26 @@
 /**
  * Extension ↔ server feedback (see specs/feedback.md).
  *
- * Lifecycle of one piece of feedback: the thumb POSTs a record with a client-generated
- * localId; a preset issue or note POSTs the same localId again, which the server treats
- * as an update. Failures queue in chrome.storage.local keyed by localId, so a follow-up
- * made offline replaces the queued thumb rather than adding to it. The background worker
- * flushes the queue (background/feedback-manager.ts).
+ * Lifecycle of one piece of feedback: the thumb POSTs a record under a localId derived
+ * from what is being rated and who is rating it; a preset issue or note derives the same
+ * localId and so updates that record rather than adding one. Failures queue in
+ * chrome.storage.local keyed by localId, so a follow-up made offline replaces the queued
+ * thumb rather than adding to it. The background worker flushes the queue
+ * (background/feedback-manager.ts).
  */
 
-import { moduleToAspect } from './aspect-map.js';
+import { MODULE_PRIMARY_TAG, primaryTagForModule } from '../types/ModuleAnalysis.js';
+import type { IssueTag } from '../types/Score.js';
+import { fractionFromProblemScore, type ProblemScore } from '../types/Score.js';
 import { FEEDBACK_TARGETS } from '../types/Feedback.js';
 import type { FeedbackSubmission, FeedbackTarget } from '../types/Feedback.js';
+import { riskLevelForScore } from '../types/RiskLevel.js';
 
 export const FEEDBACK_QUEUE_KEY = 'bnFeedbackQueue';
 const DEVICE_ID_KEY = 'bnDeviceId';
 export const MAX_FEEDBACK_MESSAGE_LENGTH = 500;
+
+const ANALYSIS_MODULE_IDS = new Set(Object.keys(MODULE_PRIMARY_TAG));
 
 export function isFeedbackEnabled(settings: {
 	shareAnonymous?: boolean;
@@ -83,9 +89,9 @@ export async function flushFeedbackQueue(
 
 /** What the modal sends in BN_SUBMIT_FEEDBACK. */
 export interface FeedbackPayload {
-	localId: string;
 	target: FeedbackTarget;
-	applies: boolean;
+	/** The click: true = 👍, false = 👎. */
+	thumbsUp: boolean;
 	retracted?: boolean;
 	issueId?: string;
 	issueLabel?: string;
@@ -96,68 +102,133 @@ export interface FeedbackPayload {
 	pageUrl?: string;
 	chunkCount?: number;
 	moduleId?: string;
+	/** Product tags from the module result; primary is chosen by severity. */
+	tags?: Array<string | IssueTag>;
 	analysisId?: string;
-	problemScore?: number;
+	problemScore?: ProblemScore | number;
 	confidence?: number;
 	traceId?: string;
 	spanId?: string;
 }
 
-export function newFeedbackLocalId(): string {
-	return crypto.randomUUID();
+/**
+ * One record per (user, thing rated). Deterministic, which does three jobs: the thumb and
+ * the preset issue that follows land on the same row without passing an id around, a
+ * follow-up made offline replaces the queued thumb, and re-rating the same chunk after a
+ * reload corrects the earlier verdict instead of filing a second opinion against it.
+ *
+ * A chunk's fingerprint is its url + title (types/Chunk.ts), so a page whose body changed
+ * keeps its id, while a different page — or a retitled one — is treated as a new subject.
+ */
+export async function feedbackLocalId(parts: {
+	userId: string;
+	target: FeedbackTarget;
+	moduleId?: string;
+	chunkFingerprint?: string;
+	pageUrl?: string;
+}): Promise<string> {
+	// The chunk when there is one; the page for chunker feedback, which has no chunk.
+	const subject = parts.chunkFingerprint || parts.pageUrl || '';
+	const key = [parts.userId, parts.target, parts.moduleId ?? '', subject].join('|');
+	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key));
+	const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+	return `fb-${hex.slice(0, 24)}`;
+}
+
+/**
+ * Did the analysis claim this tag is on? The thumb is a verdict on that claim, so turning
+ * it into ground truth needs it. 'safe' is the band where we flag nothing, the same line
+ * the Nutrient Label draws (types/RiskLevel.ts) — so it is the line the user was reacting
+ * to. Borderline scores therefore hinge on a display threshold, which is why
+ * `problemScore` is stored alongside.
+ */
+function analysisFlaggedIt(problemScore?: ProblemScore | number): boolean {
+	const fraction =
+		typeof problemScore === 'number'
+			? problemScore
+			: problemScore
+				? fractionFromProblemScore(problemScore)
+				: 0;
+	return riskLevelForScore(fraction).id !== 'safe';
 }
 
 /**
  * Validate and complete a submission. Required context differs by target: 'chunker' is
- * about the page, the other three are about a chunk, and 'aspect' also needs a module.
+ * about the page, the other three are about a chunk, and 'module' also needs a module.
  */
-export function buildFeedbackSubmission(
+export async function buildFeedbackSubmission(
 	payload: FeedbackPayload,
 	userId: string
-): FeedbackSubmission | { error: string } {
-	if (!payload.localId) return { error: 'Missing feedback id' };
+): Promise<FeedbackSubmission | { error: string }> {
 	if (!FEEDBACK_TARGETS.includes(payload.target)) {
 		return { error: `Unknown feedback target: ${payload.target}` };
 	}
 	if (payload.message && payload.message.length > MAX_FEEDBACK_MESSAGE_LENGTH) {
 		return { error: `Message too long (max ${MAX_FEEDBACK_MESSAGE_LENGTH})` };
 	}
+	if (payload.target === 'chunker') {
+		if (!payload.pageUrl) return { error: 'Missing page context' };
+	} else if (!payload.chunkFingerprint || !payload.chunkUrl) {
+		return { error: 'Missing chunk context' };
+	}
+
+	/**
+	 * A thumb starts the rating over, so it has to wipe the preset issue and note the
+	 * previous one collected — otherwise a 👍 keeps "this isn't clickbait" hanging off it.
+	 * null clears the stored value; undefined would leave it in place.
+	 */
+	const isThumb = !payload.issueId && !payload.message;
 
 	const submission: FeedbackSubmission = {
-		localId: payload.localId,
+		localId: await feedbackLocalId({
+			userId,
+			target: payload.target,
+			moduleId: payload.moduleId,
+			chunkFingerprint: payload.chunkFingerprint,
+			pageUrl: payload.pageUrl,
+		}),
 		target: payload.target,
-		applies: payload.applies,
-		retracted: payload.retracted || undefined,
-		issueId: payload.issueId,
-		issueLabel: payload.issueLabel,
-		message: payload.message?.trim() || undefined,
+		thumbsUp: payload.thumbsUp,
+		// Explicit, so rating again after a retraction is not still marked as withdrawn.
+		retracted: !!payload.retracted,
+		issueId: isThumb ? null : payload.issueId,
+		issueLabel: isThumb ? null : payload.issueLabel,
+		message: isThumb ? null : payload.message?.trim() || null,
+		// Which page the feedback came from, for every target — chunker has only this.
+		pageUrl: payload.pageUrl,
 		traceId: payload.traceId,
 		spanId: payload.spanId,
 		userId,
 	};
 
 	if (payload.target === 'chunker') {
-		if (!payload.pageUrl) return { error: 'Missing page context' };
-		submission.pageUrl = payload.pageUrl;
 		submission.chunkCount = payload.chunkCount;
 		return submission;
 	}
 
-	if (!payload.chunkFingerprint || !payload.chunkUrl) return { error: 'Missing chunk context' };
 	submission.chunkFingerprint = payload.chunkFingerprint;
 	submission.chunkUrl = payload.chunkUrl;
 	submission.chunkTitle = payload.chunkTitle;
+	submission.problemScore =
+		typeof payload.problemScore === 'number'
+			? payload.problemScore
+			: payload.problemScore
+				? fractionFromProblemScore(payload.problemScore)
+				: payload.problemScore;
 
-	if (payload.target === 'aspect') {
-		const aspectType = moduleToAspect(payload.moduleId || '');
-		if (!aspectType) return { error: 'Unknown analysis module' };
-		submission.aspectType = aspectType;
-		submission.moduleId = payload.moduleId;
+	if (payload.target === 'module') {
+		const moduleId = payload.moduleId || '';
+		if (!ANALYSIS_MODULE_IDS.has(moduleId)) return { error: 'Unknown analysis module' };
+		const tag = primaryTagForModule(moduleId, payload.tags);
+		if (!tag) return { error: 'Unknown analysis module' };
+		submission.moduleId = moduleId;
 		submission.analysisId = payload.analysisId;
-		submission.problemScore = payload.problemScore;
 		submission.confidence = payload.confidence;
-	} else {
-		submission.problemScore = payload.problemScore;
+		submission.tag = tag;
+		// A retraction withdraws the rating, so there is no ground truth left to record.
+		submission.tagOn = payload.retracted
+			? null
+			: payload.thumbsUp === analysisFlaggedIt(payload.problemScore);
 	}
 
 	return submission;

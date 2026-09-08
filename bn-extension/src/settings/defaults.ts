@@ -83,6 +83,9 @@
     aiqaServerUrl: '',
     // 0-1. Every page view makes a trace, so sample down if AIQA gets noisy.
     aiqaSamplingRate: 1,
+    // AIQA organisation the traces belong to. The trace link needs it: the UI has no
+    // route for a bare trace id (tracing/aiqa-trace-url.ts).
+    aiqaOrganisationId: '',
     // Developer Mode: diagnostic console output (utils/logger.ts logit()), plus AIQA
     // trace links on feedback (specs/feedback.md). Was `consoleLogging` before v0.5.
     developerMode: false,

@@ -24,8 +24,8 @@ import { createChunk } from '../types/Chunk.js';
 import type { Chunk } from '../types/Chunk.js';
 import { buildChunkSummary } from '../types/ChunkAnalysis.js';
 import type { ChunkAnalysis } from '../types/ChunkAnalysis.js';
-import { completeAspectAnalysis } from '../types/AspectAnalysis.js';
-import type { AspectAnalysis } from '../types/AspectAnalysis.js';
+import { completeModuleAnalysis } from '../types/ModuleAnalysis.js';
+import type { ModuleAnalysis } from '../types/ModuleAnalysis.js';
 import type { Statement } from '../types/Statement.js';
 import { formatUnbaitTitle } from '../features/click-unbait/format-unbait-title.js';
 
@@ -45,17 +45,17 @@ const DEMO_URLS_OFFLINE_MIRROR = [
   'http://localhost:8080/clickbait-headline-link.html',
 ];
 
-/** One feature's verdict, keyed by settings module id (see MODULE_ASPECT_TYPE). */
-interface DemoAspectSpec {
+/** One feature's verdict, keyed by settings module id. */
+interface DemoModuleSpec {
   moduleId: 'factChecker' | 'biasDetector' | 'antiManipulation' | 'defuseRagebait' | 'clickUnbait';
   problemScore: number;
   confidence: number;
-  flags: string[];
+  tags: string[];
   explanation: string;
   /** Fact-check or source page, shown as a link in the Content Analysis modal. */
   url?: string;
   /** clickUnbait only: what the unravel step would return after reading the destination.
-   *  buildAspect turns it into the displayTitle/hoverTitle metadata that
+   *  buildModule turns it into the displayTitle/hoverTitle metadata that
    *  apply-click-unbait.ts rewrites the on-page link with, using the same formatter the
    *  live feature uses — so the demo cannot show a rewrite the feature could not produce. */
   honestSummary?: string;
@@ -66,7 +66,7 @@ interface DemoAspectSpec {
 interface DemoStatementSpec {
   type: 'claim' | 'opinion';
   summaryText: string;
-  analyses: DemoAspectSpec[];
+  analyses: DemoModuleSpec[];
 }
 
 interface DemoChunkSpec {
@@ -90,7 +90,7 @@ interface DemoChunkSpec {
   /** IAB Content Taxonomy Tier 1 category. */
   primaryTopic: string;
   statements: DemoStatementSpec[];
-  analyses: DemoAspectSpec[];
+  analyses: DemoModuleSpec[];
 }
 
 interface DemoPageSpec {
@@ -187,7 +187,7 @@ const SHARE_POST: DemoChunkSpec = {
           moduleId: 'factChecker',
           problemScore: 0.95,
           confidence: 0.88,
-          flags: ['false'],
+          tags: ['false-claim'],
           explanation:
             'No such study exists. Lead Stories rated this exact headline FALSE: the "study" is a safety report Impossible Foods filed with the FDA about a plant-based burger, a different product from cultivated meat.',
           url: LEAD_STORIES_DEBUNK,
@@ -200,7 +200,7 @@ const SHARE_POST: DemoChunkSpec = {
       moduleId: 'factChecker',
       problemScore: 0.9,
       confidence: 0.85,
-      flags: ['false', 'shared-fake-article'],
+      tags: ['false-claim'],
       explanation:
         'The headline being shared is false and was debunked in February 2023. The FDA says it is "not aware of evidence or a credible mechanism to support the claim that cultured animal cells used as food cause cancer."',
       url: LEAD_STORIES_DEBUNK,
@@ -209,7 +209,7 @@ const SHARE_POST: DemoChunkSpec = {
       moduleId: 'antiManipulation',
       problemScore: 0.62,
       confidence: 0.72,
-      flags: ['low-credibility-source', 'false-authority'],
+      tags: ['fringe-view'],
       explanation:
         'The link goes to The People’s Voice, formerly YourNewsWire and NewsPunch, a site with a long record of fabricated stories — shared here by an account whose display name claims two doctorates.',
       url: PUBLISHER_PROFILE,
@@ -243,7 +243,7 @@ const FAKE_ARTICLE: DemoChunkSpec = {
           moduleId: 'factChecker',
           problemScore: 0.96,
           confidence: 0.9,
-          flags: ['false', 'fabricated-study'],
+          tags: ['false-claim'],
           explanation:
             'There is no study. Lead Stories traced the claim to an Impossible Foods safety report about a plant-based burger, mixed with a Bloomberg feature about cultivated meat.',
           url: LEAD_STORIES_DEBUNK,
@@ -258,7 +258,7 @@ const FAKE_ARTICLE: DemoChunkSpec = {
           moduleId: 'factChecker',
           problemScore: 0.15,
           confidence: 0.85,
-          flags: ['true'],
+          tags: ['verified-claims'],
           explanation:
             'True, and it comes from the article’s own source. Immortalised is not cancerous: the cells are selected to keep dividing in a bioreactor, not for any ability to form tumours, and they are broken down by cooking and digestion.',
           url: HEALTH_FEEDBACK_DEBUNK,
@@ -271,7 +271,7 @@ const FAKE_ARTICLE: DemoChunkSpec = {
       moduleId: 'factChecker',
       problemScore: 0.94,
       confidence: 0.9,
-      flags: ['false', 'fabricated-study'],
+      tags: ['false-claim'],
       explanation:
         'The headline claim is false and the cited study does not exist. Fact-checked by Lead Stories and Full Fact; no evidence links cultivated meat to cancer.',
       url: FULL_FACT_DEBUNK,
@@ -280,7 +280,7 @@ const FAKE_ARTICLE: DemoChunkSpec = {
       moduleId: 'biasDetector',
       problemScore: 0.7,
       confidence: 0.78,
-      flags: ['conspiracy-framing'],
+      tags: ['fringe-view'],
       explanation:
         '"Globalist elites at the WEF" and "so-called climate change" frame a food-technology story as an elite plot, and the piece is sourced from Natural News rather than the research it claims to report.',
     },
@@ -288,7 +288,7 @@ const FAKE_ARTICLE: DemoChunkSpec = {
       moduleId: 'antiManipulation',
       problemScore: 0.6,
       confidence: 0.72,
-      flags: ['low-credibility-source', 'engagement-bait'],
+      tags: ['fringe-view'],
       explanation:
         'The People’s Voice has published fabricated stories for years under three names, and the article is interrupted by a "BYPASS THE CENSORS" email capture.',
       url: PUBLISHER_PROFILE,
@@ -321,7 +321,7 @@ const DENZEL_TEASER: DemoChunkSpec = {
           moduleId: 'factChecker',
           problemScore: 0.97,
           confidence: 0.9,
-          flags: ['false', 'fabricated-quote'],
+          tags: ['false-claim'],
           explanation:
             'No interview, statement or report carries this quote. Invented celebrity quotes are this site’s stock in trade — Snopes debunked the same author’s claim that the Epstein files showed Leonardo DiCaprio eating "child meat".',
           url: SNOPES_CELEBRITY_CLAIM,
@@ -334,7 +334,7 @@ const DENZEL_TEASER: DemoChunkSpec = {
       moduleId: 'factChecker',
       problemScore: 0.97,
       confidence: 0.9,
-      flags: ['false', 'fabricated-quote'],
+      tags: ['false-claim'],
       explanation:
         'A quote attributed to a real person with no source behind it, naming another real person as a criminal.',
       url: SNOPES_CELEBRITY_CLAIM,
@@ -343,7 +343,7 @@ const DENZEL_TEASER: DemoChunkSpec = {
       moduleId: 'antiManipulation',
       problemScore: 0.7,
       confidence: 0.75,
-      flags: ['low-credibility-source', 'fabricated-quote'],
+      tags: ['fringe-view'],
       explanation:
         'Poynter counted this site debunked more than 80 times in 2017-18, and the byline "Baxter Dmitry" was previously run behind a stolen profile photo.',
       url: PUBLISHER_PROFILE,
@@ -352,7 +352,7 @@ const DENZEL_TEASER: DemoChunkSpec = {
       moduleId: 'defuseRagebait',
       problemScore: 0.6,
       confidence: 0.7,
-      flags: ['fear', 'conspiracy'],
+      tags: ['fear', 'fringe-view'],
       explanation:
         'Satanic-panic framing around missing children — built to be shared in alarm rather than read.',
     },
@@ -379,7 +379,7 @@ const SILVERSTONE_TEASER: DemoChunkSpec = {
           moduleId: 'factChecker',
           problemScore: 0.96,
           confidence: 0.88,
-          flags: ['false', 'fabricated-quote'],
+          tags: ['false-claim'],
           explanation:
             'There is no such statement. The headline also predicts named deaths, which no source could support.',
           url: SNOPES_CELEBRITY_CLAIM,
@@ -392,7 +392,7 @@ const SILVERSTONE_TEASER: DemoChunkSpec = {
       moduleId: 'factChecker',
       problemScore: 0.96,
       confidence: 0.88,
-      flags: ['false', 'fabricated-quote'],
+      tags: ['false-claim'],
       explanation:
         'An invented quote plus an unfalsifiable prediction of deaths, attributed to a real actor.',
       url: SNOPES_CELEBRITY_CLAIM,
@@ -401,7 +401,7 @@ const SILVERSTONE_TEASER: DemoChunkSpec = {
       moduleId: 'antiManipulation',
       problemScore: 0.7,
       confidence: 0.75,
-      flags: ['low-credibility-source', 'fabricated-quote'],
+      tags: ['fringe-view'],
       explanation:
         'Same publisher and byline as the other fabricated celebrity quotes on this page.',
       url: PUBLISHER_PROFILE,
@@ -410,7 +410,7 @@ const SILVERSTONE_TEASER: DemoChunkSpec = {
       moduleId: 'defuseRagebait',
       problemScore: 0.55,
       confidence: 0.7,
-      flags: ['fear', 'conspiracy'],
+      tags: ['fear', 'fringe-view'],
       explanation: 'Promises more deaths to come, which is what keeps the reader clicking through the sidebar.',
     },
   ],
@@ -459,7 +459,7 @@ const WELFARE_STAT_POST: DemoChunkSpec = {
           moduleId: 'factChecker',
           problemScore: 0.95,
           confidence: 0.9,
-          flags: ['false', 'unsourced-statistic'],
+          tags: ['false-claim'],
           explanation:
             'No study reports this. Producing the figure would need a dataset that records both religion and welfare receipt, comparably, across every European country — and no such dataset exists: Eurostat told Newtral it keeps no statistics by ethnic group. The EU Agency for Fundamental Rights (2024) found 63% of Muslims surveyed gave paid work as their main activity, against 75% of the general population — nothing like 80% on benefits.',
           url: DPA_WELFARE_DEBUNK,
@@ -472,7 +472,7 @@ const WELFARE_STAT_POST: DemoChunkSpec = {
       moduleId: 'factChecker',
       problemScore: 0.95,
       confidence: 0.9,
-      flags: ['false', 'unsourced-statistic'],
+      tags: ['false-claim'],
       explanation:
         'dpa checked this exact wording in July 2026 and found no reputable evidence for it. The population figure is about right; the 40 million is not a measurement of anything.',
       url: DPA_WELFARE_DEBUNK,
@@ -481,7 +481,7 @@ const WELFARE_STAT_POST: DemoChunkSpec = {
       moduleId: 'antiManipulation',
       problemScore: 0.72,
       confidence: 0.8,
-      flags: ['recycled-claim', 'laundered-source'],
+      tags: ['suspect-claim'],
       explanation:
         'The number began as a remark by a presenter on Lebanese TV in 2012 — misattributed ever since to the Egyptian researcher he was interviewing, who disagreed with him on air — and was then repeated in a 2013 written question to the European Parliament, which is where it picked up the look of an official statistic.',
       url: NEWTRAL_WELFARE_DEBUNK,
@@ -490,7 +490,7 @@ const WELFARE_STAT_POST: DemoChunkSpec = {
       moduleId: 'biasDetector',
       problemScore: 0.8,
       confidence: 0.75,
-      flags: ['out-group-generalisation'],
+      tags: ['ragebait'],
       explanation:
         'Assigns a single behaviour to 50 million people identified only by religion, using a statistic that does not exist.',
       url: DPA_WELFARE_DEBUNK,
@@ -499,7 +499,7 @@ const WELFARE_STAT_POST: DemoChunkSpec = {
       moduleId: 'defuseRagebait',
       problemScore: 0.66,
       confidence: 0.7,
-      flags: ['engagement-bait', 'out-group-blame'],
+      tags: ['ragebait'],
       explanation:
         '"Shocking data revealed" with no data attached, on a topic chosen to provoke: 259,000 views in a day.',
       url: DPA_WELFARE_DEBUNK,
@@ -556,7 +556,7 @@ const CLICKBAIT_TEASER: DemoChunkSpec = {
           moduleId: 'factChecker',
           problemScore: 0.15,
           confidence: 0.8,
-          flags: ['true'],
+          tags: ['verified-claims'],
           explanation:
             'True, and unremarkable. Affect labelling has been studied since the 2000s and putting a name to a feeling before acting on it is standard in CBT and in mindfulness practice — what the headline sells as a Harvard secret is in every therapy handbook.',
           url: AFFECT_LABELLING,
@@ -569,7 +569,7 @@ const CLICKBAIT_TEASER: DemoChunkSpec = {
       moduleId: 'clickUnbait',
       problemScore: 0.66,
       confidence: 0.82,
-      flags: ['clickbait', 'curiosity-gap', 'borrowed-authority', 'unbaited'],
+      tags: ['clickbait'],
       explanation:
         'The headline withholds the one thing it is about: what the note says. The answer is the word "awareness" — noticing the feeling before reacting to it — which takes six words to state and costs the publisher a click to give away. "Harvard psychiatrist" and "the fastest way to change your life" are there to make the gap unbearable.',
       honestSummary: 'The note says ‘awareness’',
@@ -628,19 +628,19 @@ const DEMO_PAGE_SPECS: DemoPageSpec[] = [
 
 // --- build ---
 
-function buildAspect(
-  spec: DemoAspectSpec,
+function buildModule(
+  spec: DemoModuleSpec,
   idSuffix: string,
   originalTitle: string
-): AspectAnalysis {
-  return completeAspectAnalysis(spec.moduleId, {
+): ModuleAnalysis {
+  return completeModuleAnalysis(spec.moduleId, {
     // Fixed ids: a demo re-run should produce byte-identical results.
     id: `demo-${spec.moduleId}-${idSuffix}`,
     methodName: spec.moduleId,
     model: 'demo',
     problemScore: spec.problemScore,
     confidence: spec.confidence,
-    flags: spec.flags,
+    tags: spec.tags,
     explanation: spec.explanation,
     url: spec.url,
     metadata: unbaitMetadata(spec, originalTitle),
@@ -654,7 +654,7 @@ function buildAspect(
  * budget shows up in the demo instead of the demo quietly disagreeing with the product.
  */
 function unbaitMetadata(
-  spec: DemoAspectSpec,
+  spec: DemoModuleSpec,
   originalTitle: string
 ): Record<string, unknown> | undefined {
   if (!spec.honestSummary) return undefined;
@@ -665,6 +665,7 @@ function unbaitMetadata(
     honestSummary: spec.honestSummary,
     displayTitle: formatted.displayText,
     hoverTitle: formatted.hoverTitle,
+    unbaited: true,
   };
 }
 
@@ -672,7 +673,7 @@ function buildStatements(spec: DemoChunkSpec, index: number): Statement[] {
   return spec.statements.map((statement, i) => ({
     type: statement.type,
     summaryText: statement.summaryText,
-    analyses: statement.analyses.map((a, j) => buildAspect(a, `${index}-s${i}-${j}`, spec.title)),
+    analyses: statement.analyses.map((a, j) => buildModule(a, `${index}-s${i}-${j}`, spec.title)),
   }));
 }
 
@@ -717,7 +718,7 @@ function buildChunk(pageUrl: string, spec: DemoChunkSpec, index: number): DemoCh
     tags: ['post'],
     isPrimary: index === 0,
   });
-  const analyses = spec.analyses.map((a, i) => buildAspect(a, `${index}-${i}`, spec.title));
+  const analyses = spec.analyses.map((a, i) => buildModule(a, `${index}-${i}`, spec.title));
   const analysis: ChunkAnalysis = {
     chunkId: chunk.fingerprint,
     primaryTopic: spec.primaryTopic,

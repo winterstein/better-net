@@ -666,6 +666,7 @@ class SettingsController {
     setChecked('aiqa-tracing', !!s.aiqaTracing);
     setValue('aiqa-api-key', s.aiqaApiKey || '');
     setValue('aiqa-server-url', s.aiqaServerUrl || '');
+    setValue('aiqa-organisation-id', s.aiqaOrganisationId || '');
     setValue('aiqa-sampling-rate', String(s.aiqaSamplingRate ?? 1));
     setChecked('developer-mode', developerModeFromSettings(s));
     setChecked('show-chunk-overlay', !!s.showChunkOverlay);
@@ -703,6 +704,7 @@ class SettingsController {
       aiqaTracing: document.getElementById('aiqa-tracing').checked,
       aiqaApiKey: document.getElementById('aiqa-api-key').value.trim(),
       aiqaServerUrl: document.getElementById('aiqa-server-url').value.trim(),
+      aiqaOrganisationId: document.getElementById('aiqa-organisation-id').value.trim(),
       aiqaSamplingRate: clampSamplingRate(document.getElementById('aiqa-sampling-rate').value),
       developerMode: document.getElementById('developer-mode').checked,
       showChunkOverlay: document.getElementById('show-chunk-overlay').checked,

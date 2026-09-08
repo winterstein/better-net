@@ -46,6 +46,9 @@ export function mergeSettings(stored: any = {}) {
     aiqaApiKey: '',
     aiqaServerUrl: '',
     aiqaSamplingRate: 1,
+    // AIQA organisation the traces belong to. The trace link needs it: the UI has no
+    // route for a bare trace id (tracing/aiqa-trace-url.ts).
+    aiqaOrganisationId: '',
     developerMode: false,
     /** Debug aid: outline every chunk on the page. See content/chunk-overlay.ts. */
     showChunkOverlay: false,

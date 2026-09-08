@@ -73,8 +73,14 @@ const LABELS = ['This text is politically biased', 'This text is objective'];
 		{ mode: 'local', config: { localModelId: 'mobilebert-mnli' }, localBackend }
 	);
 
-	assert.ok(out.problemScore < 0.4);
+	assert.equal(out.problemScore, 'low');
 	assert.match(String(out.explanation), /balanced and objective/i);
+	assert.deepEqual(
+		(out.tags as { tag: string }[] | string[]).map((t) =>
+			typeof t === 'string' ? t : t.tag
+		),
+		['bias:neutral']
+	);
 }
 
 console.log('✅ analyze-local / zero-shot analyzer tests passed');

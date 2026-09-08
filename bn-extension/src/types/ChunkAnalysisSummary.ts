@@ -1,4 +1,4 @@
-import type { AspectType } from './AspectAnalysis.js';
+import type { ProblemScore } from './Score.js';
 
 export type RiskRating =
 	| 'very-high'
@@ -16,23 +16,16 @@ export interface ChunkAnalysisSummary {
 	summaryText: string;
 	/** Overall risk assessment */
 	overallRisk: RiskRating;
-	/** Overall score: 0-1, where higher = more problematic */
-	problemScore: number;	
+	/** Overall problem score: high | medium | low */
+	problemScore: ProblemScore;	
 	confidence: number;
 	flags: Flag[];
 }
 
 export interface Flag {
-	type: AspectType;
+	/** Settings module id that produced this flag */
+	moduleId: string;
 	riskRating: RiskRating;
-	/** A single word label. E.g.
-	 * left/right/neutral for bias.
-	 * true/false/misleading for accuracy.
-	 * scam/not-scam for scams.
-	 * hateful/angry/toxic/non-toxic/positive/feelgood for toxicity.
-	 * clickbait for clickbait.
-	 * etc
-	 */
+	/** A product tag label (see terminology.md) */
 	label: string;
 }
-

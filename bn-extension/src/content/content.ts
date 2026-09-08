@@ -196,6 +196,7 @@ class PageAnalyzer {
       this.feedbackEnabled = isFeedbackEnabled(settings);
       this.developerMode = developerModeFromSettings(settings);
       this.aiqaServerUrl = settings.aiqaServerUrl;
+      this.aiqaOrganisationId = settings.aiqaOrganisationId;
     } catch {
       this.feedbackEnabled = false;
       this.developerMode = false;
@@ -802,6 +803,7 @@ class PageAnalyzer {
         feedbackEnabled: this.feedbackEnabled,
         developerMode: this.developerMode,
         aiqaServerUrl: this.aiqaServerUrl,
+        aiqaOrganisationId: this.aiqaOrganisationId,
         // Chunker feedback is about the page: how many chunks it was split into.
         chunkCount: this.lastChunks?.length,
         pageUrl: window.location.href,

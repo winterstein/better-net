@@ -11,18 +11,28 @@ import {
   findFacebookFeedPostRoot,
 } from '../ad-blocker/facebook-sponsored.js';
 
-/** @typedef {import('../types/Tag.js').Tag} Tag */
+/** @typedef {import('../types/Tag.js').ChunkTag} ChunkTag */
 
-/** @type {Record<string, Tag>} */
+/** @type {Record<string, ChunkTag>} */
 export const TAG = {
   ADVERT: 'advert',
-  ARTICLE: 'article',
-  POST: 'post',
-  SEARCH_RESULT: 'search_result',
-  COMMENT: 'comment',
-  SIDEBAR: 'sidebar',
-  OTHER: 'other',
+  SPONSORED: 'sponsored',
+  ARTICLE: 'chunk-type:article',
+  POST: 'chunk-type:post',
+  SEARCH_RESULT: 'chunk-type:search_result',
+  COMMENT: 'chunk-type:comment',
+  SIDEBAR: 'chunk-type:sidebar',
+  OTHER: 'chunk-type:other',
 };
+
+const ROLE_TAGS = new Set([
+  TAG.ARTICLE,
+  TAG.POST,
+  TAG.SEARCH_RESULT,
+  TAG.COMMENT,
+  TAG.SIDEBAR,
+  TAG.OTHER,
+]);
 
 /** Labels an ad unit puts on itself. Matched as a label, never as prose — see
  *  isLikelyAdFromChunkText. */
@@ -38,7 +48,7 @@ const AD_LABEL_SEPARATORS = /[\n\r\u00b7\u2022|\u2013\u2014:]+/;
 
 /**
  * @param {object | null | undefined} chunk
- * @param {Tag} tag
+ * @param {ChunkTag} tag
  */
 export function hasTag(chunk, tag) {
   return Array.isArray(chunk?.tags) && chunk.tags.includes(tag);
@@ -46,7 +56,7 @@ export function hasTag(chunk, tag) {
 
 /**
  * @param {object} chunk
- * @param {Tag} tag
+ * @param {ChunkTag} tag
  */
 export function addTag(chunk, tag) {
   if (!chunk.tags) chunk.tags = [];
@@ -56,10 +66,12 @@ export function addTag(chunk, tag) {
 
 /**
  * @param {object} chunk
- * @param {Tag[]} tags
+ * @param {ChunkTag[]} tags
  */
 export function setContentTags(chunk, tags) {
-  const withoutContent = (chunk.tags || []).filter((t) => t === TAG.ADVERT);
+  const withoutContent = (chunk.tags || []).filter(
+    (t) => t === TAG.ADVERT || t === TAG.SPONSORED
+  );
   chunk.tags = [...new Set([...tags, ...withoutContent])];
   return chunk;
 }
@@ -157,7 +169,7 @@ function platformContentTag(platform) {
 /**
  * Apply content + advert tags before returning chunks from extractors.
  * @param {object} chunk
- * @param {{ platform?: string, url?: string, contentTag?: Tag }} [options]
+ * @param {{ platform?: string, url?: string, contentTag?: ChunkTag }} [options]
  */
 export function finalizeChunk(chunk, options: any = {}) {
   const { platform, url = '', contentTag } = options;
@@ -169,10 +181,10 @@ export function finalizeChunk(chunk, options: any = {}) {
     platformContentTag(platform) ||
     (chunk.metadata?.platform ? platformContentTag(String(chunk.metadata.platform)) : null);
 
-  const hasContentTag = chunk.tags.some((t) => t !== TAG.ADVERT);
-  if (content && !hasContentTag) {
+  const hasRoleTag = chunk.tags.some((t) => ROLE_TAGS.has(t));
+  if (content && !hasRoleTag) {
     setContentTags(chunk, [content]);
-  } else if (!hasContentTag) {
+  } else if (!hasRoleTag) {
     addTag(chunk, TAG.OTHER);
   }
 

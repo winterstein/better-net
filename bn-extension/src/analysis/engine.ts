@@ -2,11 +2,12 @@
  * Chunk analysis orchestration (background worker entrypoint).
  */
 
-import { ANALYSIS_FEATURES, ANALYSIS_FEATURE_IDS } from '../features/registry.js';
+import { ANALYSIS_MODULES, ANALYSIS_MODULE_IDS } from '../features/registry.js';
 import { traceStep, setAttributes, traceIds } from '../tracing/tracer-hook.js';
 import { logit } from '../utils/logger.js';
-import { completeAspectAnalysis } from '../types/AspectAnalysis.js';
-import type { AspectAnalysis } from '../types/AspectAnalysis.js';
+import { completeModuleAnalysis } from '../types/ModuleAnalysis.js';
+import type { ModuleAnalysis } from '../types/ModuleAnalysis.js';
+import { fractionFromProblemScore, issueTagIds } from '../types/Score.js';
 import type { ChunkAnalysis } from '../types/ChunkAnalysis.js';
 import { buildChunkSummary } from '../types/ChunkAnalysis.js';
 import type { Chunk } from '../types/Chunk.js';
@@ -22,7 +23,7 @@ export function enabledFeaturesFromSettings(settings, domain) {
   const host = domain?.replace(/^www\./, '');
   if (host && settings.excludedSites?.includes(host)) return [];
   const overrides = settings.domainOverrides?.[host];
-  return ANALYSIS_FEATURE_IDS.filter((id) => {
+  return ANALYSIS_MODULE_IDS.filter((id) => {
     const mod = settings.modules?.[id];
     if (mod && mod.enabled === false) return false;
     if (overrides && overrides[id] === false) return false;
@@ -38,12 +39,12 @@ async function analyzeChunk(
   const enabledFeatures =
     options.enabledFeatures ??
     options.enabledAnalyzers ??
-    ANALYSIS_FEATURE_IDS;
+    ANALYSIS_MODULE_IDS;
   const { enabledFeatures: _ef, enabledAnalyzers: _ea, ...analysisOptions } = options;
-  const analyses: AspectAnalysis[] = [];
+  const analyses: ModuleAnalysis[] = [];
   const tasks = [];
 
-  for (const feature of ANALYSIS_FEATURES) {
+  for (const feature of ANALYSIS_MODULES) {
     if (!enabledFeatures.includes(feature.id)) continue;
     tasks.push(
       traceStep(
@@ -55,28 +56,34 @@ async function analyzeChunk(
         (span) =>
           feature
             .analyze(chunk, pageMetadata, { ...analysisOptions, trace: span })
-            .then((result: Partial<AspectAnalysis>) => {
+            .then((result: Partial<ModuleAnalysis>) => {
+              const scoreFraction =
+                typeof result.problemScore === 'number'
+                  ? result.problemScore
+                  : result.problemScore
+                    ? fractionFromProblemScore(result.problemScore)
+                    : 0;
               setAttributes(span, {
-                'betternet.problem_score': result.problemScore ?? 0,
+                'betternet.problem_score': scoreFraction,
                 'betternet.confidence': result.confidence ?? 0,
-                'betternet.flag_count': result.flags?.length ?? 0,
+                'betternet.tag_count': result.tags?.length ?? 0,
                 output: featureOutput(result),
               });
               // Carried to the modal so a thumbs down links to this feature call.
               return { ...result, spanId: traceIds(span)?.spanId };
             })
       )
-        .then((result: Partial<AspectAnalysis>) => {
-          analyses.push(completeAspectAnalysis(feature.id, result));
+        .then((result: Partial<ModuleAnalysis>) => {
+          analyses.push(completeModuleAnalysis(feature.id, result));
         })
         .catch((error) => {
           logit('warn', `[ANALYSIS] ${feature.id} failed:`, error.message);
           analyses.push(
-            completeAspectAnalysis(feature.id, {
+            completeModuleAnalysis(feature.id, {
               error: error.message,
               problemScore: 0,
               confidence: 0,
-              flags: [],
+              tags: [],
               explanation: `Analysis failed: ${error.message}`,
             })
           );
@@ -172,7 +179,7 @@ function round2(n: number): number {
 function chunkOutput(analysis: ChunkAnalysis): string {
   return JSON.stringify({
     risk: analysis.summary.overallRisk,
-    score: round2(analysis.summary.problemScore),
+    score: round2(fractionFromProblemScore(analysis.summary.problemScore)),
     flags: analysis.summary.flags.map((flag) => flag.label),
   });
 }
@@ -183,11 +190,17 @@ function chunkOutput(analysis: ChunkAnalysis): string {
  */
 const MAX_EXPLANATION_CHARS = 240;
 
-function featureOutput(result: Partial<AspectAnalysis>): string {
+function featureOutput(result: Partial<ModuleAnalysis>): string {
+  const score =
+    typeof result.problemScore === 'number'
+      ? result.problemScore
+      : result.problemScore
+        ? fractionFromProblemScore(result.problemScore)
+        : 0;
   return JSON.stringify({
-    score: round2(result.problemScore ?? 0),
+    score: round2(score),
     confidence: round2(result.confidence ?? 0),
-    flags: result.flags ?? [],
+    tags: result.tags ? issueTagIds(result.tags as any) : [],
     explanation: (result.explanation ?? '').slice(0, MAX_EXPLANATION_CHARS),
   });
 }

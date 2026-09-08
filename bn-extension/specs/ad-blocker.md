@@ -24,3 +24,16 @@ Generic web-pages (and platforms without a dedicated DOM scanner):
 4. Facebook also keeps a mutation observer for newly loaded feed/sidebar ads
 
 Popup (By feature list): **Show blocked** temporarily reveals hidden ads (dashed outline + label) so the user can see what was blocked; **Hide again** restores hiding. Ad blocking stays on; new ads are still hidden while previewing.
+
+Settings module: `adBlocker`.
+
+## Status
+
+Target tags (terminology.md):
+
+- advert — chunker / heuristics mark ad units on `chunk.tags[]`; drives hide partition (working on Facebook + generic heuristics)
+- sponsored — tag constant exists; dedicated native/advertorial tagging still to-do (Facebook “Sponsored” currently folds into advert detection)
+
+Chunk roles use `chunk-type:…` key:value tags on the same array (Content Classifier).
+
+YouTube path: to-do.

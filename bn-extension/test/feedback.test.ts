@@ -1,25 +1,25 @@
 /**
- * Feedback client: what each target requires, and the localId that makes a follow-up
- * an update rather than a second row. See specs/feedback.md.
+ * Feedback client: what each target requires, the ground truth a thumb turns into, and
+ * the derived localId that makes a follow-up an update rather than a second row.
+ * See specs/feedback.md.
  */
 
 import assert from 'node:assert/strict';
-import { moduleToAspect, MODULE_ASPECT_MAP } from '../src/feedback/aspect-map.js';
 import {
 	buildFeedbackSubmission,
+	feedbackLocalId,
 	isFeedbackEnabled,
-	newFeedbackLocalId,
 	MAX_FEEDBACK_MESSAGE_LENGTH,
 } from '../src/feedback/feedback-client.js';
+import type { FeedbackPayload } from '../src/feedback/feedback-client.js';
 import { issuesForTarget, issueLabel, OTHER_ISSUE_ID } from '../src/feedback/feedback-issues.js';
-import { AspectType } from '../src/types/AspectAnalysis.js';
+import { primaryTagForModule, MODULE_PRIMARY_TAG } from '../src/types/ModuleAnalysis.js';
+import type { FeedbackSubmission } from '../src/types/Feedback.js';
 
-assert.equal(moduleToAspect('factChecker'), AspectType.ACCURACY);
-assert.equal(moduleToAspect('biasDetector'), AspectType.BIAS);
-assert.equal(moduleToAspect('defuseRagebait'), AspectType.TOXICITY);
-assert.equal(moduleToAspect('clickUnbait'), AspectType.CLICKBAIT);
-assert.equal(moduleToAspect('unknown'), undefined);
-assert.ok(Object.keys(MODULE_ASPECT_MAP).length >= 5);
+assert.equal(primaryTagForModule('clickUnbait'), 'clickbait');
+assert.equal(primaryTagForModule('factChecker', ['false-claim']), 'false-claim');
+assert.equal(primaryTagForModule('unknown'), undefined);
+assert.ok(Object.keys(MODULE_PRIMARY_TAG).length >= 5);
 
 assert.equal(isFeedbackEnabled({ shareAnonymous: false, serverEndpoint: 'http://x' }), false);
 assert.equal(isFeedbackEnabled({ shareAnonymous: true, serverEndpoint: '' }), false);
@@ -27,171 +27,170 @@ assert.equal(isFeedbackEnabled({ shareAnonymous: true, serverEndpoint: 'http://l
 
 // --- preset issue lists ---
 
-for (const target of ['summary', 'aspect', 'chunker', 'chunk'] as const) {
+for (const target of ['summary', 'module', 'chunker', 'chunk'] as const) {
 	const issues = issuesForTarget(target);
 	assert.ok(issues.length >= 3, `${target} needs presets`);
 	assert.equal(issues[issues.length - 1].id, OTHER_ISSUE_ID, `${target} ends with Other`);
 	assert.equal(new Set(issues.map((i) => i.id)).size, issues.length, `${target} ids are unique`);
 }
 // "Does not apply" is phrased in the user's words, per module.
-assert.equal(issueLabel('aspect', 'not-applicable', 'clickUnbait'), "This isn't clickbait");
-assert.equal(issueLabel('aspect', 'not-applicable'), 'Does not apply');
+assert.equal(issueLabel('module', 'not-applicable', 'clickUnbait'), "This isn't clickbait");
+assert.equal(issueLabel('module', 'not-applicable'), 'Does not apply');
 assert.equal(issueLabel('chunk', 'not-a-chunk'), "This shouldn't be a chunk");
 
-// --- aspect feedback (the v1 shape) ---
+// --- helpers ---
 
-const localId = newFeedbackLocalId();
-assert.ok(localId.length > 8);
+const CHUNK = {
+	chunkFingerprint: 'abc',
+	chunkUrl: 'https://example.com/article',
+	pageUrl: 'https://example.com/article',
+};
 
-const aspect = buildFeedbackSubmission(
-	{
-		localId,
-		target: 'aspect',
-		chunkFingerprint: 'abc',
-		chunkUrl: 'https://example.com',
-		moduleId: 'factChecker',
-		applies: false,
-		problemScore: 0.8,
-		traceId: 'a'.repeat(32),
-		spanId: 'b'.repeat(16),
-	},
-	'user-1'
+async function build(payload: Partial<FeedbackPayload>, userId = 'user-1') {
+	const built = await buildFeedbackSubmission(
+		{ target: 'summary', thumbsUp: true, ...payload } as FeedbackPayload,
+		userId
+	);
+	return built;
+}
+
+async function ok(payload: Partial<FeedbackPayload>, userId = 'user-1'): Promise<FeedbackSubmission> {
+	const built = await build(payload, userId);
+	assert.ok(!('error' in built), `expected a submission, got ${JSON.stringify(built)}`);
+	return built as FeedbackSubmission;
+}
+
+const errorOf = async (payload: Partial<FeedbackPayload>) => {
+	const built = await build(payload);
+	assert.ok('error' in built, `expected a rejection, got ${JSON.stringify(built)}`);
+	return (built as { error: string }).error;
+};
+
+// --- the localId is derived, so the same rating always lands on the same row ---
+
+const idParts = { userId: 'user-1', target: 'module' as const, moduleId: 'clickUnbait', chunkFingerprint: 'abc' };
+assert.equal(await feedbackLocalId(idParts), await feedbackLocalId(idParts), 'same rating, same id');
+assert.notEqual(
+	await feedbackLocalId(idParts),
+	await feedbackLocalId({ ...idParts, userId: 'user-2' }),
+	'one row per user, not per chunk'
 );
-assert.ok(!('error' in aspect));
-assert.equal(aspect.aspectType, AspectType.ACCURACY);
-assert.equal(aspect.applies, false);
-assert.equal(aspect.localId, localId);
-assert.equal(aspect.traceId, 'a'.repeat(32));
-assert.equal(aspect.spanId, 'b'.repeat(16));
-
-// A follow-up issue reuses the localId, so the server updates one row.
-const followUp = buildFeedbackSubmission(
-	{
-		localId,
-		target: 'aspect',
-		chunkFingerprint: 'abc',
-		chunkUrl: 'https://example.com',
-		moduleId: 'factChecker',
-		applies: false,
-		issueId: 'overstated',
-		issueLabel: 'Overstated',
-	},
-	'user-1'
+for (const differs of [
+	{ target: 'chunk' as const },
+	{ moduleId: 'factChecker' },
+	{ chunkFingerprint: 'def' },
+]) {
+	assert.notEqual(
+		await feedbackLocalId(idParts),
+		await feedbackLocalId({ ...idParts, ...differs }),
+		`${JSON.stringify(differs)} is a different thing to rate`
+	);
+}
+// Chunker feedback has no chunk, so the page is the subject.
+assert.notEqual(
+	await feedbackLocalId({ userId: 'u', target: 'chunker', pageUrl: 'https://a.com' }),
+	await feedbackLocalId({ userId: 'u', target: 'chunker', pageUrl: 'https://b.com' })
 );
-assert.ok(!('error' in followUp));
-assert.equal(followUp.localId, localId);
+
+// A thumb and the preset issue that follows derive the same id, so one thumbs down is one row.
+const thumb = await ok({ target: 'module', thumbsUp: false, moduleId: 'clickUnbait', problemScore: 0.8, ...CHUNK });
+const followUp = await ok({
+	target: 'module',
+	thumbsUp: false,
+	moduleId: 'clickUnbait',
+	problemScore: 0.8,
+	issueId: 'overstated',
+	issueLabel: 'Overstated',
+	...CHUNK,
+});
+assert.equal(followUp.localId, thumb.localId);
 assert.equal(followUp.issueId, 'overstated');
+assert.ok(thumb.localId.startsWith('fb-'));
 
-// --- the other three targets ---
+// --- a thumb clears what the previous one collected ---
 
-const summary = buildFeedbackSubmission(
-	{
-		localId: newFeedbackLocalId(),
-		target: 'summary',
-		chunkFingerprint: 'abc',
-		chunkUrl: 'https://example.com',
-		applies: false,
-		issueId: 'score-too-high',
-		problemScore: 0.9,
-	},
-	'user-1'
+assert.equal(thumb.issueId, null, 'a thumb wipes the stored issue');
+assert.equal(thumb.issueLabel, null);
+assert.equal(thumb.message, null, 'and the stored note');
+assert.equal(thumb.retracted, false, 'and is explicit that it is not a retraction');
+// The follow-up must not wipe the issue it is itself setting.
+assert.equal(followUp.retracted, false);
+
+// --- thumbs become ground truth: tag X is on / off ---
+
+const flagged = { target: 'module' as const, moduleId: 'clickUnbait', problemScore: 0.8, ...CHUNK };
+const unflagged = { ...flagged, problemScore: 0.05 };
+
+// 👍 on "this is clickbait" and 👎 on "this is not clickbait" both mean clickbait is on.
+assert.equal((await ok({ ...flagged, thumbsUp: true })).tagOn, true);
+assert.equal((await ok({ ...unflagged, thumbsUp: false })).tagOn, true);
+// And the other way round.
+assert.equal((await ok({ ...flagged, thumbsUp: false })).tagOn, false);
+assert.equal((await ok({ ...unflagged, thumbsUp: true })).tagOn, false);
+
+const module = await ok({ ...flagged, thumbsUp: false });
+assert.equal(module.tag, 'clickbait', 'the tag being judged');
+assert.equal(module.moduleId, 'clickUnbait');
+assert.equal(module.thumbsUp, false, 'the raw click is kept too');
+assert.equal(module.problemScore, 0.8, 'what we claimed, so a borderline score is recoverable');
+
+// Retracting withdraws the rating, so there is no ground truth left to record.
+const retracted = await ok({ ...flagged, thumbsUp: false, retracted: true });
+assert.equal(retracted.retracted, true);
+assert.equal(retracted.tagOn, null, 'a withdrawn rating asserts nothing about the tag');
+
+// Only the module target judges a single tag; the rest rate our output as a whole.
+for (const target of ['summary', 'chunk'] as const) {
+	const other = await ok({ target, thumbsUp: false, ...CHUNK });
+	assert.equal(other.tag, undefined, `${target} feedback is not about one tag`);
+	assert.equal(other.tagOn, undefined);
+}
+
+// --- every target records the page it came from ---
+
+const chunk = await ok({ target: 'chunk', thumbsUp: false, issueId: 'not-a-chunk', ...CHUNK });
+assert.equal(chunk.pageUrl, CHUNK.pageUrl, 'chunk feedback knows which page it was given on');
+assert.equal((await ok({ target: 'summary', thumbsUp: true, ...CHUNK })).pageUrl, CHUNK.pageUrl);
+assert.equal(
+	(await ok({ ...flagged, thumbsUp: true })).pageUrl,
+	CHUNK.pageUrl,
+	'module feedback too'
 );
-assert.ok(!('error' in summary));
-assert.equal(summary.aspectType, undefined, 'summary feedback has no aspect');
-assert.equal(summary.problemScore, 0.9);
-
-const chunk = buildFeedbackSubmission(
-	{
-		localId: newFeedbackLocalId(),
-		target: 'chunk',
-		chunkFingerprint: 'abc',
-		chunkUrl: 'https://example.com',
-		applies: false,
-		issueId: 'not-a-chunk',
-	},
-	'user-1'
-);
-assert.ok(!('error' in chunk));
 
 // Chunker feedback is about the page: no chunk needed, page url required.
-const chunker = buildFeedbackSubmission(
-	{
-		localId: newFeedbackLocalId(),
-		target: 'chunker',
-		applies: false,
-		issueId: 'missed-content',
-		pageUrl: 'https://example.com/feed',
-		chunkCount: 12,
-	},
-	'user-1'
-);
-assert.ok(!('error' in chunker));
+const chunker = await ok({
+	target: 'chunker',
+	thumbsUp: false,
+	issueId: 'missed-content',
+	pageUrl: 'https://example.com/feed',
+	chunkCount: 12,
+});
 assert.equal(chunker.chunkCount, 12);
 assert.equal(chunker.chunkFingerprint, undefined);
+assert.equal(chunker.pageUrl, 'https://example.com/feed');
 
-assert.ok(
-	'error' in
-		buildFeedbackSubmission(
-			{ localId: newFeedbackLocalId(), target: 'chunker', applies: true },
-			'user-1'
-		),
-	'chunker feedback without a page url is rejected'
-);
+const summary = await ok({
+	target: 'summary',
+	thumbsUp: false,
+	issueId: 'score-too-high',
+	problemScore: 0.9,
+	...CHUNK,
+});
+assert.equal(summary.moduleId, undefined, 'summary feedback has no module');
+assert.equal(summary.problemScore, 0.9);
 
 // --- validation ---
 
-const badTarget = buildFeedbackSubmission(
-	{ localId: 'x', target: 'nonsense' as any, applies: true },
-	'user-1'
+assert.match(await errorOf({ target: 'nonsense' as any }), /Unknown feedback target/);
+assert.match(await errorOf({ target: 'chunker' }), /page context/);
+assert.match(await errorOf({ target: 'summary' }), /chunk context/);
+assert.match(
+	await errorOf({ ...CHUNK, message: 'x'.repeat(MAX_FEEDBACK_MESSAGE_LENGTH + 1) }),
+	/too long/
 );
-assert.ok('error' in badTarget);
-
-assert.ok('error' in buildFeedbackSubmission({ localId: '', target: 'summary', applies: true }, 'u'));
-
-assert.ok(
-	'error' in
-		buildFeedbackSubmission(
-			{
-				localId: newFeedbackLocalId(),
-				target: 'summary',
-				chunkFingerprint: 'abc',
-				chunkUrl: 'https://example.com',
-				applies: false,
-				message: 'x'.repeat(MAX_FEEDBACK_MESSAGE_LENGTH + 1),
-			},
-			'user-1'
-		)
+assert.match(
+	await errorOf({ target: 'module', moduleId: 'notAModule', ...CHUNK }),
+	/Unknown analysis module/
 );
-
-assert.ok(
-	'error' in
-		buildFeedbackSubmission(
-			{
-				localId: newFeedbackLocalId(),
-				target: 'aspect',
-				chunkFingerprint: 'abc',
-				chunkUrl: 'https://example.com',
-				moduleId: 'notAModule',
-				applies: true,
-			},
-			'user-1'
-		),
-	'aspect feedback needs a known module'
-);
-
-// Retracting keeps the record; the vote is what is withdrawn.
-const retracted = buildFeedbackSubmission(
-	{
-		localId,
-		target: 'summary',
-		chunkFingerprint: 'abc',
-		chunkUrl: 'https://example.com',
-		applies: true,
-		retracted: true,
-	},
-	'user-1'
-);
-assert.ok(!('error' in retracted));
-assert.equal(retracted.retracted, true);
 
 console.log('✅ feedback tests passed');

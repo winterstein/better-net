@@ -2,8 +2,8 @@
  * Apply click-unbait rewrite to a chunk element on the page.
  */
 
-import { findAnalysisByModule } from '../types/AspectAnalysis.js';
-import type { AspectAnalysis } from '../types/AspectAnalysis.js';
+import { findAnalysisByModule } from '../types/ModuleAnalysis.js';
+import type { ModuleAnalysis } from '../types/ModuleAnalysis.js';
 import type { ChunkAnalysis } from '../types/ChunkAnalysis.js';
 
 export function applyClickUnbaitFromAnalysis(
@@ -19,7 +19,7 @@ export function applyClickUnbaitFromAnalysis(
 
 export function applyClickUnbaitRewrite(
 	chunkEl: Element,
-	analysis: AspectAnalysis | undefined
+	analysis: ModuleAnalysis | undefined
 ): boolean {
 	const meta = analysis?.metadata;
 	if (!meta?.displayTitle || !meta?.originalTitle) return false;

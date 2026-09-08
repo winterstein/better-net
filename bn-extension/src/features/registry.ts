@@ -9,7 +9,7 @@ import { analyzeChunk as analyzeDefuseRagebait } from './defuse-ragebait/analyze
 import { analyzeChunk as analyzeClickUnbait } from './click-unbait/analyze-chunk.js';
 
 /** @type {Array<{ id: string, name: string, description: string, analyze: Function }>} */
-export const ANALYSIS_FEATURES = [
+export const ANALYSIS_MODULES = [
   {
     id: 'factChecker',
     name: 'Fact Checker',
@@ -42,14 +42,14 @@ export const ANALYSIS_FEATURES = [
   },
 ];
 
-export const ANALYSIS_FEATURE_IDS = ANALYSIS_FEATURES.map((f) => f.id);
+export const ANALYSIS_MODULE_IDS = ANALYSIS_MODULES.map((f) => f.id);
 
-const byId = Object.fromEntries(ANALYSIS_FEATURES.map((f) => [f.id, f]));
+const byId = Object.fromEntries(ANALYSIS_MODULES.map((f) => [f.id, f]));
 
-export function getAnalysisFeature(id) {
+export function getAnalysisModule(id) {
   return byId[id];
 }
 
-export function getFeatureDisplayName(id) {
+export function getModuleDisplayName(id) {
   return byId[id]?.name ?? id;
 }

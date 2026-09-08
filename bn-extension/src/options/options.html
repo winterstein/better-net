@@ -230,6 +230,12 @@
           </div>
 
           <div class="setting-item">
+            <label for="aiqa-organisation-id"><strong>AIQA organisation</strong></label>
+            <span class="setting-description">Needed for the trace links Developer Mode puts on feedback — the AIQA trace page lives under an organisation. It is the <code>organisation/&lt;id&gt;</code> part of any AIQA url.</span>
+            <input type="text" id="aiqa-organisation-id" placeholder="my-org" autocomplete="off">
+          </div>
+
+          <div class="setting-item">
             <label for="aiqa-sampling-rate"><strong>Trace sampling</strong></label>
             <span class="setting-description">Fraction of page analyses to trace, 0 to 1. Lower this if AIQA gets noisy.</span>
             <input type="number" id="aiqa-sampling-rate" min="0" max="1" step="0.05">

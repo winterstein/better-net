@@ -10,12 +10,13 @@ import {
   demoResultsForChunks,
   findDemoPage,
 } from '../analysis/demo-analysis.js';
-import { ANALYSIS_FEATURE_IDS } from '../features/registry.js';
+import { ANALYSIS_MODULE_IDS } from '../features/registry.js';
 import {
-	completeAspectAnalysis,
+	completeModuleAnalysis,
 	findAnalysisByModule,
-} from '../types/AspectAnalysis.js';
-import type { AspectAnalysis } from '../types/AspectAnalysis.js';
+} from '../types/ModuleAnalysis.js';
+import type { ModuleAnalysis } from '../types/ModuleAnalysis.js';
+import { fractionFromProblemScore, issueTagIds, worstProblemScore } from '../types/Score.js';
 import { chunkProblemScore } from '../types/ChunkAnalysis.js';
 import { mergeSettings } from '../settings/modules-esm.js';
 import { getGoogleFactCheckKey, getOpenAIKey, getAnthropicKey, initializeChromeStorage } from '../utils/env-utils.js';
@@ -374,7 +375,7 @@ class AnalysisManager {
       status: 'analyzing',
       progress: 0,
       stages: Object.fromEntries(
-        ['contentExtraction', ...ANALYSIS_FEATURE_IDS].map((id) => [
+        ['contentExtraction', ...ANALYSIS_MODULE_IDS].map((id) => [
           id,
           id === 'contentExtraction' ? 'completed' : 'pending',
         ])
@@ -621,17 +622,17 @@ class AnalysisManager {
       // Convert results to expected format
       if (chunkResults && chunkResults.length > 0) {
         logit('log', '[BetterNet] [PERFORM_ANALYSIS] Processing results, chunks:', chunkResults.length);
-        const aggregated: AspectAnalysis[] = [];
-        ANALYSIS_FEATURE_IDS.forEach((moduleId) => {
+        const aggregated: ModuleAnalysis[] = [];
+        ANALYSIS_MODULE_IDS.forEach((moduleId) => {
           if (!enabledFeatures.includes(moduleId)) return;
-          const scores: number[] = [];
-          const flags: string[] = [];
+          const scores = [];
+          const tagIds = [];
 
           chunkResults.forEach((chunkResult) => {
             const analysis = findAnalysisByModule(chunkResult.analyses ?? [], moduleId);
             if (analysis && !analysis.error) {
               scores.push(analysis.problemScore);
-              flags.push(...(analysis.flags || []));
+              tagIds.push(...issueTagIds(analysis.tags || []));
             }
           });
 
@@ -640,10 +641,10 @@ class AnalysisManager {
               .map((cr) => findAnalysisByModule(cr.analyses ?? [], moduleId))
               .find((a) => a && !a.error);
             aggregated.push(
-              completeAspectAnalysis(moduleId, {
-                problemScore: scores.reduce((a, b) => a + b, 0) / scores.length,
+              completeModuleAnalysis(moduleId, {
+                problemScore: worstProblemScore(scores),
                 confidence: 0.8,
-                flags: [...new Set(flags)],
+                tags: [...new Set(tagIds)],
                 explanation: firstAnalysis?.explanation,
                 metadata: firstAnalysis?.metadata,
               })
@@ -741,7 +742,7 @@ class AnalysisManager {
     return names[stage] || stage;
   }
 
-  generateSummary(results: AspectAnalysis[]) {
+  generateSummary(results: ModuleAnalysis[]) {
     const summary = {
       overall: 'safe',
       score: 0,
@@ -749,7 +750,11 @@ class AnalysisManager {
       recommendations: []
     };
 
-    const scores = (results || []).map((r) => r.problemScore || 0);
+    const scores = (results || []).map((r) =>
+      typeof r.problemScore === 'number'
+        ? r.problemScore
+        : fractionFromProblemScore(r.problemScore || 'low')
+    );
     summary.score = scores.length
       ? scores.reduce((a, b) => a + b, 0) / scores.length
       : 0;

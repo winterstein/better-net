@@ -2,8 +2,10 @@
  * Feedback widgets in the Content Analysis modal (src/content/content-analysis-modal.ts).
  *
  * What matters here is the wiring, not the layout: one widget per rateable thing, a thumb
- * that submits immediately, preset issues that appear only after a thumbs down and reuse
- * the same localId, and the trace link that Developer Mode adds. See specs/feedback.md.
+ * that submits immediately, preset issues that appear only after a thumbs down, and the
+ * trace link that Developer Mode adds. The localId that ties a follow-up to its thumb is
+ * derived in the background from what is being rated, so it is not tested here — see
+ * test/feedback.test.ts. See specs/feedback.md.
  */
 
 import assert from 'node:assert/strict';
@@ -44,21 +46,20 @@ function openModal(extra: Record<string, unknown> = {}) {
     fingerprint: 'fp-1',
     url: 'https://example.com/article',
     title: 'A headline',
-    tags: ['article'] as any,
+    tags: ['chunk-type:article'] as any,
     traceId: TRACE_ID,
     spanId: 'c'.repeat(16),
     chunkCount: 7,
     pageUrl: 'https://example.com/article',
-    summary: { summaryText: 'Overblown', problemScore: 0.8, overallRisk: 'high', confidence: 0.7, flags: [] } as any,
+    summary: { summaryText: 'Overblown', problemScore: 'high', overallRisk: 'high', confidence: 0.7, flags: [] } as any,
     analyses: [
       {
-        type: 'clickbait',
         id: 'x1',
         methodName: 'clickUnbait',
         model: 'heuristic',
-        problemScore: 0.8,
+        problemScore: 'high',
         confidence: 0.7,
-        flags: [],
+        tags: [{ tag: 'clickbait', strength: 'high', confidence: 0.7 }],
         explanation: 'Headline overstates the story',
         spanId: 'd'.repeat(16),
         metadata: { moduleId: 'clickUnbait' },
@@ -83,23 +84,23 @@ let modal = openModal();
 let widgets = widgetsOf(modal);
 assert.deepEqual(
   widgets.map((w) => w.dataset.target).sort(),
-  ['aspect', 'chunk', 'chunker', 'summary'],
+  ['chunk', 'chunker', 'module', 'summary'],
   'summary, each feature, the chunk and the chunker are all rateable'
 );
 
-const aspectWidget = widgets.find((w) => w.dataset.target === 'aspect')!;
-assert.equal(aspectWidget.dataset.moduleId, 'clickUnbait');
-assert.equal(aspectWidget.dataset.spanId, 'd'.repeat(16), 'aspect feedback points at its own span');
-assert.ok(aspectWidget.dataset.localId, 'each widget gets its own localId');
+const moduleWidget = widgets.find((w) => w.dataset.target === 'module')!;
+assert.equal(moduleWidget.dataset.moduleId, 'clickUnbait');
+assert.equal(moduleWidget.dataset.spanId, 'd'.repeat(16), 'module feedback points at its own span');
+assert.equal(moduleWidget.dataset.score, '0.75', 'the widget carries what we claimed');
 
 // Presets are hidden until a thumbs down, and every widget offers its own vocabulary.
-const issuesRow = aspectWidget.querySelector('[data-issues]') as HTMLElement;
+const issuesRow = moduleWidget.querySelector('[data-issues]') as HTMLElement;
 assert.equal(issuesRow.style.display, 'none');
 assert.ok(
   Array.from(issuesRow.querySelectorAll('[data-issue]')).some(
     (b) => b.textContent?.trim() === "This isn't clickbait"
   ),
-  'clickbait aspect offers "This isn\'t clickbait"'
+  'clickbait module offers "This isn\'t clickbait"'
 );
 const chunkerIssues = widgets.find((w) => w.dataset.target === 'chunker')!;
 assert.ok(
@@ -116,7 +117,7 @@ await settle();
 assert.equal(sent.length, 1, 'thumbs up submits without waiting for anything else');
 assert.equal(sent[0].type, 'BN_SUBMIT_FEEDBACK');
 assert.equal(sent[0].payload.target, 'summary');
-assert.equal(sent[0].payload.applies, true);
+assert.equal(sent[0].payload.thumbsUp, true);
 assert.equal(sent[0].payload.traceId, TRACE_ID);
 assert.equal(sent[0].payload.chunkFingerprint, 'fp-1');
 
@@ -124,25 +125,26 @@ assert.equal(sent[0].payload.chunkFingerprint, 'fp-1');
 
 modal = openModal();
 widgets = widgetsOf(modal);
-const aspect = widgets.find((w) => w.dataset.target === 'aspect')!;
-click(aspect.querySelector('[data-thumb="down"]'));
+const moduleFb = widgets.find((w) => w.dataset.target === 'module')!;
+click(moduleFb.querySelector('[data-thumb="down"]'));
 await settle();
 assert.equal(sent.length, 1, 'the thumb itself is already recorded');
-assert.equal(sent[0].payload.applies, false);
+assert.equal(sent[0].payload.thumbsUp, false);
 assert.equal(
-  (aspect.querySelector('[data-issues]') as HTMLElement).style.display,
+  (moduleFb.querySelector('[data-issues]') as HTMLElement).style.display,
   'flex',
   'presets open on thumbs down'
 );
 
-const thumbLocalId = sent[0].payload.localId;
-click(aspect.querySelector('[data-issue="not-applicable"]'));
+click(moduleFb.querySelector('[data-issue="not-applicable"]'));
 await settle();
 assert.equal(sent.length, 2);
-assert.equal(sent[1].payload.localId, thumbLocalId, 'the issue updates the thumb, not a new row');
+assert.equal(sent[1].payload.target, 'module', 'the follow-up rates the same thing');
+assert.equal(sent[1].payload.moduleId, 'clickUnbait');
+assert.equal(sent[1].payload.chunkFingerprint, 'fp-1');
 assert.equal(sent[1].payload.issueId, 'not-applicable');
 assert.equal(sent[1].payload.issueLabel, "This isn't clickbait");
-assert.equal((aspect.querySelector('[data-issues]') as HTMLElement).style.display, 'none');
+assert.equal((moduleFb.querySelector('[data-issues]') as HTMLElement).style.display, 'none');
 
 // --- Other… opens the free-text box ---
 
@@ -193,7 +195,7 @@ assert.equal(summaryWidget.dataset.vote, '', 'no vote is showing after a retract
 
 // --- Developer Mode reveals the trace, nobody else sees it ---
 
-modal = openModal({ developerMode: true });
+modal = openModal({ developerMode: true, aiqaOrganisationId: 'bn' });
 widgets = widgetsOf(modal);
 const devWidget = widgets.find((w) => w.dataset.target === 'summary')!;
 click(devWidget.querySelector('[data-thumb="up"]'));
@@ -203,6 +205,21 @@ assert.equal(traceBox.style.display, 'block');
 assert.ok(traceBox.textContent?.includes('aaaaaaaa'), 'shows the trace id');
 const link = traceBox.querySelector('a') as HTMLAnchorElement;
 assert.ok(link.href.includes(TRACE_ID), 'links to the AIQA trace');
+assert.ok(
+  link.href.includes('/organisation/bn/traces/'),
+  'the AIQA trace page lives under an organisation'
+);
+
+// Without the organisation there is no trace page to link to, so say so and keep the id.
+modal = openModal({ developerMode: true });
+widgets = widgetsOf(modal);
+const noOrg = widgets.find((w) => w.dataset.target === 'summary')!;
+click(noOrg.querySelector('[data-thumb="up"]'));
+await settle();
+const noOrgBox = noOrg.querySelector('[data-trace]') as HTMLElement;
+assert.ok(noOrgBox.textContent?.includes('aaaaaaaa'), 'the trace id is still worth quoting');
+assert.equal(noOrgBox.querySelector('a'), null, 'no dead link');
+assert.match(noOrgBox.textContent!, /organisation/, 'says what is missing');
 
 modal = openModal({ developerMode: true, traceId: undefined });
 widgets = widgetsOf(modal);

@@ -1,6 +1,6 @@
 // Popup script for BetterNet extension
 
-import { findAnalysisByModule } from '../types/AspectAnalysis.js';
+import { findAnalysisByModule } from '../types/ModuleAnalysis.js';
 import { chunkProblemScore } from '../types/ChunkAnalysis.js';
 import { createPopupLog, runStep } from './popup-diagnostics.js';
 

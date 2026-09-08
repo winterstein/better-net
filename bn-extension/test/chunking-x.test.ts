@@ -47,7 +47,7 @@ assert.ok(post.text.includes('Lab Grown Meat Causes Cancer'), 'post text capture
 assert.ok(post.text.includes('@drhossamsamy65'), 'author captured — the demo matches on the handle');
 assert.ok(post.text.length >= 100, 'above the chunker minTextLength');
 assert.ok(post.xpath?.includes('article'), `xpath points at the post: ${post.xpath}`);
-assert.ok(post.tags.includes('post'), 'tagged post');
+assert.ok(post.tags.includes('chunk-type:post'), 'tagged post');
 
 // The canned demo analysis must recognise this chunk
 const { demoResultsForChunks } = await import('../src/analysis/demo-analysis.js');

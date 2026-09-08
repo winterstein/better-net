@@ -27,7 +27,7 @@ const SUMMARY_ISSUES: FeedbackIssue[] = [
 	OTHER,
 ];
 
-const ASPECT_ISSUES: FeedbackIssue[] = [
+const MODULE_ISSUES: FeedbackIssue[] = [
 	{ id: 'not-applicable', label: 'Does not apply' },
 	{ id: 'overstated', label: 'Overstated' },
 	{ id: 'understated', label: 'Understated' },
@@ -54,14 +54,14 @@ const CHUNK_ISSUES: FeedbackIssue[] = [
 
 const ISSUES_BY_TARGET: Record<FeedbackTarget, FeedbackIssue[]> = {
 	summary: SUMMARY_ISSUES,
-	aspect: ASPECT_ISSUES,
+	module: MODULE_ISSUES,
 	chunker: CHUNKER_ISSUES,
 	chunk: CHUNK_ISSUES,
 };
 
 /**
  * "Does not apply" in the user's words, per module — the complaint people actually
- * make is "this wasn't clickbait", not "aspect clickbait does not apply".
+ * make is "this wasn't clickbait", not "module clickbait does not apply".
  */
 const NOT_APPLICABLE_LABELS: Record<string, string> = {
 	factChecker: 'The claims are accurate',
@@ -71,7 +71,7 @@ const NOT_APPLICABLE_LABELS: Record<string, string> = {
 	clickUnbait: "This isn't clickbait",
 };
 
-/** @param moduleId for target 'aspect', to phrase the "does not apply" preset. */
+/** @param moduleId for target 'module', to phrase the "does not apply" preset. */
 export function issuesForTarget(target: FeedbackTarget, moduleId?: string): FeedbackIssue[] {
 	const issues = ISSUES_BY_TARGET[target] ?? [];
 	const notApplicable = moduleId ? NOT_APPLICABLE_LABELS[moduleId] : undefined;

@@ -40,10 +40,10 @@ for (const el of dom.window.document.querySelectorAll('article')) {
 const { renderChunkOverlays, clearChunkOverlays } = await import('../src/content/chunk-overlay.js');
 
 const chunks = [
-  { id: 'chunk-aaa', xpath: '/html/body/main/article', tags: ['article'] },
-  { id: 'chunk-bbb', xpath: '/html/body/main/article[2]', tags: ['article', 'sidebar'] },
+  { id: 'chunk-aaa', xpath: '/html/body/main/article', tags: ['chunk-type:article'] },
+  { id: 'chunk-bbb', xpath: '/html/body/main/article[2]', tags: ['chunk-type:article', 'chunk-type:sidebar'] },
   // Nothing on the page matches: it must be counted, not drawn, and not throw.
-  { id: 'chunk-ccc', xpath: '/html/body/main/article[9]', tags: ['article'] },
+  { id: 'chunk-ccc', xpath: '/html/body/main/article[9]', tags: ['chunk-type:article'] },
 ];
 
 renderChunkOverlays(chunks);
@@ -59,7 +59,7 @@ const labels = boxes().map((b) => b.querySelector('.betternet-chunk-overlay-labe
 assert.deepEqual(labels, ['#0 chunk-aaa', '#1 chunk-bbb'], 'label carries the index and the id used in logs');
 assert.match(
   first.querySelector('.betternet-chunk-overlay-label')?.getAttribute('title') ?? '',
-  /tags: article/,
+  /tags: chunk-type:article/,
   'hover gives the tags and xpath'
 );
 

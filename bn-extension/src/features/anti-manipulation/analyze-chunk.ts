@@ -1,6 +1,7 @@
 /**
- * Scams Analyzer
- * Analyzes content for scams, fraud, or deceptive practices
+ * Anti-manipulation
+ * Detects dark patterns, urgency/scarcity tricks, phishing-shaped asks.
+ * Product tags: urgency, scarcity, sneaky, fear, too-good-to-be-true, phishing.
  */
 
 import { runFeatureAnalysis } from '../../ai/run-feature-analysis.js';
@@ -41,7 +42,7 @@ export async function analyzeChunk(chunk, pageMetadata: any = {}, options: any =
 function analyzeWithHeuristics(context) {
   const text = context.text.toLowerCase();
   let score = 0;
-  const flags = [];
+  const tags = [];
 
   const urgencyPhrases = [
     'limited time', 'act now', 'expires soon', 'only today', 
@@ -51,46 +52,24 @@ function analyzeWithHeuristics(context) {
   const urgencyCount = urgencyPhrases.filter(phrase => text.includes(phrase)).length;
   if (urgencyCount > 2) {
     score += 0.3;
-    flags.push('urgency_pressure');
+    tags.push('urgency');
   }
 
-  const financialScamPhrases = [
+  const scarcityPhrases = ['only 2 left', 'only a few left', 'selling fast', 'almost gone', 'limited stock'];
+  if (scarcityPhrases.some(phrase => text.includes(phrase))) {
+    score += 0.2;
+    tags.push('scarcity');
+  }
+
+  const tooGoodPhrases = [
     'guaranteed returns', 'risk-free investment', 'get rich quick',
     'work from home', 'make money fast', 'no experience needed',
     'free money', 'click here to claim', 'you\'ve won'
   ];
-  const financialCount = financialScamPhrases.filter(phrase => text.includes(phrase)).length;
-  if (financialCount > 2) {
+  const tooGoodCount = tooGoodPhrases.filter(phrase => text.includes(phrase)).length;
+  if (tooGoodCount > 2) {
     score += 0.4;
-    flags.push('financial_scam_indicators');
-  }
-
-  if (context.domain) {
-    const suspiciousPatterns = [
-      /\.tk$/, /\.ml$/, /\.ga$/, /\.cf$/,
-      /bit\.ly/, /tinyurl/, /short\.link/,
-      /[0-9]{4,}/
-    ];
-    const hasSuspiciousDomain = suspiciousPatterns.some(pattern => pattern.test(context.domain));
-    if (hasSuspiciousDomain) {
-      score += 0.2;
-      flags.push('suspicious_domain');
-    }
-  }
-
-  if (context.links && context.links.length > 0) {
-    const suspiciousLinks = context.links.filter(url => {
-      try {
-        const urlObj = new URL(url);
-        return /\.tk$|\.ml$|\.ga$|\.cf$|bit\.ly|tinyurl/i.test(urlObj.hostname);
-      } catch {
-        return false;
-      }
-    });
-    if (suspiciousLinks.length > 0) {
-      score += 0.15;
-      flags.push('suspicious_links');
-    }
+    tags.push('too-good-to-be-true');
   }
 
   const personalInfoPhrases = [
@@ -101,21 +80,14 @@ function analyzeWithHeuristics(context) {
   const personalInfoCount = personalInfoPhrases.filter(phrase => text.includes(phrase)).length;
   if (personalInfoCount > 1) {
     score += 0.35;
-    flags.push('personal_info_request');
-  }
-
-  const commonErrors = ['congratulation', 'your account has been', 'click below'];
-  const errorCount = commonErrors.filter(phrase => text.includes(phrase)).length;
-  if (errorCount > 0 && text.length < 300) {
-    score += 0.1;
-    flags.push('poor_grammar_quality');
+    tags.push('phishing');
   }
 
   return {
     problemScore: Math.min(score, 1.0),
     confidence: 0.65,
-    flags,
-    explanation: generateExplanation(score, flags),
+    tags,
+    explanation: generateExplanation(score, tags),
   };
 }
 
@@ -138,18 +110,19 @@ function parseAIResponse(responseText) {
       const parsed = JSON.parse(jsonMatch[0]);
       if (isZeroShotPayload(parsed)) {
         const problemScore = problemScoreFromZeroShotPayload(parsed);
-        const flags = problemScore > 0.45 ? ['local_zero_shot'] : [];
+        const tags = problemScore > 0.45 ? ['phishing'] : [];
         return {
           problemScore,
           confidence: Math.max(0.5, Math.min(0.95, parsed.scores?.[0] ?? 0.7)),
-          flags,
-          explanation: generateExplanation(problemScore, flags),
+          tags,
+          metadata: { diagnostic: 'local_zero_shot' },
+          explanation: generateExplanation(problemScore, tags),
         };
       }
       return {
         problemScore: Math.max(0, Math.min(1, parsed.problemScore ?? parsed.score ?? 0)),
         confidence: Math.max(0, Math.min(1, parsed.confidence || 0.7)),
-        flags: parsed.flags || [],
+        tags: parsed.tags || [],
         explanation: parsed.explanation || 'Analysis completed'
       };
     }
@@ -163,18 +136,18 @@ function parseAIResponse(responseText) {
   return {
     problemScore: Math.max(0, Math.min(1, score)),
     confidence: 0.5,
-    flags: [],
+    tags: [],
     explanation: responseText.substring(0, 200)
   };
 }
 
-function generateExplanation(score, flags) {
+function generateExplanation(score, tags) {
   if (score < 0.2) {
-    return 'Content appears legitimate with minimal scam indicators.';
+    return 'Content appears legitimate with minimal manipulation indicators.';
   } else if (score < 0.5) {
-    return `Some concerning indicators detected: ${flags.join(', ')}. Exercise caution.`;
+    return `Some concerning indicators detected: ${tags.join(', ')}. Exercise caution.`;
   } else {
-    return `Multiple scam indicators detected: ${flags.join(', ')}. High risk of fraudulent or deceptive content.`;
+    return `Multiple manipulation indicators detected: ${tags.join(', ')}. High risk of deceptive content.`;
   }
 }
 
@@ -182,7 +155,7 @@ function getMockResults(context) {
   return {
     problemScore: 0.05 + Math.random() * 0.1,
     confidence: 0.90 + Math.random() * 0.1,
-    flags: [],
-    explanation: 'Mock analysis for scam detection'
+    tags: [],
+    explanation: 'Mock analysis for anti-manipulation detection'
   };
 }

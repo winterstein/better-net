@@ -1,15 +1,13 @@
 // Content Analysis detail modal (opened from chunk nutrition badge)
 
-import type { AspectAnalysis } from '../types/AspectAnalysis.js';
+import type { ModuleAnalysis } from '../types/ModuleAnalysis.js';
 import type { ChunkAnalysis } from '../types/ChunkAnalysis.js';
 import { chunkProblemScore } from '../types/ChunkAnalysis.js';
+import { fractionFromProblemScore, issueTagIds } from '../types/Score.js';
 import type { FeedbackTarget } from '../types/Feedback.js';
 import { riskLevelForScore } from '../types/RiskLevel.js';
 import { issuesForTarget, issueLabel, OTHER_ISSUE_ID } from '../feedback/feedback-issues.js';
-import {
-  newFeedbackLocalId,
-  MAX_FEEDBACK_MESSAGE_LENGTH,
-} from '../feedback/feedback-client.js';
+import { MAX_FEEDBACK_MESSAGE_LENGTH } from '../feedback/feedback-client.js';
 import { aiqaTraceUrl } from '../tracing/aiqa-trace-url.js';
 import { logit } from '../utils/logger.js';
 
@@ -41,16 +39,16 @@ export function getTrafficLight(score: number): TrafficLight {
   return { color, border, label };
 }
 
-export function calculateNutritionData(analyses: AspectAnalysis[]): NutritionData {
+export function calculateNutritionData(analyses: ModuleAnalysis[]): NutritionData {
   const scores: { type: string; score: number }[] = [];
   const flags: string[] = [];
 
   analyses.forEach((analysis) => {
-    if (!analysis.error && typeof analysis.problemScore === 'number') {
+    if (!analysis.error && analysis.problemScore) {
       const type = String(analysis.metadata?.moduleId ?? analysis.methodName);
-      scores.push({ type, score: analysis.problemScore });
-      if (analysis.flags?.length) {
-        flags.push(...analysis.flags);
+      scores.push({ type, score: fractionFromProblemScore(analysis.problemScore) });
+      if (analysis.tags?.length) {
+        flags.push(...issueTagIds(analysis.tags));
       }
     }
   });
@@ -115,16 +113,17 @@ export interface FeedbackContext {
   pageUrl?: string;
   chunkCount?: number;
   traceId?: string;
-  /** Span for the chunk as a whole; aspect widgets carry their own. */
+  /** Span for the chunk as a whole; module widgets carry their own. */
   chunkSpanId?: string;
   /** Settings → Advanced → Developer Mode: reveal the AIQA trace after feedback. */
   developerMode?: boolean;
   aiqaServerUrl?: string;
+  aiqaOrganisationId?: string;
 }
 
 const FEEDBACK_PROMPTS: Record<FeedbackTarget, string> = {
   summary: 'Is this overall verdict right?',
-  aspect: 'Does this assessment fit?',
+  module: 'Does this assessment fit?',
   chunker: 'Did we split this page up sensibly?',
   chunk: 'Is this the right chunk, with the right tags?',
 };
@@ -159,8 +158,9 @@ function renderFeedbackWidget(opts: {
   moduleId?: string;
   problemScore?: number;
   spanId?: string;
+  tags?: string[];
 }): string {
-  const { target, moduleId, problemScore, spanId } = opts;
+  const { target, moduleId, problemScore, spanId, tags } = opts;
   const issues = issuesForTarget(target, moduleId)
     .map(
       (issue) =>
@@ -171,10 +171,10 @@ function renderFeedbackWidget(opts: {
   return `
     <div data-feedback
       data-target="${escapeHtml(target)}"
-      data-local-id="${escapeHtml(newFeedbackLocalId())}"
       data-module-id="${escapeHtml(moduleId ?? '')}"
       data-score="${problemScore ?? 0}"
       data-span-id="${escapeHtml(spanId ?? '')}"
+      data-tags="${escapeHtml((tags ?? []).join(','))}"
       style="margin-top: 10px; border-top: 1px solid #eee; padding-top: 8px;">
       <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
         <span style="font-size: 11px; color: #666;">${FEEDBACK_PROMPTS[target]}</span>
@@ -233,30 +233,38 @@ function revealTrace(widget: HTMLElement, ctx: FeedbackContext): void {
     box.textContent = 'No trace for this analysis (AIQA tracing off or unsampled).';
     return;
   }
-  const url = aiqaTraceUrl(ctx.traceId, ctx.aiqaServerUrl);
+  const url = aiqaTraceUrl(ctx.traceId, ctx.aiqaServerUrl, ctx.aiqaOrganisationId);
+  // The AIQA trace route needs an organisation. Without one the id is still worth having
+  // — it is what a bug report quotes — so show it and say what is missing.
+  const link = url
+    ? `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer noopener" style="color: #2196f3;">open in AIQA →</a>`
+    : '<span style="color: #aaa;">set AIQA organisation in Settings to link</span>';
   box.innerHTML = `
     Trace <code data-copy-trace title="Click to copy" style="cursor: pointer; font-family: monospace;">${escapeHtml(
       ctx.traceId.slice(0, 8)
     )}</code>
-    <a href="${escapeHtml(url ?? '')}" target="_blank" rel="noreferrer noopener" style="color: #2196f3;">open in AIQA →</a>
+    ${link}
   `;
 }
 
 async function sendFeedback(
   widget: HTMLElement,
   ctx: FeedbackContext,
-  patch: { applies: boolean; retracted?: boolean; issueId?: string; message?: string }
+  patch: { thumbsUp: boolean; retracted?: boolean; issueId?: string; message?: string }
 ): Promise<boolean> {
   const target = widget.dataset.target as FeedbackTarget;
   const moduleId = widget.dataset.moduleId || undefined;
+  const tags = (widget.dataset.tags || '')
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
   setStatus(widget, 'Sending…');
   try {
     const res = await chrome.runtime.sendMessage({
       type: 'BN_SUBMIT_FEEDBACK',
       payload: {
-        localId: widget.dataset.localId,
         target,
-        applies: patch.applies,
+        thumbsUp: patch.thumbsUp,
         retracted: patch.retracted,
         issueId: patch.issueId,
         issueLabel: patch.issueId ? issueLabel(target, patch.issueId, moduleId) : undefined,
@@ -267,6 +275,7 @@ async function sendFeedback(
         pageUrl: ctx.pageUrl,
         chunkCount: ctx.chunkCount,
         moduleId,
+        tags,
         problemScore: Number(widget.dataset.score || '0'),
         traceId: ctx.traceId,
         spanId: widget.dataset.spanId || ctx.chunkSpanId,
@@ -285,7 +294,8 @@ async function sendFeedback(
  * thumbs down need no wiring of their own.
  *
  * A thumb submits straight away — feedback is never lost because the user walked away —
- * and a preset issue or note follows as an update to the same record (same localId).
+ * and a preset issue or note follows as an update to the same record, which they reach by
+ * deriving the same localId from what is being rated (feedback/feedback-client.ts).
  */
 function attachFeedbackHandlers(modal: HTMLElement, ctx: FeedbackContext): void {
   modal.addEventListener('click', async (e) => {
@@ -299,8 +309,10 @@ function attachFeedbackHandlers(modal: HTMLElement, ctx: FeedbackContext): void 
       e.preventDefault();
       const vote = thumb.dataset.thumb === 'up' ? 'up' : 'down';
       const retracting = widget.dataset.vote === vote;
-      const applies = vote === 'up';
-      const ok = await sendFeedback(widget, ctx, { applies, retracted: retracting });
+      const ok = await sendFeedback(widget, ctx, {
+        thumbsUp: vote === 'up',
+        retracted: retracting,
+      });
       if (!ok) return;
       widget.dataset.vote = retracting ? '' : vote;
       paintThumbs(widget, widget.dataset.vote);
@@ -322,7 +334,7 @@ function attachFeedbackHandlers(modal: HTMLElement, ctx: FeedbackContext): void 
         (widget.querySelector('[data-note-text]') as HTMLTextAreaElement | null)?.focus();
         return;
       }
-      if (await sendFeedback(widget, ctx, { applies: false, issueId })) {
+      if (await sendFeedback(widget, ctx, { thumbsUp: false, issueId })) {
         show(widget, '[data-issues]', 'none');
         setStatus(widget, 'Thanks — noted.');
       }
@@ -337,7 +349,7 @@ function attachFeedbackHandlers(modal: HTMLElement, ctx: FeedbackContext): void 
         setStatus(widget, 'Nothing to send');
         return;
       }
-      if (await sendFeedback(widget, ctx, { applies: false, issueId: OTHER_ISSUE_ID, message })) {
+      if (await sendFeedback(widget, ctx, { thumbsUp: false, issueId: OTHER_ISSUE_ID, message })) {
         show(widget, '[data-note]', 'none');
         show(widget, '[data-issues]', 'none');
         setStatus(widget, 'Thanks — noted.');
@@ -358,7 +370,7 @@ function attachFeedbackHandlers(modal: HTMLElement, ctx: FeedbackContext): void 
   });
 }
 
-function formatAnalysisExplanation(result: AspectAnalysis): string {
+function formatAnalysisExplanation(result: ModuleAnalysis): string {
   const text = typeof result.explanation === 'string' ? result.explanation.trim() : '';
   if (text) return escapeHtml(text);
   if (result.error) return escapeHtml(result.error);
@@ -462,6 +474,7 @@ export interface ContentAnalysisModalData extends Partial<ChunkAnalysis> {
   chunkCount?: number;
   pageUrl?: string;
   aiqaServerUrl?: string;
+  aiqaOrganisationId?: string;
 }
 
 /** Show or replace the Content Analysis detail modal for a chunk. */
@@ -485,6 +498,7 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
     chunkCount,
     pageUrl,
     aiqaServerUrl,
+    aiqaOrganisationId,
   } = analysisResults;
   const problemScore = chunkProblemScore(analysisResults);
   const canFeedback = feedbackEnabled && fingerprint && url;
@@ -501,6 +515,7 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
     chunkSpanId: spanId,
     developerMode,
     aiqaServerUrl,
+    aiqaOrganisationId,
   };
   const nutritionData = calculateNutritionData(analyses);
   const trafficLight = getTrafficLight(problemScore);
@@ -611,7 +626,9 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
 
     const moduleId = String(result.metadata?.moduleId ?? result.methodName);
     const typeLabel = ANALYSIS_LABELS[moduleId] || moduleId;
-    const score = result.error ? 0 : (result.problemScore || 0);
+    const score = result.error
+      ? 0
+      : fractionFromProblemScore(result.problemScore || 'low');
     const scorePercent = (score * 100).toFixed(0);
     const barColor = score >= 0.7 ? '#f44336' : score >= 0.4 ? '#ff9800' : '#4CAF50';
 
@@ -622,7 +639,7 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
       factChecks.length > 0;
     const factCheckHTML = hasFactChecks ? renderFactCheckClaims(factChecks as unknown[]) : '';
     const explanationHtml = formatAnalysisExplanation(result);
-    const flags = result.flags;
+    const tags = issueTagIds(result.tags || []);
 
     detailsHTML += `
             <div data-analysis-card style="
@@ -652,9 +669,9 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
                 <div style="font-size: 11px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 4px;">Explanation</div>
                 <div style="font-size: 13px; line-height: 1.45; color: #444;">${explanationHtml}</div>
               </div>
-              ${flags && flags.length > 0 ? `
+              ${tags && tags.length > 0 ? `
                 <div style="margin-top: 8px;">
-                  ${flags.map(flag => `
+                  ${tags.map(tag => `
                     <span style="
                       display: inline-block;
                       background: #f5f5f5;
@@ -664,7 +681,7 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
                       color: #666;
                       margin-right: 4px;
                       margin-top: 4px;
-                    ">${escapeHtml(flag)}</span>
+                    ">${escapeHtml(tag)}</span>
                   `).join('')}
                 </div>
               ` : ''}
@@ -672,10 +689,11 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
               ${
                 canFeedback
                   ? renderFeedbackWidget({
-                      target: 'aspect',
+                      target: 'module',
                       moduleId,
                       problemScore: score,
                       spanId: result.spanId,
+                      tags,
                     })
                   : ''
               }

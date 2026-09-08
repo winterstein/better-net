@@ -3,8 +3,14 @@
  * See bn-extension/specs/feedback.md. bn-server is the store of record; the extension
  * also mirrors a copy onto the AIQA trace for the trace view.
  *
- * The POST is an upsert on the client's localId: the thumb inserts the record, and the
- * preset issue or note that follows updates it, so one thumbs down stays one row.
+ * The POST is an upsert on the client's localId, which the extension derives from what is
+ * being rated and who is rating it: the thumb inserts the record, and the preset issue or
+ * note that follows updates it, so one thumbs down stays one row — as does the same person
+ * re-rating the same chunk later.
+ *
+ * An update merges onto what is stored, so a field the client omits keeps its value. That
+ * is what lets a follow-up be partial, and it is why the client sends an explicit null to
+ * clear: a fresh thumb has to drop the complaint the previous one collected.
  */
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
@@ -20,19 +26,38 @@ import type { FeedbackSubmission, FeedbackTarget } from '../bn-extension-src/typ
 import { FEEDBACK_TARGETS } from '../bn-extension-src/types/Feedback.js';
 import type { Chunk } from '../bn-extension-src/types/Chunk.js';
 import type { Page } from '../bn-extension-src/types/Page.js';
-import { AspectType } from '../bn-extension-src/types/AspectAnalysis.js';
 
-const VALID_ASPECTS = new Set(Object.values(AspectType));
-const VALID_TARGETS = new Set<FeedbackTarget>(FEEDBACK_TARGETS);
+/** Legacy AspectType → moduleId (pre Module/Tag rename). */
+const LEGACY_ASPECT_TO_MODULE: Record<string, string> = {
+	accuracy: 'factChecker',
+	bias: 'biasDetector',
+	scams: 'antiManipulation',
+	toxicity: 'defuseRagebait',
+	clickbait: 'clickUnbait',
+};
+
+const VALID_TARGETS = new Set<string>([...FEEDBACK_TARGETS, 'aspect']);
 const MAX_MESSAGE = 500;
 
 /**
- * Feedback before v0.5 was aspect-only and had no localId. A tab left open across an
- * extension update still sends that shape, so fill the gaps instead of rejecting it.
+ * Older extensions send an older shape, and a tab left open across an update keeps doing
+ * it, so fill the gaps instead of rejecting them: before v0.5 feedback was aspect-only
+ * with no localId, and it recorded `applies` where a thumb is now `thumbsUp`.
+ * `aspect` target is remapped to `module`.
  */
-function normalizeBody(body: Partial<FeedbackSubmission>): Partial<FeedbackSubmission> {
-	if (!body.target && body.aspectType) body.target = 'aspect';
+function normalizeBody(
+	body: Partial<FeedbackSubmission> & { applies?: boolean; target?: string }
+): Partial<FeedbackSubmission> {
+	const rawTarget = body.target as string | undefined;
+	if (!rawTarget && body.aspectType) body.target = 'module';
+	else if (rawTarget === 'aspect') body.target = 'module';
+	if (!body.moduleId && body.aspectType) {
+		body.moduleId = LEGACY_ASPECT_TO_MODULE[String(body.aspectType)];
+	}
 	if (!body.localId) body.localId = `legacy-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+	if (typeof body.thumbsUp !== 'boolean' && typeof body.applies === 'boolean') {
+		body.thumbsUp = body.applies;
+	}
 	return body;
 }
 
@@ -43,10 +68,12 @@ function validateBody(body: Partial<FeedbackSubmission>): string | null {
 	if (!body.target || !VALID_TARGETS.has(body.target)) {
 		return 'target is invalid';
 	}
-	if (typeof body.applies !== 'boolean') {
-		return 'applies must be a boolean';
+	if (typeof body.thumbsUp !== 'boolean') {
+		return 'thumbsUp must be a boolean';
 	}
-	if (body.message != null) {
+	// null is how a new thumb clears the note an earlier one collected, so only reject a
+	// message that is present and wrong.
+	if (body.message !== undefined && body.message !== null) {
 		if (typeof body.message !== 'string') return 'message must be a string';
 		if (body.message.length > MAX_MESSAGE) return `message exceeds ${MAX_MESSAGE} characters`;
 	}
@@ -61,9 +88,8 @@ function validateBody(body: Partial<FeedbackSubmission>): string | null {
 	if (!body.chunkUrl || typeof body.chunkUrl !== 'string') {
 		return 'chunkUrl is required';
 	}
-	if (body.target === 'aspect') {
+	if (body.target === 'module') {
 		if (!body.moduleId || typeof body.moduleId !== 'string') return 'moduleId is required';
-		if (!body.aspectType || !VALID_ASPECTS.has(body.aspectType)) return 'aspectType is invalid';
 	}
 	return null;
 }
@@ -103,8 +129,10 @@ async function feedbackRoutes(fastify: FastifyInstance) {
 			pageId: await resolvePageId(body.pageUrl),
 			localId: body.localId,
 			target: body.target,
-			applies: body.applies,
+			thumbsUp: body.thumbsUp,
 			retracted: body.retracted,
+			tag: body.tag,
+			tagOn: body.tagOn,
 			issueId: body.issueId,
 			issueLabel: body.issueLabel,
 			message: body.message,
@@ -126,6 +154,7 @@ async function feedbackRoutes(fastify: FastifyInstance) {
 		const existing = await get_feedback_by_local_id(body.localId!);
 		if (existing) {
 			// A follow-up: keep what the thumb recorded and layer the new fields over it.
+			// Only undefined is "unchanged" — an explicit null is a field being cleared.
 			const { id, created, ...rest } = existing as Record<string, any>;
 			const merged = { ...rest, ...stripUndefined(feedbackItem), updated: new Date() };
 			await update_item('feedback', id as number, merged as any);

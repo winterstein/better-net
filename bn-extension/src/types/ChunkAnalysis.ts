@@ -1,8 +1,14 @@
 import type { Statement } from './Statement.js';
 import type { ChunkAnalysisSummary, Flag, RiskRating } from './ChunkAnalysisSummary.js';
 import type { TopLevelItem } from './TopLevelItem.js';
-import type { AspectAnalysis } from './AspectAnalysis.js';
-import type { Tag } from './Tag.js';
+import type { ModuleAnalysis } from './ModuleAnalysis.js';
+import {
+	fractionFromProblemScore,
+	issueTagIds,
+	worstProblemScore,
+	type ProblemScore,
+} from './Score.js';
+import type { ChunkTag } from './Tag.js';
 
 /**
  * The top-level quality analysis result for a chunk. 
@@ -17,15 +23,15 @@ export interface ChunkAnalysis extends TopLevelItem {
 	/** 1 to max 3 most important statements extracted from the chunk (and the analyses of those statements, e.g. fact-check, bias, etc.) */
 	statements: Statement[];
 
-	/** chunk-level analyses, e.g. toxicity */
-	analyses: AspectAnalysis[];
+	/** chunk-level analyses per module */
+	analyses: ModuleAnalysis[];
 
 	summary?: ChunkAnalysisSummary;
 
 	/** Chunk context for on-page labelling and feedback */
 	xpath?: string;
 	title?: string;
-	tags?: Tag[];
+	tags?: ChunkTag[];
 	url?: string;
 	fingerprint?: string;
 	feedbackEnabled?: boolean;
@@ -43,30 +49,37 @@ export function riskFromScore(score: number): RiskRating {
 	return 'unknown';
 }
 
-export function chunkProblemScore(analysis: Partial<ChunkAnalysis>): number {
-	if (typeof analysis.summary?.problemScore === 'number') {
-		return analysis.summary.problemScore;
-	}
-	const scores = (analysis.analyses ?? [])
-		.filter((a) => !a.error && typeof a.problemScore === 'number')
-		.map((a) => a.problemScore);
-	return scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+export function riskFromProblemScore(score: ProblemScore): RiskRating {
+	return riskFromScore(fractionFromProblemScore(score));
 }
 
-export function buildChunkSummary(analyses: AspectAnalysis[]): ChunkAnalysisSummary {
+/** Worst module problemScore as a [0,1] fraction for Nutrient Label / RiskLevel. */
+export function chunkProblemScore(analysis: Partial<ChunkAnalysis>): number {
+	if (analysis.summary?.problemScore) {
+		return fractionFromProblemScore(analysis.summary.problemScore);
+	}
+	const scores = (analysis.analyses ?? [])
+		.filter((a) => !a.error && a.problemScore)
+		.map((a) => a.problemScore);
+	return fractionFromProblemScore(worstProblemScore(scores));
+}
+
+export function buildChunkSummary(analyses: ModuleAnalysis[]): ChunkAnalysisSummary {
 	const valid = analyses.filter((a) => !a.error);
-	const problemScore = valid.length
-		? valid.reduce((s, a) => s + a.problemScore, 0) / valid.length
-		: 0;
+	const problemScore = worstProblemScore(valid.map((a) => a.problemScore));
 	const confidence = valid.length
 		? valid.reduce((s, a) => s + a.confidence, 0) / valid.length
 		: 0;
-	const flags: Flag[] = valid.map((a) => ({
-		type: a.type,
-		riskRating: riskFromScore(a.problemScore),
-		label: a.flags[0] ?? a.type,
-	}));
-	const overallRisk = riskFromScore(problemScore);
+	const flags: Flag[] = valid.map((a) => {
+		const moduleId = String(a.metadata?.moduleId ?? a.methodName ?? '');
+		const ids = issueTagIds(a.tags);
+		return {
+			moduleId,
+			riskRating: riskFromProblemScore(a.problemScore),
+			label: ids[0] ?? moduleId,
+		};
+	});
+	const overallRisk = riskFromProblemScore(problemScore);
 	const summaryText =
 		overallRisk === 'very-high' || overallRisk === 'high'
 			? 'Content shows significant concern signals.'

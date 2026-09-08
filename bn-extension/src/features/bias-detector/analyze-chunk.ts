@@ -1,6 +1,6 @@
 /**
- * Bias Analyzer
- * Analyzes content for political bias, ideological slant, or lack of objectivity
+ * Bias Detector
+ * Analyzers emit: biased (any significant bias), bias:neutral | bias:left | bias:right | bias:self.
  */
 
 import { runFeatureAnalysis } from '../../ai/run-feature-analysis.js';
@@ -8,6 +8,7 @@ import {
 	isZeroShotPayload,
 	problemScoreFromZeroShotPayload,
 } from '../zero-shot-score.js';
+import { problemScoreFromFraction } from '../../types/Score.js';
 
 const PROMPT_ID = 'bias-detector';
 
@@ -38,11 +39,23 @@ export async function analyzeChunk(chunk, pageMetadata: any = {}, options: any =
   });
 }
 
-// Fallback if no LLM is available
+function leanTag(direction: 'left' | 'right' | 'neutral'): string {
+  if (direction === 'left') return 'bias:left';
+  if (direction === 'right') return 'bias:right';
+  return 'bias:neutral';
+}
+
+function biasTags(direction: 'left' | 'right' | 'neutral', significant: boolean): string[] {
+  const lean = leanTag(direction);
+  if (!significant) return [lean];
+  // `biased` is on for any significant bias; lean is additional key:value detail.
+  if (direction === 'neutral') return ['biased', lean];
+  return ['biased', lean];
+}
+
 function analyzeWithHeuristics(context) {
   const text = context.text.toLowerCase();
   let score = 0;
-  const flags = [];
   const biasDirection = { left: 0, right: 0, neutral: 0 };
 
   const leftKeywords = ['progressive', 'liberal', 'democratic', 'social justice', 'inequality', 'systemic'];
@@ -53,11 +66,9 @@ function analyzeWithHeuristics(context) {
   
   if (leftCount > rightCount * 2) {
     biasDirection.left = 1;
-    flags.push('left_leaning_language');
     score += 0.2;
   } else if (rightCount > leftCount * 2) {
     biasDirection.right = 1;
-    flags.push('right_leaning_language');
     score += 0.2;
   }
 
@@ -65,31 +76,31 @@ function analyzeWithHeuristics(context) {
   const loadedCount = loadedWords.filter(word => text.includes(word)).length;
   if (loadedCount > 3) {
     score += 0.15;
-    flags.push('loaded_language');
   }
 
   const questionWords = ['however', 'although', 'on the other hand', 'alternatively', 'meanwhile'];
   const questionCount = questionWords.filter(word => text.includes(word)).length;
   if (questionCount === 0 && text.length > 500) {
     score += 0.1;
-    flags.push('one_sided_argument');
   }
 
   const emotionalWords = ['outrageous', 'disgusting', 'appalling', 'shocking', 'terrible', 'amazing', 'incredible'];
   const emotionalCount = emotionalWords.filter(word => text.includes(word)).length;
   if (emotionalCount > 5) {
     score += 0.15;
-    flags.push('excessive_emotional_language');
   }
 
   const direction = biasDirection.left > biasDirection.right ? 'left' :
     biasDirection.right > biasDirection.left ? 'right' : 'neutral';
+  const significant = score >= 0.4;
+  const tags = biasTags(direction, significant);
+
   return {
-    problemScore: Math.min(score, 1.0),
+    problemScore: problemScoreFromFraction(score),
     confidence: 0.6,
-    flags,
+    tags,
     metadata: { biasDirection: direction },
-    explanation: generateExplanation(score, flags, biasDirection),
+    explanation: generateExplanation(score, tags),
   };
 }
 
@@ -109,22 +120,28 @@ function parseAIResponse(responseText) {
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
       if (isZeroShotPayload(parsed)) {
-        const problemScore = problemScoreFromZeroShotPayload(parsed);
-        const flags = problemScore > 0.45 ? ['local_zero_shot'] : [];
-        const biasDirection = { left: 0, right: 0, neutral: 1 };
+        const fraction = problemScoreFromZeroShotPayload(parsed);
+        const significant = fraction > 0.45;
+        // Zero-shot only knows biased vs not — never invent bias:left.
+        const tags = significant ? ['biased'] : ['bias:neutral'];
         return {
-          problemScore,
+          problemScore: problemScoreFromFraction(fraction),
           confidence: Math.max(0.5, Math.min(0.95, parsed.scores?.[0] ?? 0.7)),
-          flags,
-          metadata: { biasDirection: 'neutral' },
-          explanation: generateExplanation(problemScore, flags, biasDirection),
+          tags,
+          metadata: { biasDirection: 'unknown', diagnostic: 'local_zero_shot' },
+          explanation: generateExplanation(fraction, tags),
         };
       }
+      const direction = parsed.biasDirection || 'neutral';
+      const fraction = Math.max(0, Math.min(1, parsed.problemScore ?? parsed.score ?? 0));
+      const tags = parsed.tags?.length
+        ? parsed.tags
+        : biasTags(direction, fraction >= 0.4);
       return {
-        problemScore: Math.max(0, Math.min(1, parsed.problemScore ?? parsed.score ?? 0)),
+        problemScore: problemScoreFromFraction(fraction),
         confidence: Math.max(0, Math.min(1, parsed.confidence || 0.7)),
-        flags: parsed.flags || [],
-        metadata: { biasDirection: parsed.biasDirection || 'neutral' },
+        tags,
+        metadata: { biasDirection: direction },
         explanation: parsed.explanation || 'Analysis completed'
       };
     }
@@ -136,32 +153,30 @@ function parseAIResponse(responseText) {
   const score = scoreMatch ? parseFloat(scoreMatch[1]) : 0.3;
 
   return {
-    problemScore: Math.max(0, Math.min(1, score)),
+    problemScore: problemScoreFromFraction(score),
     confidence: 0.5,
-    flags: [],
+    tags: ['bias:neutral'],
     metadata: { biasDirection: 'neutral' },
     explanation: responseText.substring(0, 200)
   };
 }
 
-function generateExplanation(score, flags, biasDirection) {
-  const direction = biasDirection.left > biasDirection.right ? 'left-leaning' :
-                    biasDirection.right > biasDirection.left ? 'right-leaning' : 'neutral';
-
+function generateExplanation(score, tags) {
+  const label = Array.isArray(tags) ? tags.join(', ') : String(tags);
   if (score < 0.2) {
-    return `Content appears balanced and objective.`;
+    return `Content appears balanced and objective (${label}).`;
   } else if (score < 0.5) {
-    return `Some bias detected (${direction}): ${flags.join(', ')}.`;
+    return `Some bias detected (${label}).`;
   } else {
-    return `Significant bias detected (${direction}): ${flags.join(', ')}. Content shows strong ideological slant.`;
+    return `Significant bias detected (${label}). Content shows strong ideological slant.`;
   }
 }
 
 function getMockResults(context) {
   return {
-    problemScore: 0.30 + Math.random() * 0.2,
+    problemScore: 'medium' as const,
     confidence: 0.75 + Math.random() * 0.2,
-    flags: [],
+    tags: ['bias:neutral'],
     metadata: { biasDirection: 'neutral' },
     explanation: 'Mock analysis for bias detection'
   };

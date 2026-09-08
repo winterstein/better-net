@@ -25,7 +25,7 @@ export async function analyzeChunk(chunk, pageMetadata: any = {}, options: any =
       error: error.message,
       problemScore: 0,
       confidence: 0,
-      flags: [],
+      tags: [],
       explanation: `Fact check unavailable: ${error.message}`,
     };
   }

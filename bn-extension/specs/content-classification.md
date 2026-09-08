@@ -19,8 +19,9 @@ actor, and a page can be all three at once.
 
 Spec only. Today's state:
 
-- `src/types/Tag.ts` — seven flat chunk tags (advert, article, post, search_result, comment,
-  sidebar, other). No forms, no nav, no cookie banners, no CTAs.
+- `src/types/Tag.ts` — chunk tags: `chunk-type:…` roles plus `advert` / `sponsored`
+  modifiers. No forms, no nav, no cookie banners, no CTAs.
+  Cookie Cutter product tag `consent-ux` is separate from a future role `chunk-type:cookie_banner`.
 - `src/chunking/chunk-tags.ts` — heuristic assignment: platform name → post/search_result,
   ad-label regex + class/id patterns → advert, else `other`.
 - `ChunkAnalysis.primaryTopic` — doc-comment says IAB Tier 1, but `engine.ts` hardcodes
@@ -41,6 +42,8 @@ Spec only. Today's state:
 ## Site type
 
 One primary value per registrable domain. Stable, cacheable for weeks, keyed by domain.
+
+TODO where does this site taxonomy come from?? Does it link up with 3rd party databases??
 
 - news — newspapers, wire services, broadcast news
 - magazine — features, opinion, lifestyle, personal blogs
@@ -86,6 +89,8 @@ One primary value per URL. Aligned to schema.org so a page's own markup can answ
 `checkout` and `login` are deliberately separate from `form`: they carry the strictest
 privacy rule (below), and they are where dark patterns bite hardest.
 
+TODO where does this taxonomy come from?? 
+
 ## Chunk type
 
 Chunk `tags` stay an array, but with structure: exactly one role tag, plus zero or more
@@ -118,6 +123,8 @@ Modifier tags (orthogonal, may stack):
 
 Every chunk gets a role. `other` remains the honest fallback, but it means "we could not
 tell", not "unremarkable" — see the unknown-handling rule below.
+
+TODO where does this taxonomy come from?? 
 
 ## Routing
 
@@ -296,7 +303,7 @@ Each chain entry is separately evaluable, which is the point: replacing `dom-sha
   obstruction, sneaking, misdirection, forced action. The UK CMA and OECD taxonomies map
   onto it. Gives antiManipulation a vocabulary shared with the research literature and with
   regulators, instead of an invented one. Its categories become `flags` on the
-  AspectAnalysis, not chunk types.
+  ModuleAnalysis.tags (issue tags), not chunk role tags.
 - Wikidata — outlet provenance (P31 → online newspaper, public broadcaster, government
   agency) for the actor axis, as a curation input rather than a runtime lookup.
 

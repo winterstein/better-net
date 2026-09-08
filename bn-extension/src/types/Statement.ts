@@ -1,4 +1,4 @@
-import type { AspectAnalysis } from './AspectAnalysis.js';
+import type { ModuleAnalysis } from './ModuleAnalysis.js';
 
 /**
  * A claim or opinion extracted from a chunk. These provide a summary of
@@ -10,5 +10,5 @@ export interface Statement {
 	/** Summary text of the statement. */
 	summaryText: string;
 	/** One or more analyses of the statement */
-	analyses: AspectAnalysis[];
+	analyses: ModuleAnalysis[];
 }
