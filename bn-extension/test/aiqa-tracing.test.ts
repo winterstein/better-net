@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import {
 	configureAiqaTracing,
 	flushAiqaSpans,
+	mirrorFeedbackToAiqa,
 	recordRelayedSteps,
 	resetAiqaTracingForTests,
 } from '../src/tracing/aiqa-tracer.js';
@@ -574,6 +575,71 @@ async function recordChunkingSteps(enabled: boolean) {
 	}
 
 	resetDestinationCache();
+}
+
+// Analysis results carry their trace and span ids, so feedback can link back to them
+// (specs/feedback.md), and feedback is mirrored onto the trace as a span AIQA shows.
+{
+	const { posted } = stubFetch();
+	await resetAiqaTracingForTests();
+	await configureAiqaTracing({ aiqaTracing: true, aiqaApiKey: API_KEY, aiqaServerUrl: SERVER });
+
+	const trace = startSpan('betternet.analyze_page', {});
+	const results = await analyzeChunksParallel(
+		CHUNKS as any,
+		{ url: 'https://example.com', domain: 'example.com' },
+		{
+			mode: 'local',
+			config: { localModelId: 'mobilebert-mnli' },
+			enabledFeatures: ['biasDetector'],
+			localBackend,
+			trace,
+		}
+	);
+	endSpan(trace);
+
+	const traceId = results[0].traceId!;
+	assert.match(traceId, /^[0-9a-f]{32}$/, 'the chunk analysis carries its trace id');
+	assert.match(results[0].spanId!, /^[0-9a-f]{16}$/, 'and its chunk span id');
+	assert.match(
+		results[0].analyses[0].spanId!,
+		/^[0-9a-f]{16}$/,
+		'each aspect carries the span of its own feature call'
+	);
+
+	assert.equal(
+		await mirrorFeedbackToAiqa(traceId, {
+			thumbsUp: false,
+			comment: 'aspect:biasDetector — This isn\'t biased',
+			parentSpanId: results[0].analyses[0].spanId,
+		}),
+		true
+	);
+	await flushAiqaSpans();
+
+	const feedback = posted.flatMap((p) => p.spans).find((s) => s.name === 'feedback');
+	assert.ok(feedback, 'a feedback span is sent');
+	assert.equal(feedback.trace_id, traceId, 'attached to the trace it is about');
+	assert.equal(feedback.parent_span_id, results[0].analyses[0].spanId);
+	assert.equal(feedback.attributes['feedback.value'], 'negative');
+	assert.match(String(feedback.attributes['feedback.comment']), /biasDetector/);
+
+	// A retraction has no thumb, and a malformed trace id is refused rather than guessed.
+	assert.equal(await mirrorFeedbackToAiqa(traceId, {}), true);
+	await flushAiqaSpans();
+	const neutral = posted
+		.flatMap((p) => p.spans)
+		.filter((s) => s.name === 'feedback')
+		.find((s) => s.attributes['feedback.value'] === 'neutral');
+	assert.ok(neutral, 'a retracted vote is recorded as neutral');
+	assert.equal(await mirrorFeedbackToAiqa('not-a-trace-id', { thumbsUp: true }), false);
+}
+
+// Feedback with tracing off is a no-op, not an error: bn-server still has the record.
+{
+	await resetAiqaTracingForTests();
+	assert.equal(await mirrorFeedbackToAiqa('a'.repeat(32), { thumbsUp: true }), false);
+	await configureAiqaTracing({ aiqaTracing: true, aiqaApiKey: API_KEY, aiqaServerUrl: SERVER });
 }
 
 // Turning the setting back off tears tracing down.

@@ -5,7 +5,7 @@
 import { extractChunks, looksUnrendered } from '../chunking/chunking.js';
 import { createStepRecorder } from '../tracing/trace-steps.js';
 import { findElementByXPath, waitForContentRender } from '../utils/utils.js';
-import { isConsoleLoggingEnabled, logit, setConsoleLogging } from '../utils/logger.js';
+import { isDeveloperMode, logit, setDeveloperMode, developerModeFromSettings } from '../utils/logger.js';
 import { partitionChunks } from '../ad-blocker/detect-chunk.js';
 import {
   initAdBlocker,
@@ -90,6 +90,7 @@ class PageAnalyzer {
       this.currentUrl = window.location.href;
       this.dismissedChunkXpaths = new Set();
       this.feedbackEnabled = false;
+      this.developerMode = false;
       this.showIndicators = true;
       this.nutrientLabelMinRisk = DEFAULT_NUTRIENT_LABEL_MIN_RISK;
       this.showChunkOverlay = false;
@@ -118,6 +119,11 @@ class PageAnalyzer {
     // Apply label settings changes without needing a page reload
     chrome.storage.onChanged.addListener((changes, areaName) => {
       if (areaName !== 'sync') return;
+      // Developer Mode and the sharing toggles change what the modal offers, so pick them
+      // up now rather than on the next page load.
+      if (changes.developerMode || changes.shareAnonymous || changes.serverEndpoint) {
+        void this.loadFeedbackSettings();
+      }
       if (!changes.nutrientLabelMinRisk && !changes.showIndicators && !changes.showChunkOverlay) {
         return;
       }
@@ -183,12 +189,16 @@ class PageAnalyzer {
     }, SPA_SETTLE_MS);
   }
 
+  /** What the Content Analysis modal may offer: feedback, and the trace link with it. */
   async loadFeedbackSettings() {
     try {
-      const stored = await chrome.storage.sync.get(null);
-      this.feedbackEnabled = isFeedbackEnabled(mergeSettings(stored));
+      const settings = mergeSettings(await chrome.storage.sync.get(null));
+      this.feedbackEnabled = isFeedbackEnabled(settings);
+      this.developerMode = developerModeFromSettings(settings);
+      this.aiqaServerUrl = settings.aiqaServerUrl;
     } catch {
       this.feedbackEnabled = false;
+      this.developerMode = false;
     }
   }
 
@@ -199,7 +209,7 @@ class PageAnalyzer {
       this.showIndicators = settings.showIndicators !== false;
       this.nutrientLabelMinRisk = settings.nutrientLabelMinRisk;
       this.showChunkOverlay = !!settings.showChunkOverlay;
-      setConsoleLogging(!!settings.consoleLogging);
+      setDeveloperMode(developerModeFromSettings(settings));
       logit('log',
         '[BetterNet] [CONTENT] Nutrient Labels:',
         this.showIndicators ? `from ${this.nutrientLabelMinRisk} upwards` : 'off'
@@ -322,7 +332,7 @@ class PageAnalyzer {
     try {
       const hostname = new URL(url).hostname;
       const settings = mergeSettings((await chrome.storage.sync.get(null)) as unknown as Record<string, unknown>);
-      setConsoleLogging(!!settings.consoleLogging);
+      setDeveloperMode(developerModeFromSettings(settings));
       const blockPageAds = shouldBlockPageAds(settings, hostname);
 
       // Chunking is timed here and sent to the background, which owns the AIQA
@@ -543,7 +553,7 @@ class PageAnalyzer {
   }
 
   handleBackgroundLog(message) {
-    if (!isConsoleLoggingEnabled()) return;
+    if (!isDeveloperMode()) return;
     const { level, message: logMessage, args } = message;
     const logMethod = typeof console[level] === 'function' ? console[level] : console['log'];
 
@@ -790,6 +800,11 @@ class PageAnalyzer {
       showContentAnalysisModal({
         ...analysisResults,
         feedbackEnabled: this.feedbackEnabled,
+        developerMode: this.developerMode,
+        aiqaServerUrl: this.aiqaServerUrl,
+        // Chunker feedback is about the page: how many chunks it was split into.
+        chunkCount: this.lastChunks?.length,
+        pageUrl: window.location.href,
       });
     });
 

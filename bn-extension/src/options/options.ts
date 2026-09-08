@@ -3,7 +3,7 @@
 import { LOCAL_MODELS, formatBytes } from '../ai/model-catalog.js';
 import { MODEL_STATUS, isBusyStatus, isInstalled } from '../ai/model-status.js';
 import { DEFAULT_NUTRIENT_LABEL_MIN_RISK, RISK_LEVELS } from '../types/RiskLevel.js';
-import { logit, setConsoleLogging } from '../utils/logger.js';
+import { logit, setDeveloperMode, developerModeFromSettings } from '../utils/logger.js';
 
 const LOG = '[BN:local-model]';
 const STORAGE_TIMEOUT_MS = 8_000;
@@ -667,9 +667,9 @@ class SettingsController {
     setValue('aiqa-api-key', s.aiqaApiKey || '');
     setValue('aiqa-server-url', s.aiqaServerUrl || '');
     setValue('aiqa-sampling-rate', String(s.aiqaSamplingRate ?? 1));
-    setChecked('console-logging', !!s.consoleLogging);
+    setChecked('developer-mode', developerModeFromSettings(s));
     setChecked('show-chunk-overlay', !!s.showChunkOverlay);
-    setConsoleLogging(!!s.consoleLogging);
+    setDeveloperMode(developerModeFromSettings(s));
   }
 
   readFormIntoSettings() {
@@ -704,7 +704,7 @@ class SettingsController {
       aiqaApiKey: document.getElementById('aiqa-api-key').value.trim(),
       aiqaServerUrl: document.getElementById('aiqa-server-url').value.trim(),
       aiqaSamplingRate: clampSamplingRate(document.getElementById('aiqa-sampling-rate').value),
-      consoleLogging: document.getElementById('console-logging').checked,
+      developerMode: document.getElementById('developer-mode').checked,
       showChunkOverlay: document.getElementById('show-chunk-overlay').checked,
       modules,
       excludedSites: this.settings.excludedSites,
@@ -857,7 +857,7 @@ class SettingsController {
       this.settings = this.mergeSettings(settings);
       this.editedControls.clear();
       this.editedModules = {};
-      setConsoleLogging(!!this.settings.consoleLogging);
+      setDeveloperMode(developerModeFromSettings(this.settings));
       this.showStatus('Settings saved', 'success');
     } catch (error) {
       this.showStatus('Error saving: ' + error.message, 'error');
@@ -871,7 +871,7 @@ class SettingsController {
     this.settings = this.mergeSettings(this.defaults);
     this.editedControls.clear();
     this.editedModules = {};
-    setConsoleLogging(!!this.settings.consoleLogging);
+    setDeveloperMode(developerModeFromSettings(this.settings));
     this.buildModulesList();
     this.applySettingsToForm();
     this.renderOffList();

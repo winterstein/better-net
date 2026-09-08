@@ -12,6 +12,8 @@ Canonical module ids live in `src/settings/modules-esm.ts`. Analysis features: `
 - Nutrient Label — in-page icon/popup showing analysis for a chunk
 - problemScore — higher = worse
 - Trace / Span — AIQA record of one page analysis and the steps inside it (`src/tracing/`)
+- Feedback target — what one thumb rates: summary, aspect, chunker, or chunk (`specs/feedback.md`)
+- Preset issue — the canned "how was it wrong?" buttons shown after a thumbs down
 
 ## Modules
 
@@ -29,6 +31,6 @@ Canonical module ids live in `src/settings/modules-esm.ts`. Analysis features: `
 
 - Toolbar Badge -> Shows status, opens Popup
 - Popup — this-domain toggle, page chunk list and results
-- Settings — AI model, modules, Off-List, account, data sharing
+- Settings — AI model, modules, Off-List, account, data sharing, advanced (Developer Mode)
 - Nutrient Label
 - Content Analysis modal — Opens from nutrient label. chunk detail, aspect results, feedback

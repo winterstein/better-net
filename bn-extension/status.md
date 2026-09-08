@@ -50,8 +50,20 @@
   page), and the download → initialising switch needs both a near-complete byte count and
   all known files finished, so an under-estimated catalog size cannot report a running
   download as done
-- **Settings** (`options/`): AI Model (incl. local models), Modules, Off-List, Account, Data Sharing (incl. server cache + AIQA tracing toggles), Advanced (console logging, server endpoint, AIQA API key / server / sampling). Diagnostic `logit()` output is off unless Advanced → Console logging is on
-- **Chunk feedback** (v1): thumbs up/down per aspect in Content Analysis modal → `POST /api/feedback` when Data Sharing + server endpoint configured; offline queue in `chrome.storage.local`
+- **Settings** (`options/`): AI Model (incl. local models), Modules, Off-List, Account, Data Sharing (incl. server cache + AIQA tracing toggles), Advanced (Developer Mode, chunk overlay, server endpoint, AIQA API key / server / sampling). Diagnostic `logit()` output is off unless Advanced → Developer Mode is on; the pre-v0.5 `consoleLogging` value is migrated on start (`settings/migrate-settings.ts`)
+- **Feedback** (`specs/feedback.md`): thumbs up/down in the Content Analysis modal on four
+  targets — the summary, each feature card, the chunk, and the chunker (page-level). Thumbs
+  up submits and is done; thumbs down submits straight away *then* opens preset issue
+  buttons for that target ("This isn't clickbait", "This shouldn't be a chunk", …) plus
+  Other… with a free-text box. Preset lists are data (`feedback/feedback-issues.ts`) with
+  stable ids, so labels can be reworded without breaking counts. Clicking the same thumb
+  again retracts. A follow-up issue or note updates the record the thumb created, keyed on a
+  client-generated `localId` that makes `POST /api/feedback` an upsert — one thumbs down is
+  one row, offline queue included. Needs Data Sharing + a server endpoint.
+  Each record carries the AIQA `traceId` and the `spanId` of the exact step (the feature
+  call for an aspect, the chunk span otherwise), and is mirrored onto that trace as a
+  `feedback` span — best-effort, bn-server stays the store of record. In Developer Mode the
+  confirmation shows the trace id and a link to it; otherwise it just says "Thanks!".
 - **AIQA tracing** (opt-in, Settings -> Data Sharing): page analysis, chunking and AI
   calls traced to AIQA (`aiqa.winterwell.com`). Off unless the toggle *and* an API key
   (Advanced) are set. Span tree: `betternet.analyze_page` -> `betternet.chunk_page` /

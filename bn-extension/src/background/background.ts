@@ -19,10 +19,11 @@ import type { AspectAnalysis } from '../types/AspectAnalysis.js';
 import { chunkProblemScore } from '../types/ChunkAnalysis.js';
 import { mergeSettings } from '../settings/modules-esm.js';
 import { getGoogleFactCheckKey, getOpenAIKey, getAnthropicKey, initializeChromeStorage } from '../utils/env-utils.js';
-import { logit, setTabId, setConsoleLogging } from '../utils/logger.js';
+import { logit, setTabId, setDeveloperMode, developerModeFromSettings } from '../utils/logger.js';
 import { setupModelManager } from './model-manager.js';
 import { setupUpdateManager } from './update-manager.js';
 import { setupFeedbackManager, handleSubmitFeedback } from './feedback-manager.js';
+import { migrateDeveloperMode } from '../settings/migrate-settings.js';
 import { clearToolbarBadge, forgetToolbarBadge, updateToolbarBadge } from './toolbar-badge.js';
 import { shouldBlockPageAds } from '../ad-blocker/run.js';
 import {
@@ -437,7 +438,7 @@ class AnalysisManager {
       
       const stored = await chrome.storage.sync.get(null);
       const settings = mergeSettings(stored);
-      setConsoleLogging(!!settings.consoleLogging);
+      setDeveloperMode(developerModeFromSettings(settings));
       const enabledFeatures = enabledFeaturesFromSettings(
         settings,
         pageMetadata.domain
@@ -890,6 +891,7 @@ class AnalysisManager {
   }
 } // .end AnalysisManager
 
+void migrateDeveloperMode();
 setupModelManager();
 setupUpdateManager();
 setupFeedbackManager();

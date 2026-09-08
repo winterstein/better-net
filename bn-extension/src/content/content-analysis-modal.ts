@@ -3,7 +3,14 @@
 import type { AspectAnalysis } from '../types/AspectAnalysis.js';
 import type { ChunkAnalysis } from '../types/ChunkAnalysis.js';
 import { chunkProblemScore } from '../types/ChunkAnalysis.js';
+import type { FeedbackTarget } from '../types/Feedback.js';
 import { riskLevelForScore } from '../types/RiskLevel.js';
+import { issuesForTarget, issueLabel, OTHER_ISSUE_ID } from '../feedback/feedback-issues.js';
+import {
+  newFeedbackLocalId,
+  MAX_FEEDBACK_MESSAGE_LENGTH,
+} from '../feedback/feedback-client.js';
+import { aiqaTraceUrl } from '../tracing/aiqa-trace-url.js';
 import { logit } from '../utils/logger.js';
 
 export interface TrafficLight {
@@ -100,34 +107,85 @@ function getRatingColor(rating: string): { bg: string; text: string } {
   return { bg: '#f5f5f5', text: '#666' };
 }
 
-function renderFeedbackRow(type: string, score: number): string {
+/** Page and chunk context every feedback submission from this modal is sent with. */
+export interface FeedbackContext {
+  chunkFingerprint?: string;
+  chunkUrl?: string;
+  chunkTitle?: string;
+  pageUrl?: string;
+  chunkCount?: number;
+  traceId?: string;
+  /** Span for the chunk as a whole; aspect widgets carry their own. */
+  chunkSpanId?: string;
+  /** Settings → Advanced → Developer Mode: reveal the AIQA trace after feedback. */
+  developerMode?: boolean;
+  aiqaServerUrl?: string;
+}
+
+const FEEDBACK_PROMPTS: Record<FeedbackTarget, string> = {
+  summary: 'Is this overall verdict right?',
+  aspect: 'Does this assessment fit?',
+  chunker: 'Did we split this page up sensibly?',
+  chunk: 'Is this the right chunk, with the right tags?',
+};
+
+const THUMB_STYLE = `
+  border: 1px solid #ddd;
+  background: #fafafa;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1.2;
+`;
+
+const ISSUE_STYLE = `
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 12px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: 11px;
+  color: #444;
+`;
+
+/**
+ * Thumbs up/down for one rateable thing, plus the preset issues shown after a thumbs
+ * down. Preset lists come from feedback/feedback-issues.ts, so a target's vocabulary is
+ * data, not widget code. See specs/feedback.md.
+ */
+function renderFeedbackWidget(opts: {
+  target: FeedbackTarget;
+  moduleId?: string;
+  problemScore?: number;
+  spanId?: string;
+}): string {
+  const { target, moduleId, problemScore, spanId } = opts;
+  const issues = issuesForTarget(target, moduleId)
+    .map(
+      (issue) =>
+        `<button type="button" data-issue="${escapeHtml(issue.id)}" style="${ISSUE_STYLE}">${escapeHtml(issue.label)}</button>`
+    )
+    .join('');
+
   return `
-    <div data-feedback-row style="margin-top: 10px; border-top: 1px solid #eee; padding-top: 8px;">
-      <div style="font-size: 11px; color: #666; margin-bottom: 6px;">Does this assessment fit?</div>
+    <div data-feedback
+      data-target="${escapeHtml(target)}"
+      data-local-id="${escapeHtml(newFeedbackLocalId())}"
+      data-module-id="${escapeHtml(moduleId ?? '')}"
+      data-score="${problemScore ?? 0}"
+      data-span-id="${escapeHtml(spanId ?? '')}"
+      style="margin-top: 10px; border-top: 1px solid #eee; padding-top: 8px;">
       <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-        <button type="button" data-feedback-btn data-module-id="${escapeHtml(type)}" data-applies="true" data-score="${score}" title="Yes, this applies" style="
-          border: 1px solid #c8e6c9;
-          background: #f1f8e9;
-          border-radius: 6px;
-          padding: 4px 10px;
-          cursor: pointer;
-          font-size: 14px;
-        ">👍</button>
-        <button type="button" data-feedback-btn data-module-id="${escapeHtml(type)}" data-applies="false" data-score="${score}" title="No, this does not apply" style="
-          border: 1px solid #ffcdd2;
-          background: #ffebee;
-          border-radius: 6px;
-          padding: 4px 10px;
-          cursor: pointer;
-          font-size: 14px;
-        ">👎</button>
-        <span data-feedback-status style="font-size: 11px; color: #666;"></span>
+        <span style="font-size: 11px; color: #666;">${FEEDBACK_PROMPTS[target]}</span>
+        <button type="button" data-thumb="up" title="This is right" style="${THUMB_STYLE}">👍</button>
+        <button type="button" data-thumb="down" title="This is wrong" style="${THUMB_STYLE}">👎</button>
+        <span data-status style="font-size: 11px; color: #666;"></span>
       </div>
-      <details style="margin-top: 6px; font-size: 12px;">
-        <summary style="cursor: pointer; color: #555;">Add a note (optional)</summary>
-        <textarea data-feedback-message rows="2" maxlength="500" placeholder="What seems off?" style="
+      <div data-issues style="display: none; gap: 6px; flex-wrap: wrap; margin-top: 8px;">${issues}</div>
+      <div data-note style="display: none; margin-top: 8px;">
+        <textarea data-note-text rows="2" maxlength="${MAX_FEEDBACK_MESSAGE_LENGTH}" placeholder="What went wrong?" style="
           width: 100%;
-          margin-top: 6px;
           padding: 6px 8px;
           border: 1px solid #ddd;
           border-radius: 4px;
@@ -135,49 +193,168 @@ function renderFeedbackRow(type: string, score: number): string {
           resize: vertical;
           box-sizing: border-box;
         "></textarea>
-      </details>
+        <button type="button" data-send-note style="${ISSUE_STYLE} margin-top: 4px;">Send</button>
+      </div>
+      <div data-trace style="display: none; margin-top: 6px; font-size: 11px; color: #888;"></div>
     </div>
   `;
 }
 
-function attachFeedbackHandlers(
-  modal: HTMLElement,
-  ctx: { fingerprint: string; url: string; title?: string }
-): void {
-  modal.querySelectorAll('[data-feedback-btn]').forEach((btn) => {
-    btn.addEventListener('click', async (e) => {
-      e.preventDefault();
-      const el = e.currentTarget as HTMLElement;
-      const card = el.closest('[data-analysis-card]') as HTMLElement | null;
-      const statusEl = card?.querySelector('[data-feedback-status]') as HTMLElement | null;
-      const messageEl = card?.querySelector('[data-feedback-message]') as HTMLTextAreaElement | null;
-      const moduleId = el.dataset.moduleId || '';
-      const applies = el.dataset.applies === 'true';
-      const problemScore = Number(el.dataset.score || '0');
+function setStatus(widget: HTMLElement, text: string): void {
+  const status = widget.querySelector('[data-status]') as HTMLElement | null;
+  if (status) status.textContent = text;
+}
 
-      if (statusEl) statusEl.textContent = 'Sending…';
-      try {
-        const res = await chrome.runtime.sendMessage({
-          type: 'BN_SUBMIT_FEEDBACK',
-          payload: {
-            chunkFingerprint: ctx.fingerprint,
-            chunkUrl: ctx.url,
-            chunkTitle: ctx.title,
-            moduleId,
-            applies,
-            message: applies ? undefined : messageEl?.value?.trim(),
-            problemScore,
-          },
-        });
-        if (res?.ok) {
-          if (statusEl) statusEl.textContent = 'Thanks for your feedback!';
-        } else if (statusEl) {
-          statusEl.textContent = res?.error || 'Could not send feedback';
-        }
-      } catch {
-        if (statusEl) statusEl.textContent = 'Could not send feedback';
-      }
+function show(widget: HTMLElement, selector: string, display: string): void {
+  const el = widget.querySelector(selector) as HTMLElement | null;
+  if (el) el.style.display = display;
+}
+
+/** Mark which thumb is currently chosen, so a reopened row shows the vote. */
+function paintThumbs(widget: HTMLElement, vote: string): void {
+  widget.querySelectorAll('[data-thumb]').forEach((el) => {
+    const btn = el as HTMLElement;
+    const chosen = btn.dataset.thumb === vote;
+    btn.style.background = chosen ? '#eef4ff' : '#fafafa';
+    btn.style.borderColor = chosen ? '#7aa7f0' : '#ddd';
+  });
+}
+
+/**
+ * In Developer Mode, show the AIQA trace behind this verdict once feedback is in, so a
+ * complaint can be taken straight to the prompts. Everyone else just sees "Thanks!".
+ */
+function revealTrace(widget: HTMLElement, ctx: FeedbackContext): void {
+  if (!ctx.developerMode) return;
+  const box = widget.querySelector('[data-trace]') as HTMLElement | null;
+  if (!box) return;
+  box.style.display = 'block';
+  if (!ctx.traceId) {
+    box.textContent = 'No trace for this analysis (AIQA tracing off or unsampled).';
+    return;
+  }
+  const url = aiqaTraceUrl(ctx.traceId, ctx.aiqaServerUrl);
+  box.innerHTML = `
+    Trace <code data-copy-trace title="Click to copy" style="cursor: pointer; font-family: monospace;">${escapeHtml(
+      ctx.traceId.slice(0, 8)
+    )}</code>
+    <a href="${escapeHtml(url ?? '')}" target="_blank" rel="noreferrer noopener" style="color: #2196f3;">open in AIQA →</a>
+  `;
+}
+
+async function sendFeedback(
+  widget: HTMLElement,
+  ctx: FeedbackContext,
+  patch: { applies: boolean; retracted?: boolean; issueId?: string; message?: string }
+): Promise<boolean> {
+  const target = widget.dataset.target as FeedbackTarget;
+  const moduleId = widget.dataset.moduleId || undefined;
+  setStatus(widget, 'Sending…');
+  try {
+    const res = await chrome.runtime.sendMessage({
+      type: 'BN_SUBMIT_FEEDBACK',
+      payload: {
+        localId: widget.dataset.localId,
+        target,
+        applies: patch.applies,
+        retracted: patch.retracted,
+        issueId: patch.issueId,
+        issueLabel: patch.issueId ? issueLabel(target, patch.issueId, moduleId) : undefined,
+        message: patch.message,
+        chunkFingerprint: ctx.chunkFingerprint,
+        chunkUrl: ctx.chunkUrl,
+        chunkTitle: ctx.chunkTitle,
+        pageUrl: ctx.pageUrl,
+        chunkCount: ctx.chunkCount,
+        moduleId,
+        problemScore: Number(widget.dataset.score || '0'),
+        traceId: ctx.traceId,
+        spanId: widget.dataset.spanId || ctx.chunkSpanId,
+      },
     });
+    if (res?.ok) return true;
+    setStatus(widget, res?.error || 'Could not send feedback');
+  } catch {
+    setStatus(widget, 'Could not send feedback');
+  }
+  return false;
+}
+
+/**
+ * One delegated listener for every widget in the modal, so the buttons revealed after a
+ * thumbs down need no wiring of their own.
+ *
+ * A thumb submits straight away — feedback is never lost because the user walked away —
+ * and a preset issue or note follows as an update to the same record (same localId).
+ */
+function attachFeedbackHandlers(modal: HTMLElement, ctx: FeedbackContext): void {
+  modal.addEventListener('click', async (e) => {
+    const target = e.target instanceof Element ? e.target : null;
+    if (!target) return;
+    const widget = target.closest('[data-feedback]') as HTMLElement | null;
+    if (!widget) return;
+
+    const thumb = target.closest('[data-thumb]') as HTMLElement | null;
+    if (thumb) {
+      e.preventDefault();
+      const vote = thumb.dataset.thumb === 'up' ? 'up' : 'down';
+      const retracting = widget.dataset.vote === vote;
+      const applies = vote === 'up';
+      const ok = await sendFeedback(widget, ctx, { applies, retracted: retracting });
+      if (!ok) return;
+      widget.dataset.vote = retracting ? '' : vote;
+      paintThumbs(widget, widget.dataset.vote);
+      const showIssues = !retracting && vote === 'down';
+      show(widget, '[data-issues]', showIssues ? 'flex' : 'none');
+      if (!showIssues) show(widget, '[data-note]', 'none');
+      setStatus(widget, retracting ? '' : showIssues ? 'Thanks! What went wrong?' : 'Thanks!');
+      if (!retracting) revealTrace(widget, ctx);
+      return;
+    }
+
+    const issue = target.closest('[data-issue]') as HTMLElement | null;
+    if (issue) {
+      e.preventDefault();
+      const issueId = issue.dataset.issue!;
+      if (issueId === OTHER_ISSUE_ID) {
+        show(widget, '[data-note]', 'block');
+        setStatus(widget, '');
+        (widget.querySelector('[data-note-text]') as HTMLTextAreaElement | null)?.focus();
+        return;
+      }
+      if (await sendFeedback(widget, ctx, { applies: false, issueId })) {
+        show(widget, '[data-issues]', 'none');
+        setStatus(widget, 'Thanks — noted.');
+      }
+      return;
+    }
+
+    if (target.closest('[data-send-note]')) {
+      e.preventDefault();
+      const box = widget.querySelector('[data-note-text]') as HTMLTextAreaElement | null;
+      const message = box?.value.trim();
+      if (!message) {
+        setStatus(widget, 'Nothing to send');
+        return;
+      }
+      if (await sendFeedback(widget, ctx, { applies: false, issueId: OTHER_ISSUE_ID, message })) {
+        show(widget, '[data-note]', 'none');
+        show(widget, '[data-issues]', 'none');
+        setStatus(widget, 'Thanks — noted.');
+      }
+      return;
+    }
+
+    const copy = target.closest('[data-copy-trace]') as HTMLElement | null;
+    if (copy && ctx.traceId) {
+      e.preventDefault();
+      void navigator.clipboard?.writeText(ctx.traceId).then(
+        () => {
+          copy.textContent = 'copied';
+        },
+        () => {}
+      );
+    }
   });
 }
 
@@ -277,8 +454,18 @@ function renderFactCheckClaims(factChecks: unknown[]): string {
   return html;
 }
 
+/** A chunk's analysis, plus the page-level context the modal needs from content.ts. */
+export interface ContentAnalysisModalData extends Partial<ChunkAnalysis> {
+  /** Settings → Advanced → Developer Mode. See specs/feedback.md. */
+  developerMode?: boolean;
+  /** How many chunks the page was split into, for chunker feedback. */
+  chunkCount?: number;
+  pageUrl?: string;
+  aiqaServerUrl?: string;
+}
+
 /** Show or replace the Content Analysis detail modal for a chunk. */
-export function showContentAnalysisModal(analysisResults: Partial<ChunkAnalysis>): void {
+export function showContentAnalysisModal(analysisResults: ContentAnalysisModalData): void {
   const existingModal = document.getElementById('betternet-detail-modal');
   if (existingModal) {
     existingModal.remove();
@@ -292,12 +479,29 @@ export function showContentAnalysisModal(analysisResults: Partial<ChunkAnalysis>
     fingerprint,
     url,
     feedbackEnabled,
+    traceId,
+    spanId,
+    developerMode,
+    chunkCount,
+    pageUrl,
+    aiqaServerUrl,
   } = analysisResults;
   const problemScore = chunkProblemScore(analysisResults);
   const canFeedback = feedbackEnabled && fingerprint && url;
   if ( !canFeedback ) {
     logit('log', 'Content Analysis modal: Feedback is disabled: feedbackEnabled: '+feedbackEnabled+' fingerprint:'+fingerprint+' url:'+url);
   }
+  const feedbackContext: FeedbackContext = {
+    chunkFingerprint: fingerprint,
+    chunkUrl: url,
+    chunkTitle: title,
+    pageUrl: pageUrl || url,
+    chunkCount,
+    traceId,
+    chunkSpanId: spanId,
+    developerMode,
+    aiqaServerUrl,
+  };
   const nutritionData = calculateNutritionData(analyses);
   const trafficLight = getTrafficLight(problemScore);
   const modalTitle = title
@@ -365,13 +569,14 @@ export function showContentAnalysisModal(analysisResults: Partial<ChunkAnalysis>
               <div style="font-size: 14px; color: #666;">Score: ${(problemScore * 100).toFixed(0)}%</div>
             </div>
           </div>
+          ${canFeedback ? renderFeedbackWidget({ target: 'summary', problemScore }) : ''}
         </div>
 
         ${
-          tags.length > 0
+          tags.length > 0 || canFeedback
             ? `
         <div style="margin-bottom: 20px;">
-          <h3 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600; color: #333;">Tags</h3>
+          <h3 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600; color: #333;">This chunk</h3>
           <div style="display: flex; flex-wrap: wrap; gap: 6px;">
             ${tags
               .map(
@@ -390,6 +595,7 @@ export function showContentAnalysisModal(analysisResults: Partial<ChunkAnalysis>
               )
               .join('')}
           </div>
+          ${canFeedback ? renderFeedbackWidget({ target: 'chunk', spanId }) : ''}
         </div>
         `
             : ''
@@ -463,7 +669,16 @@ export function showContentAnalysisModal(analysisResults: Partial<ChunkAnalysis>
                 </div>
               ` : ''}
               ${factCheckHTML}
-              ${canFeedback ? renderFeedbackRow(moduleId, score) : ''}
+              ${
+                canFeedback
+                  ? renderFeedbackWidget({
+                      target: 'aspect',
+                      moduleId,
+                      problemScore: score,
+                      spanId: result.spanId,
+                    })
+                  : ''
+              }
             </div>
           `;
   });
@@ -478,6 +693,19 @@ export function showContentAnalysisModal(analysisResults: Partial<ChunkAnalysis>
           <div>
             <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: #333;">Summary</h3>
             <p style="margin: 0; color: #666; font-size: 14px;">${escapeHtml(summary.summaryText)}</p>
+          </div>
+        `;
+  }
+
+  // Chunker feedback is about the page, not this chunk, so it sits on its own in the
+  // footer — opened from whichever chunk's modal the user happens to have in front.
+  if (canFeedback) {
+    detailsHTML += `
+          <div style="margin-top: 20px; padding-top: 4px; border-top: 1px solid #e0e0e0;">
+            <h3 style="margin: 12px 0 0 0; font-size: 14px; font-weight: 600; color: #333;">
+              This page${chunkCount ? ` — ${chunkCount} chunks` : ''}
+            </h3>
+            ${renderFeedbackWidget({ target: 'chunker' })}
           </div>
         `;
   }
@@ -505,6 +733,6 @@ export function showContentAnalysisModal(analysisResults: Partial<ChunkAnalysis>
   document.addEventListener('keydown', escapeHandler);
 
   if (canFeedback) {
-    attachFeedbackHandlers(modal, { fingerprint: fingerprint!, url: url!, title });
+    attachFeedbackHandlers(modal, feedbackContext);
   }
 }

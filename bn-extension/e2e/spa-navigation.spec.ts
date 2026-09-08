@@ -45,7 +45,7 @@ test('an SPA navigation gets analysed and labelled', async ({ context }) => {
 
   try {
     const sw = await getServiceWorker(context);
-    await sw.evaluate(() => chrome.storage.sync.set({ demoMode: true, consoleLogging: true }));
+    await sw.evaluate(() => chrome.storage.sync.set({ demoMode: true, developerMode: true }));
 
     const page = await context.newPage();
     // Wait for the timeline's own analysis to be under way, so the navigation has something

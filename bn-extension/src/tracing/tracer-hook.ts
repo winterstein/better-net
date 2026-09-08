@@ -40,12 +40,19 @@ export interface SpanOptions {
 	startTime?: number;
 }
 
+/** Ids of a live span, for linking user feedback back to the trace. See specs/feedback.md. */
+export interface TraceIds {
+	traceId: string;
+	spanId: string;
+}
+
 /** Returns null when tracing is off, so callers can pass handles around unguarded. */
 export interface TracerImpl {
 	startSpan(name: string, opts: SpanOptions): TraceHandle | null;
 	endSpan(handle: TraceHandle, error?: unknown): void;
 	setAttributes(handle: TraceHandle, attributes: TraceAttributes): void;
 	recordSteps(steps: TraceStep[], parent: TraceHandle): void;
+	ids(handle: TraceHandle): TraceIds | null;
 }
 
 let impl: TracerImpl | null = null;
@@ -75,6 +82,11 @@ export function endSpan(
 
 export function setAttributes(handle: TraceHandle | null, attributes: TraceAttributes): void {
 	if (impl && handle) impl.setAttributes(handle, attributes);
+}
+
+/** Null when tracing is off, or the span was not sampled. */
+export function traceIds(handle: TraceHandle | null): TraceIds | null {
+	return impl && handle ? impl.ids(handle) : null;
 }
 
 /**

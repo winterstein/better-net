@@ -40,6 +40,8 @@ export interface AspectAnalysis {
 	explanation?: string;
 	/** Error message if analysis failed */
 	error?: string;
+	/** AIQA span for this analysis, so feedback can point at the exact call. specs/feedback.md */
+	spanId?: string;
 	/** Additional metadata */
 	metadata?: Record<string, unknown>;
 }

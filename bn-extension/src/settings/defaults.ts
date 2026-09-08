@@ -83,8 +83,9 @@
     aiqaServerUrl: '',
     // 0-1. Every page view makes a trace, so sample down if AIQA gets noisy.
     aiqaSamplingRate: 1,
-    // Diagnostic console output via utils/logger.ts logit(). Off unless Advanced is on.
-    consoleLogging: false,
+    // Developer Mode: diagnostic console output (utils/logger.ts logit()), plus AIQA
+    // trace links on feedback (specs/feedback.md). Was `consoleLogging` before v0.5.
+    developerMode: false,
     /** Debug aid: outline every chunk on the page. See content/chunk-overlay.ts. */
     showChunkOverlay: false,
     serverEndpoint: '',

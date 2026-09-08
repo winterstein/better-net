@@ -22,7 +22,7 @@ import {
 	TraceIdRatioBasedSampler,
 } from '@opentelemetry/sdk-trace-base';
 import { Resource } from '@opentelemetry/resources';
-import { SpanStatusCode, trace, context as otelContext } from '@opentelemetry/api';
+import { SpanStatusCode, trace, context as otelContext, TraceFlags } from '@opentelemetry/api';
 import type { Span } from '@opentelemetry/api';
 import { setTracerImpl } from './tracer-hook.js';
 import type {
@@ -97,6 +97,13 @@ const aiqaTracerImpl: TracerImpl = {
 
 	recordSteps(steps, parent) {
 		recordRelayedSteps(steps, parent);
+	},
+
+	ids(handle) {
+		const ctx = asSpan(handle).spanContext();
+		// An unsampled span carries the all-zero context, which is no use as a link.
+		if (!ctx?.traceId || /^0+$/.test(ctx.traceId)) return null;
+		return { traceId: ctx.traceId, spanId: ctx.spanId };
 	},
 
 	endSpan(handle, error) {
@@ -179,6 +186,50 @@ export function recordRelayedSteps(steps: RelayedStep[] | undefined, parent: Tra
 		);
 		recordRelayedSteps(step.children, { span });
 		span.end(step.end);
+	}
+}
+
+/** 16 hex chars: the OTel span-id format, for a feedback span with no known parent. */
+function randomSpanId(): string {
+	const bytes = crypto.getRandomValues(new Uint8Array(8));
+	return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Mirror user feedback onto the trace it is about, so a thumb shows up beside the
+ * prompts in the AIQA UI. Same span shape as aiqa-client's own submitFeedback(), which
+ * we cannot call: it drives the provider initTracing() built, and we drive our own.
+ *
+ * bn-server holds the record of feedback (specs/feedback.md); this is a copy for the
+ * trace view, so it never throws and never blocks the UI.
+ */
+export async function mirrorFeedbackToAiqa(
+	traceId: string,
+	feedback: { thumbsUp?: boolean; comment?: string; parentSpanId?: string }
+): Promise<boolean> {
+	if (!provider || !/^[0-9a-f]{32}$/.test(traceId)) return false;
+	try {
+		const parentSpanId = /^[0-9a-f]{16}$/.test(feedback.parentSpanId ?? '')
+			? feedback.parentSpanId!
+			: randomSpanId();
+		const parent = trace.setSpanContext(otelContext.active(), {
+			traceId,
+			spanId: parentSpanId,
+			traceFlags: TraceFlags.SAMPLED,
+			isRemote: true,
+		});
+		const attributes: TraceAttributes = {
+			'feedback.value':
+				feedback.thumbsUp === undefined ? 'neutral' : feedback.thumbsUp ? 'positive' : 'negative',
+			'gen_ai.operation.name': 'feedback',
+		};
+		if (feedback.comment) attributes['feedback.comment'] = feedback.comment;
+		tracer().startSpan('feedback', { attributes: spanAttributes(attributes) }, parent).end();
+		await flushAiqaSpans();
+		return true;
+	} catch (error) {
+		logit('warn', '[BetterNet] [AIQA] Feedback mirror failed:', (error as Error)?.message);
+		return false;
 	}
 }
 

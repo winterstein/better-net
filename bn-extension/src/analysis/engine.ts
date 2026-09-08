@@ -3,7 +3,7 @@
  */
 
 import { ANALYSIS_FEATURES, ANALYSIS_FEATURE_IDS } from '../features/registry.js';
-import { traceStep, setAttributes } from '../tracing/tracer-hook.js';
+import { traceStep, setAttributes, traceIds } from '../tracing/tracer-hook.js';
 import { logit } from '../utils/logger.js';
 import { completeAspectAnalysis } from '../types/AspectAnalysis.js';
 import type { AspectAnalysis } from '../types/AspectAnalysis.js';
@@ -62,7 +62,8 @@ async function analyzeChunk(
                 'betternet.flag_count': result.flags?.length ?? 0,
                 output: featureOutput(result),
               });
-              return result;
+              // Carried to the modal so a thumbs down links to this feature call.
+              return { ...result, spanId: traceIds(span)?.spanId };
             })
       )
         .then((result: Partial<AspectAnalysis>) => {
@@ -125,6 +126,10 @@ export async function analyzeChunksParallel(
               trace: span,
             });
             setAttributes(span, { output: chunkOutput(analysis) });
+            // The modal links feedback on this chunk (and on the chunker) to this trace.
+            const ids = traceIds(span);
+            analysis.traceId = ids?.traceId;
+            analysis.spanId = ids?.spanId;
             return analysis;
           }
         );

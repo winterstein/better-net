@@ -4,6 +4,9 @@ BetterNet extension talks to `bn-server` for cached analysis, updates, and user-
 
 See also bn-server/specs/bn-server-stack.md
 
+**Feedback UX (what can be rated, preset issues, trace links, Developer Mode) now
+lives in `specs/feedback.md`.** This file is the transport + server contract.
+
 ## Goals (v1)
 
 - User can give **+ / −** (thumbs up / down) feedback on a specific **chunk** and **aspect** (e.g. “this article chunk **is** / **is not** misleading”).
@@ -25,15 +28,20 @@ Aspect labels map to `AspectType` (`accuracy`, `bias`, `scams`, `toxicity`, `cli
 
 Use AspectAnalysis as the basis for data sent / received.
 
-## Server API (draft)
+## Server API
 
 ```
 POST /api/feedback
 ```
 
-Body: fields above. Response: `{ id, createdAt }`.
+Body: `FeedbackSubmission` (`src/types/Feedback.ts`). Response: `{ id, createdAt }`,
+201 on insert and 200 on update.
 
-Server stores feedback linked to chunk fingerprint (create or upsert chunk row if missing). Multiple feedback events per user/chunk/aspect are allowed; latest wins for aggregation, history retained.
+An upsert on the client's `localId`: the thumb inserts, and the preset issue or note
+that follows updates the same row. Chunk-level feedback is linked to the chunk
+fingerprint (the chunk row is created if we have not seen it); chunker feedback is
+linked to the page instead, so `chunkId` is nullable and there is a `pageId`.
+Stored in PostgreSQL, table `feedback`.
 
 Future read APIs (out of scope v1): aggregate scores per chunk/aspect, export for model improvement.
 

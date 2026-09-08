@@ -35,9 +35,11 @@ const chunkAnalysis_columns: DBTableColumn[] = [
 	{ name: 'created', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
 	{ name: 'updated', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
 ];
+// chunkId is nullable: chunker feedback is about a page, not a chunk (specs/feedback.md).
 const feedback_columns: DBTableColumn[] = [
 	{ name: 'id', type: 'SERIAL PRIMARY KEY' },
-	{ name: 'chunkId', type: 'INTEGER NOT NULL' },
+	{ name: 'chunkId', type: 'INTEGER' },
+	{ name: 'pageId', type: 'INTEGER' },
 	{ name: 'props', type: 'JSONB NOT NULL' },
 	{ name: 'created', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
 	{ name: 'updated', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
@@ -145,8 +147,15 @@ async function db_init(): Promise<boolean> {
 		console.log('Creating feedback table...');
 		const sql_feedback = `CREATE TABLE IF NOT EXISTS feedback (${feedback_columns.map(c => `${c.name} ${c.type}`).join(', ')})`;
 		await client.query(sql_feedback);
+		// Feedback grew page-level targets and localId upserts in v0.5 (specs/feedback.md).
+		// CREATE TABLE IF NOT EXISTS leaves an older table alone, so bring it up to date.
+		await client.query(`ALTER TABLE feedback ALTER COLUMN chunkId DROP NOT NULL;`);
+		await client.query(`ALTER TABLE feedback ADD COLUMN IF NOT EXISTS pageId INTEGER;`);
 		await client.query(`CREATE INDEX IF NOT EXISTS idx_feedback_props ON feedback USING GIN (props);`);
 		await client.query(`CREATE INDEX IF NOT EXISTS idx_feedback_chunkId ON feedback (chunkId);`);
+		await client.query(`CREATE INDEX IF NOT EXISTS idx_feedback_pageId ON feedback (pageId);`);
+		// The client's localId makes POST /api/feedback an upsert; this is its lookup.
+		await client.query(`CREATE INDEX IF NOT EXISTS idx_feedback_localId ON feedback ((props->>'localId'));`);
 		console.log('Feedback table initialized successfully');
 	} catch (error) {
 		console.error('Error initializing tables:', error);
@@ -172,6 +181,15 @@ async function db_get_client(): Promise<PoolClient> {
 	return await pool.connect();
 }
 
+/**
+ * `chunkId AS "chunkId"` for each column. Columns are created unquoted, so Postgres
+ * folds them to lower case and would hand back `chunkid` — which then fails to match
+ * the column on the way back in (see prepItemForDB).
+ */
+function select_columns(columns: DBTableColumn[]): string {
+	return columns.map(c => `${c.name} AS "${c.name}"`).join(', ');
+}
+
 async function db_query_items(table: string, gmailStyleQuery?: string | null, sort?: string | null): Promise<TopLevelItem[]> {
 	if (!sort) {
 		sort = 'updated DESC';
@@ -190,7 +208,7 @@ async function db_query_items(table: string, gmailStyleQuery?: string | null, so
 		if (!columns) {
 			throw new Error(`Unknown table: ${table}`);
 		}
-		const scolumns = columns.map(c => c.name).join(', ');
+		const scolumns = select_columns(columns);
 		const sql = `SELECT ${scolumns} FROM ${table} WHERE ${query} ORDER BY ${sort}`;
 		const result = await client.query(sql);
 		// convert rows
@@ -222,8 +240,37 @@ async function get_chunk_by_fingerprint(fp: string): Promise<TopLevelItem | unde
 	const client = await db_get_client();
 	try {
 		const result: QueryResult = await client.query(
-			`SELECT ${chunk_columns.map(c => c.name).join(', ')} FROM chunk WHERE fingerprint = $1 LIMIT 1`,
+			`SELECT ${select_columns(chunk_columns)} FROM chunk WHERE fingerprint = $1 LIMIT 1`,
 			[fp]
+		);
+		if (result.rows.length === 0) return undefined;
+		return convert_row_to_item(result.rows[0]);
+	} finally {
+		client.release();
+	}
+}
+
+async function get_page_by_url(url: string): Promise<TopLevelItem | undefined> {
+	const client = await db_get_client();
+	try {
+		const result: QueryResult = await client.query(
+			`SELECT ${select_columns(page_columns)} FROM page WHERE url = $1 LIMIT 1`,
+			[url]
+		);
+		if (result.rows.length === 0) return undefined;
+		return convert_row_to_item(result.rows[0]);
+	} finally {
+		client.release();
+	}
+}
+
+/** Feedback is upserted on the client's localId: the thumb inserts, the follow-up updates. */
+async function get_feedback_by_local_id(localId: string): Promise<TopLevelItem | undefined> {
+	const client = await db_get_client();
+	try {
+		const result: QueryResult = await client.query(
+			`SELECT ${select_columns(feedback_columns)} FROM feedback WHERE props->>'localId' = $1 LIMIT 1`,
+			[localId]
 		);
 		if (result.rows.length === 0) return undefined;
 		return convert_row_to_item(result.rows[0]);
@@ -240,7 +287,7 @@ async function get_item(table: string, id: number): Promise<TopLevelItem | undef
 			throw new Error(`Unknown table: ${table}`);
 		}
 		const result: QueryResult = await client.query(
-			`SELECT ${columns.map(c => c.name).join(', ')} FROM ${table} WHERE id = $1`,
+			`SELECT ${select_columns(columns)} FROM ${table} WHERE id = $1`,
 			[id]
 		);
 		if (result.rows.length === 0) {
@@ -315,6 +362,11 @@ function prepItemForDB(table: string, item: TopLevelItem): Record<string, unknow
  * @returns the encoded value
  */
 function sqlEncodeValue(value: unknown): unknown {
+	// Before the object branch: typeof null is 'object', which encoded NULL as the
+	// string 'null' and made an integer column reject it.
+	if (value === null || value === undefined) {
+		return 'NULL';
+	}
 	if (value instanceof Date) {
 		// Convert Date to ISO string and quote it
 		return `'${value.toISOString()}'`;
@@ -328,9 +380,6 @@ function sqlEncodeValue(value: unknown): unknown {
 	if (typeof value === 'string') {
 		// safely escape string for SQL
 		return `'${value.replace(/'/g, "''")}'`;
-	}	
-	if (value === null || value === undefined) {
-		return 'NULL';
 	}	
 	// primitive values are returned as is
 	if (typeof value === 'number' || typeof value === 'boolean') {
@@ -372,6 +421,6 @@ async function delete_item(table: string, id: number): Promise<void> {
 	}
 }
 
-export { db_init, db_close, db_query_items, db_get_client, get_item, get_chunk_by_fingerprint, create_item, update_item, delete_item };
+export { db_init, db_close, db_query_items, db_get_client, get_item, get_chunk_by_fingerprint, get_page_by_url, get_feedback_by_local_id, create_item, update_item, delete_item };
 export type { TopLevelItem as Item };
 

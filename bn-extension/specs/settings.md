@@ -29,6 +29,13 @@ Pages:
     - Use server cache: on/off toggle for reusing the server's cached analysis
 - Data Sharing
     - Anonymous analysis data, usage statistics, shared fact-check cache
+    - Anonymous analysis data also covers Content Analysis feedback (specs/feedback.md),
+      which needs this on and a server endpoint set.
     - Send AIQA traces: on/off, plus AIQA API key, server URL and trace sampling (0-1).
       Traces page analysis, chunking and AI calls to AIQA. Off unless both the toggle
       and an API key are set.
+- Advanced
+    - Developer Mode: console logging, plus AIQA trace links on feedback. For developers
+      and bug reports. Off by default. Was called Console logging before v0.5.
+    - Show chunk overlay: outline every chunk the page was split into.
+    - Server endpoint, and the AIQA API key / server / sampling.

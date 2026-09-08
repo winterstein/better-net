@@ -29,6 +29,9 @@ export interface ChunkAnalysis extends TopLevelItem {
 	url?: string;
 	fingerprint?: string;
 	feedbackEnabled?: boolean;
+	/** AIQA trace and chunk span for this analysis, for feedback links. specs/feedback.md */
+	traceId?: string;
+	spanId?: string;
 }
 
 export function riskFromScore(score: number): RiskRating {
