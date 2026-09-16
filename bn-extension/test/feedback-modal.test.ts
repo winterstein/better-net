@@ -86,7 +86,7 @@ let widgets = widgetsOf(modal);
 const kindOf = (w: HTMLElement) => `${w.dataset.target}:${w.dataset.feedbackKind}`;
 assert.deepEqual(
   widgets.map(kindOf).sort(),
-  ['chunk:tags', 'chunk:thumb', 'chunker:thumb', 'module:tags', 'summary:thumb'],
+  ['chunk:tags', 'chunk:thumb', 'chunker:thumb', 'module:tags', 'page:page-type', 'summary:thumb'],
   'modules are rated by editing their tags; the chunk gets both, since a tag edit cannot say "not a chunk"'
 );
 
@@ -366,9 +366,131 @@ assert.match((failing.querySelector('[data-status]') as HTMLElement).textContent
 assert.equal((failing.querySelector('[data-issues]') as HTMLElement).style.display, 'none');
 reply = { ok: true };
 
-// --- no feedback UI when sharing is off ---
+// --- an unreachable server holds the edit instead of losing it ---
+// The background queues on a network failure and says `queued`, so the correction stands
+// and the row says so. A dead `serverEndpoint` used to read as "your edit was rejected".
 
-modal = openModal({ feedbackEnabled: false });
+reply = { ok: false, queued: true, error: 'Failed to fetch' };
+modal = openModal();
+widgets = widgetsOf(modal);
+const queuedTags = widgets.find(
+  (w) => w.dataset.target === 'module' && w.dataset.feedbackKind === 'tags'
+)!;
+click(queuedTags.querySelector('[data-tag-remove="clickbait"]'));
+await settle();
+assert.equal(sent.length, 1, 'it was still submitted');
+assert.equal(queuedTags.querySelector('[data-tag-chip="clickbait"]'), null, 'the edit stands');
+assert.match(
+  (queuedTags.querySelector('[data-status]') as HTMLElement).textContent!,
+  /Saved/,
+  'and says it is saved rather than reporting a failure'
+);
+
+modal = openModal();
+widgets = widgetsOf(modal);
+const queuedThumb = widgets.find((w) => w.dataset.target === 'summary')!;
+click(queuedThumb.querySelector('[data-thumb="up"]'));
+await settle();
+assert.equal(queuedThumb.dataset.vote, 'up', 'the vote shows while it waits to be sent');
+assert.match((queuedThumb.querySelector('[data-status]') as HTMLElement).textContent!, /Saved/);
+reply = { ok: true };
+
+// --- the page type: shown, and corrected by choosing another ---
+
+const ARTICLE = { value: 'article', confidence: 0.9, source: 'jsonld' } as const;
+const pageTypeOf = (m: Element) =>
+  m.querySelector('[data-page-type-select]') as HTMLSelectElement;
+
+modal = openModal({ pageType: ARTICLE });
+let pageSelect = pageTypeOf(modal);
+assert.equal(pageSelect.value, 'page-type:article', 'the classified type is what the select shows');
+assert.equal(
+  Array.from(pageSelect.options).some((o) => !o.value),
+  false,
+  'no empty option while we have an answer'
+);
+assert.ok(
+  Array.from(pageSelect.options).some((o) => o.value === 'page-type:checkout'),
+  'the rest of the vocabulary is offered'
+);
+assert.ok(
+  !Array.from(pageSelect.options).some((o) => o.value === 'page-type:unknown'),
+  '"unknown" is not a correction a user makes'
+);
+
+// A correction is two statements: the old type withdrawn, the new one asserted.
+const edits: string[] = [];
+modal = openModal({ pageType: ARTICLE, onPageTypeEdit: (v: string) => edits.push(v) });
+pageSelect = pageTypeOf(modal);
+pageSelect.value = 'page-type:checkout';
+pageSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+await settle();
+assert.equal(sent.length, 2);
+assert.deepEqual(
+  sent.map((m) => [m.payload.target, m.payload.tag, m.payload.tagOn]),
+  [
+    ['page', 'page-type:article', false],
+    ['page', 'page-type:checkout', true],
+  ]
+);
+assert.equal(sent[0].payload.pageUrl, 'https://example.com/article', 'the page is the subject');
+assert.deepEqual(edits, ['checkout'], 'the correction is applied locally too, for routing');
+assert.equal(pageSelect.dataset.current, 'page-type:checkout');
+assert.match(
+  (modal.querySelector('[data-feedback-kind="page-type"] [data-status]') as HTMLElement).textContent!,
+  /Thanks/
+);
+
+// Nothing to withdraw when we had no answer, and the placeholder goes once it is wrong.
+modal = openModal();
+pageSelect = pageTypeOf(modal);
+assert.equal(pageSelect.value, '', 'unclassified pages show the Unknown placeholder');
+assert.ok(Array.from(pageSelect.options).some((o) => !o.value));
+pageSelect.value = 'page-type:listing';
+pageSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+await settle();
+assert.equal(sent.length, 1, 'one statement: there was no previous type to take back');
+assert.equal(sent[0].payload.tag, 'page-type:listing');
+assert.equal(sent[0].payload.tagOn, true);
+assert.equal(
+  Array.from(pageSelect.options).some((o) => !o.value),
+  false,
+  'the Unknown placeholder described a state the page has now left'
+);
+
+// A failed send leaves the select saying what we still believe.
+reply = { ok: false, error: 'Feedback sharing is disabled in Settings → Data Sharing' };
+modal = openModal({ pageType: ARTICLE });
+pageSelect = pageTypeOf(modal);
+pageSelect.value = 'page-type:checkout';
+pageSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+await settle();
+assert.equal(pageSelect.dataset.current, 'page-type:article', 'the correction did not land');
+assert.equal(pageSelect.value, 'page-type:article', 'and the select shows what we still believe');
+reply = { ok: true };
+
+// Developer Mode says which classifier decided it, since that is what you judge before
+// correcting it.
+modal = openModal({ pageType: ARTICLE, developerMode: true });
+assert.match(
+  (modal.querySelector('[data-feedback-kind="page-type"]') as HTMLElement).textContent!,
+  /jsonld, 90% confident/
+);
+modal = openModal({ pageType: ARTICLE });
+assert.ok(
+  !/jsonld/.test((modal.querySelector('[data-feedback-kind="page-type"]') as HTMLElement).textContent!),
+  'provenance is a Developer Mode detail'
+);
+
+// --- no feedback UI when sharing is off, but the page type is still shown ---
+
+modal = openModal({ feedbackEnabled: false, pageType: ARTICLE });
 assert.equal(widgetsOf(modal).length, 0);
+assert.equal(pageTypeOf(modal), null, 'nothing to correct with when feedback is off');
+assert.match(
+  (modal.querySelector('[data-page-type]') as HTMLElement).textContent!,
+  /Article/,
+  'the page type is information, not feedback, so it is shown either way'
+);
 
 console.log('✅ feedback modal tests passed');

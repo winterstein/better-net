@@ -9,5 +9,8 @@
   nobody has rated the claim, "Check failed" where the lookup itself failed. Listing
   only the claims that matched left the card saying it found nothing without ever
   saying what it looked for. See specs/fact-checker.md.
+- The footer's **This page** section shows the page's `page-type:…` tag
+  (`specs/content-classification.md`) and lets the user correct it from a select.
+  Developer Mode adds which classifier decided it, and how sure it was.
 - Allows user to submit feedback on accuracy (thumbs up/down, optional note).
 - Closes via 'X' button, click outside, or Esc.

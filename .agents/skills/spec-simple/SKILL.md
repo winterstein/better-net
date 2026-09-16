@@ -6,11 +6,13 @@ description: >-
   bn-*/specs/{broad-feature}/{specific-feature}/spec.md. Use when drafting or
   updating a feature spec, starting SDD, or when the user asks for a spec /
   build plan / test plan before coding.
+version: 0.1.0
 ---
 
 # Spec-driven development (simple)
 
 Write short specs people will actually read. Talk first; file second. Do not over-document.
+Update existing specs as the project develops.
 
 ## Layout
 
@@ -50,11 +52,21 @@ Stop asking once you can fill overview, examples, out-of-scope, and a rough buil
 
 ## Spec style
 
-- Short, human, scannable — lists over tables; minimal formatting
+- Short, human, scannable.
+- Prefer lists over tables. Use minimal formatting.
 - Audience: a developer (or future you), not a process auditor
 - Prefer concrete examples over abstract requirements
+- Do include links to key code files - but not too many: helpful entrypoints not code documentation. 
+- For a list of values, a spec can refer to a code file enum (DRY).
 - No Speckit-style ceremony, no huge checklists, no duplicated AGENTS.md content
 - If a section has nothing useful yet, leave it empty under the heading
+
+### Anti-patterns
+
+- Long specs nobody will finish reading
+- Filling sections just to look complete
+- Specs that restate the whole product
+- Coding the feature before agreeing the overview / examples / out-of-scope (unless the user explicitly wants code-first)
 
 ## `spec.md` template
 
@@ -100,10 +112,3 @@ When inline examples are awkward (JSON payloads, HTML fixtures, multi-step flows
 - `example-*.md` — narrative start/end use-cases
 - `fixture.*` / `sample-*.json` — sample input/output
 - Link them from **Examples**; do not dump large blobs into `spec.md`
-
-## Anti-patterns
-
-- Long specs nobody will finish reading
-- Filling sections with filler to look complete
-- Specs that restate the whole product
-- Coding the feature before agreeing the overview / examples / out-of-scope (unless the user explicitly wants code-first)

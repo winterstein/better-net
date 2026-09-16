@@ -457,6 +457,17 @@ class PageAnalyzer {
     });
   }
 
+  /**
+   * A page-type correction made in the Content Analysis modal. Routing reads the page type
+   * (features/module-routing.ts), so a correction applies to the chunks analysed after it —
+   * released by scrolling, or by the next pass. Chunks already analysed are not re-run.
+   */
+  setPageType(value) {
+    if (!value || !this.pageMetadata) return;
+    this.pageMetadata.pageType = { value, confidence: 1, source: 'user' };
+    logit('log', '[BetterNet] [CONTENT] Page type corrected to', value);
+  }
+
   stopChunkSchedule() {
     this.chunkSchedule?.stop();
     this.chunkSchedule = null;
@@ -875,6 +886,9 @@ class PageAnalyzer {
         // Chunker feedback is about the page: how many chunks it was split into.
         chunkCount: this.lastChunks?.length,
         pageUrl: window.location.href,
+        // The page-type tag, shown and correctable under "This page".
+        pageType: this.pageMetadata?.pageType,
+        onPageTypeEdit: (value) => this.setPageType(value),
       });
     });
 

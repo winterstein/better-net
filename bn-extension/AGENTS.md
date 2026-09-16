@@ -4,6 +4,10 @@ Read the monorepo guide first: `../AGENTS.md`. It covers layout, conventions, wr
 
 MV3 browser extension — the main product. Early prototype, so `status.md` is the source of truth for what works vs broken.
 
+## No need to protect legacy data
+
+This project is early stage. It can change data-types and tags without having to preserve legacy data.
+
 ## Key files
 
 - `status.md` — read before work, update after meaningful changes

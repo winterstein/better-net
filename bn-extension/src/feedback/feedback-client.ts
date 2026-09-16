@@ -11,9 +11,13 @@
 
 import { tagsForModule } from '../features/module-tags.js';
 import { fractionFromProblemScore, type ProblemScore } from '../types/Score.js';
-import { FEEDBACK_TARGETS } from '../types/Feedback.js';
+import {
+	FEEDBACK_TARGETS,
+	PAGE_LEVEL_TARGETS,
+	TAG_EDIT_ONLY_TARGETS,
+} from '../types/Feedback.js';
 import type { FeedbackSubmission, FeedbackTarget } from '../types/Feedback.js';
-import { CHUNK_TAG_SPECS } from '../types/Tag.js';
+import { CHUNK_TAG_SPECS, PAGE_TYPE_TAG_SPECS } from '../types/Tag.js';
 import type { TagSpec } from '../types/Tag.js';
 
 export const FEEDBACK_QUEUE_KEY = 'bnFeedbackQueue';
@@ -27,6 +31,8 @@ export const MAX_FEEDBACK_MESSAGE_LENGTH = 500;
 export function editableTags(target: FeedbackTarget, moduleId?: string): TagSpec[] {
 	if (target === 'chunk') return CHUNK_TAG_SPECS;
 	if (target === 'module') return tagsForModule(moduleId ?? '');
+	// One value per page, so the modal offers these as a choice rather than a set.
+	if (target === 'page') return PAGE_TYPE_TAG_SPECS;
 	return [];
 }
 
@@ -141,7 +147,7 @@ export async function feedbackLocalId(parts: {
 	pageUrl?: string;
 	tag?: string;
 }): Promise<string> {
-	// The chunk when there is one; the page for chunker feedback, which has no chunk.
+	// The chunk when there is one; the page for the page-level targets, which have no chunk.
 	const subject = parts.chunkFingerprint || parts.pageUrl || '';
 	const key = [parts.userId, parts.target, parts.moduleId ?? '', subject, parts.tag ?? ''].join('|');
 	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key));
@@ -152,8 +158,8 @@ export async function feedbackLocalId(parts: {
 /**
  * Validate and complete a submission — either a thumb or one tag edit.
  *
- * Required context differs by target: 'chunker' is about the page, the other three are
- * about a chunk, and 'module' also needs a module. A tag edit is checked against that
+ * Required context differs by target: 'chunker' and 'page' are about the page, the rest
+ * are about a chunk, and 'module' also needs a module. A tag edit is checked against that
  * target's own vocabulary, so a tag the UI never offered is a caller bug and is rejected
  * rather than stored as an opinion.
  */
@@ -167,7 +173,7 @@ export async function buildFeedbackSubmission(
 	if (payload.message && payload.message.length > MAX_FEEDBACK_MESSAGE_LENGTH) {
 		return { error: `Message too long (max ${MAX_FEEDBACK_MESSAGE_LENGTH})` };
 	}
-	if (payload.target === 'chunker') {
+	if (PAGE_LEVEL_TARGETS.includes(payload.target)) {
 		if (!payload.pageUrl) return { error: 'Missing page context' };
 	} else if (!payload.chunkFingerprint || !payload.chunkUrl) {
 		return { error: 'Missing chunk context' };
@@ -184,10 +190,10 @@ export async function buildFeedbackSubmission(
 		}
 	} else if (typeof payload.thumbsUp !== 'boolean') {
 		return { error: 'Feedback needs a thumb or a tag edit' };
-	} else if (payload.target === 'module') {
-		// The module card has no thumb — its tags are edited directly. bn-server agrees,
-		// so catching it here turns a 400 into a caller-side error.
-		return { error: 'Module feedback is a tag edit' };
+	} else if (TAG_EDIT_ONLY_TARGETS.includes(payload.target)) {
+		// The module card and the page-type row have no thumb — their tags are edited
+		// directly. bn-server agrees, so catching it here turns a 400 into a caller error.
+		return { error: `${payload.target} feedback is a tag edit` };
 	}
 
 	/**
@@ -231,6 +237,8 @@ export async function buildFeedbackSubmission(
 		submission.chunkCount = payload.chunkCount;
 		return submission;
 	}
+	// The page-type tag is about the page; there is no chunk to attach it to.
+	if (payload.target === 'page') return submission;
 
 	submission.chunkFingerprint = payload.chunkFingerprint;
 	submission.chunkUrl = payload.chunkUrl;

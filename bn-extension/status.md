@@ -10,9 +10,27 @@
   `types/Score.ts`); feedback target is `module` (legacy `aspect` accepted by bn-server).
   Chunk roles use `chunk-type:…` on `chunk.tags[]`; Ad Blocker `advert` / `sponsored` are
   modifiers on the same array.
+- **Content classification — routing + page type**: `specs/content-classification.md`.
+  Vocabularies in `types/Classification.ts` (site / page / chunk role / modifier, each answer
+  carrying confidence + which classifier said so, gated at 0.5). `features/module-routing.ts`
+  is the one routing table: each module declares the chunk roles it wants, the modifiers that
+  veto it, and the page types it must not touch; `registry.ts` exposes it as `appliesTo` and
+  `engine.ts` enforces it, recording every skip on the chunk span as
+  `betternet.routing.skipped` so a missing analysis is explainable in AIQA. Adverts no
+  longer get fact-checked, bias-checked, or unbaited. `classify/page-type.ts` derives page
+  type in the content script — password field / checkout-login URL first, then JSON-LD
+  `@type`, `og:type`, URL shape, DOM shape — and a confident `login` or `checkout` page gets
+  no content analysis at all, with the reason shown in the popup's diagnostics banner.
+  Unknown means analyze: a chunk with no role and a page we could not read are both still
+  analysed, because silent under-analysis is the worse error.
+  The page type is shown and correctable in the Content Analysis modal's "This page"
+  section (feedback target `page`, a select since a page has one type); a correction goes
+  to bn-server as two statements — old type off, new type on — and is applied locally, so
+  routing follows the user for whatever is analysed next. Developer Mode shows which
+  classifier answered and how sure it was.
 - **TypeScript**: all `src/` modules are `.ts`; esbuild bundles entrypoints to `.js` in `dist/`; `npm run type-check` (`strict: false`, tighten later)
 - **Build**: `npm run build` bundles background, content, offscreen, options, popup, settings defaults + copies WASM
-- **Tests**: `npm test` (via `tsx`) — chunking, chunking on real saved pages, chunk-tags, chunk-title, mock fact-check, Facebook ad-blocker, local model client + model-manager; `npm run test:e2e:smoke` — fast Playwright checks (service worker, popup, options); `npm run test:e2e` — smoke + fixture analysis; `npm run test:online` — Playwright on live sites (network); `npm run test:mobilebert` — real MobileBERT download (manual, not CI)
+- **Tests**: `npm test` (via `tsx`) — chunking, chunking on real saved pages, chunk-tags, chunk-title, module routing, page type, mock fact-check, Facebook ad-blocker, local model client + model-manager; `npm run test:e2e:smoke` — fast Playwright checks (service worker, popup, options); `npm run test:e2e` — smoke + fixture analysis; `npm run test:online` — Playwright on live sites (network); `npm run test:mobilebert` — real MobileBERT download (manual, not CI)
 - Page chunking: platform extractors (Google, DuckDuckGo, Facebook, Reddit, Threads, Bluesky, **X**) + regex fallback;
   single-page apps render after `load`, so chunking now retries on a backoff (0/0.5/1/2/4s) until
   content appears — x.com returned 0 chunks on every visit before this. `chunking-headlines.ts`
@@ -163,6 +181,20 @@
 - **Update manager** (v1): bundled snapshots for `domain-off-defaults` and `chunking-xpath-patterns`; seeds `chrome.storage.local`, daily alarm + `BN_UPDATE_DATA` messages (`get` / `list` / `check` / `seed`); remote fetch from `updates.betternet.org` when available
 
 ## Recent fixes
+
+- **Feedback that cannot be sent is saved, not lost**: a tag edit or thumb queues in
+  `chrome.storage.local` when the POST fails, so the background now answers
+  `{ ok: false, queued: true }` and the modal keeps the edit with "Saved — will send when
+  the server is reachable" instead of reporting an error and putting the chip back. Only a
+  rejection (sharing off, unknown target, tag outside the vocabulary) undoes an edit. The
+  unreachable endpoint is logged, because that is the real fault — and it currently is one:
+  the default `serverEndpoint` `https://server.better-net.com` does not resolve (NXDOMAIN),
+  and the deploy host serves the AIQA app for that vhost, so no feedback is reaching
+  bn-server. DNS + enabling `bn-server/server.better-net.com.nginx` is the fix; until then
+  point Settings -> Advanced -> Server endpoint at a running bn-server
+- **Analysis scores no longer read NaN%**: the popup multiplied `problemScore` by 100, but
+  it is the `high|medium|low` enum now, so every module card showed `NaN%` (and its colour
+  band was wrong). It goes through `fractionFromProblemScore()` like the modal does
 
 - **Local model download stuck at ~100%**: after HF bytes finished, progress callbacks kept
   status as `downloading` while ONNX session init ran (or hung), and a dead worker never
@@ -370,14 +402,19 @@ exactly what they lack. Keep them, but add new coverage as pages.
 
 ## Next
 
-- **Content classification** (spec only): `specs/content-classification.md` — site / page / chunk
-  type ontology, and an `appliesTo` routing matrix so features filter by type before spending an
-  LLM call (no fact-check on a checkout form; no content analysis on login pages or banking apps).
-  Nothing filters today: `engine.ts` runs every enabled feature on every chunk. Reuses schema.org
-  (page/chunk type, and readable from sites' own JSON-LD), IAB Tier 1 (topic), UT1 (domain
-  category), Mathur et al. (dark patterns). Classifier choice is a declarative registry +
-  per-label chain in `src/classify/classifier-config.ts`; heuristics are the floor, a local
-  model (structural tree / embeddings, not necessarily an LLM) the intended preferred mode.
+- **Content classification — the classifiers** (routing and page type are done, above):
+  `specs/content-classification.md`. Routing is in place but barely bites yet, because the
+  chunker only ever assigns `article` / `post` / `search_result` / `other`: measured on
+  `test-data/pages/`, 0 of 550 module calls are routed out. Next, in order of value:
+  chunk roles from element semantics (`form`, `cta`, `cookie_banner`, `modal`,
+  `headline_link` — the last is Click Unbait's real target and currently lands in `other`);
+  then site type from a shipped UT1 bundle, which is what turns on the "no analysis on
+  banking apps" rule; then topic (IAB Tier 1) for `primaryTopic`, still hardcoded
+  `'unknown'`. A labelled page/chunk set is the gate for any of it — the metric is the two
+  asymmetric errors (checkout read as article, article read as app), not accuracy.
+  `classifier-config.ts` (declarative registry + per-label chain, heuristics as the floor
+  and a local structural model as the preferred mode) earns its keep when a level has two
+  classifiers to choose between; with one each, the chain is the function body.
 - **Algorithm eval** (spec only): `specs/evaluation/algorithm-eval/spec.md` — gold examples in git, AIQA for experiment reporting, step-shaped datasets. No harness yet.
 - Wire update-manager bundles into chunking and `isModuleEnabled` (apply `domain-off-defaults` on analysis). Host update manifests on bn-server. Extend ad-blocker (generic pages, YouTube). Wire cookie-cutter, privacy-shield, etc. Chrome Web Store CSP review for `wasm-unsafe-eval`. Polish Facebook/Twitter chunking; server cache. Click Unbait: the heuristic summary tier is
 the publisher's own `og:description` — honest, but the publisher's framing rather than an

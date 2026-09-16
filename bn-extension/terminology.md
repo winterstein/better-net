@@ -17,7 +17,7 @@ Canonical module ids live in `src/settings/modules-esm.ts`. Analysis features: `
 - Nutrient Label — in-page icon/popup showing analysis for a chunk
 - Module problemScore — (`high` | `medium` | `low`), based on the tags
 - Trace / Span — AIQA record of one page analysis and the steps inside it (`src/tracing/`)
-- Feedback target — what one thumb rates: summary, module, chunker, or chunk (`specs/feedback.md`)
+- Feedback target — what one correction is about: summary, module, chunker, chunk, or page (`specs/feedback.md`)
 - Preset issue — the canned "how was it wrong?" buttons shown after a thumbs down
 
 ## Modules and Tags

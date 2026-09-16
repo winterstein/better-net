@@ -1,7 +1,7 @@
 /**
- * Feedback client. Two shapes of statement: a **tag edit** (`module` and `chunk`, where
- * the user corrects our tags directly) and a **thumb** (`summary` and `chunker`, whose
- * output has no tags). Plus the derived localId that makes a correction an update rather
+ * Feedback client. Two shapes of statement: a **tag edit** (`module`, `chunk`, and `page`,
+ * where the user corrects our tags directly) and a **thumb** (`summary` and `chunker`,
+ * whose output has no tags). Plus the derived localId that makes a correction an update rather
  * than a second row. See specs/feedback.md.
  */
 
@@ -51,10 +51,16 @@ assert.ok(editableTags('module', 'clickUnbait').some((t) => t.id === 'clickbait'
 assert.ok(editableTags('chunk').some((t) => t.id === 'chunk-type:article'));
 assert.deepEqual(editableTags('summary'), [], 'the summary has no tags of its own');
 assert.deepEqual(editableTags('chunker'), []);
+assert.ok(editableTags('page').some((t) => t.id === 'page-type:article'));
+assert.ok(
+	!editableTags('page').some((t) => t.id === 'page-type:unknown'),
+	'"unknown" is our answer, not a correction a user makes'
+);
 
 // --- preset issues: thumb targets only ---
 
 assert.deepEqual(issuesForTarget('module'), [], 'module feedback is tag editing, not presets');
+assert.deepEqual(issuesForTarget('page'), [], 'so is the page-type row');
 for (const target of ['summary', 'chunker', 'chunk'] as const) {
 	const issues = issuesForTarget(target);
 	assert.ok(issues.length >= 3, `${target} needs presets`);
@@ -185,7 +191,7 @@ assert.equal(chunkThumb.thumbsUp, false);
 assert.equal(chunkThumb.issueId, 'not-a-chunk');
 
 // The module card has no thumb, on either side of the wire.
-assert.match(await errorOf({ ...MODULE, thumbsUp: false }), /Module feedback is a tag edit/);
+assert.match(await errorOf({ ...MODULE, thumbsUp: false }), /module feedback is a tag edit/i);
 assert.match(await errorOf({ target: 'summary', ...CHUNK }), /needs a thumb or a tag edit/);
 
 // Chunker feedback is about the page: no chunk needed, page url required.
@@ -199,6 +205,48 @@ const chunker = await ok({
 assert.equal(chunker.chunkCount, 12);
 assert.equal(chunker.chunkFingerprint, undefined);
 assert.equal(chunker.pageUrl, 'https://example.com/feed');
+
+// --- the page-type tag: about the page, so no chunk is needed ---
+
+const PAGE_URL = 'https://example.com/checkout';
+const pageTag = await ok({
+	target: 'page',
+	tag: 'page-type:checkout',
+	tagOn: true,
+	pageUrl: PAGE_URL,
+});
+assert.equal(pageTag.tag, 'page-type:checkout');
+assert.equal(pageTag.tagOn, true);
+assert.equal(pageTag.pageUrl, PAGE_URL);
+assert.equal(pageTag.chunkFingerprint, undefined, 'a page type is not about one chunk');
+assert.equal(pageTag.thumbsUp, undefined);
+
+// Correcting a type is two statements: the old value withdrawn, the new one asserted. Each
+// keys its own record, so both survive.
+const pageTagOff = await ok({
+	target: 'page',
+	tag: 'page-type:article',
+	tagOn: false,
+	pageUrl: PAGE_URL,
+});
+assert.equal(pageTagOff.tagOn, false);
+assert.notEqual(pageTagOff.localId, pageTag.localId);
+
+// A page type we never offered is a caller bug, and so is a thumb here.
+assert.match(
+	await errorOf({ target: 'page', tag: 'page-type:nonsense', tagOn: true, pageUrl: PAGE_URL }),
+	/Tag not offered here/
+);
+assert.match(
+	await errorOf({ target: 'page', tag: 'chunk-type:article', tagOn: true, pageUrl: PAGE_URL }),
+	/Tag not offered here/
+);
+assert.match(await errorOf({ target: 'page', thumbsUp: true, pageUrl: PAGE_URL }), /tag edit/);
+assert.match(
+	await errorOf({ target: 'page', tag: 'page-type:article', tagOn: true }),
+	/page context/,
+	'the page url is the whole subject'
+);
 
 // --- every target records the page it came from ---
 

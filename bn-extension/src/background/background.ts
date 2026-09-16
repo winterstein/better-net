@@ -479,6 +479,9 @@ class AnalysisManager {
 
     // The page is still feeding us work, so the state has to outlive the last pass.
     clearTimeout(state.cleanupTimer);
+    // The page is the authority on its own metadata, and it can change mid-analysis: a
+    // page-type correction in the modal rides along with the next release of chunks.
+    if (message.pageMetadata) state.pageMetadata = message.pageMetadata;
     state.chunksWaiting = message.chunksWaiting ?? 0;
     const fresh = this.freshChunks(state, message.chunks || []);
     logit('log', '[BetterNet] [ANALYZE_MORE_CHUNKS]', fresh.length, 'chunk(s) scrolled into view,', state.chunksWaiting, 'still waiting');

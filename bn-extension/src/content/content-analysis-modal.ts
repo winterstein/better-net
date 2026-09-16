@@ -8,7 +8,13 @@ import type { FeedbackTarget } from '../types/Feedback.js';
 import { riskLevelForScore } from '../types/RiskLevel.js';
 import { issuesForTarget, issueLabel, OTHER_ISSUE_ID } from '../feedback/feedback-issues.js';
 import { editableTags, MAX_FEEDBACK_MESSAGE_LENGTH } from '../feedback/feedback-client.js';
-import { tagLabel } from '../types/Tag.js';
+import { tagLabel, PAGE_TYPE_LABELS } from '../types/Tag.js';
+import {
+  pageTypeFromTag,
+  pageTypeTag,
+  type Classification,
+  type PageType,
+} from '../types/Classification.js';
 import { aiqaTraceUrl } from '../tracing/aiqa-trace-url.js';
 import { logit } from '../utils/logger.js';
 
@@ -125,12 +131,18 @@ export interface FeedbackContext {
   developerMode?: boolean;
   aiqaServerUrl?: string;
   aiqaOrganisationId?: string;
+  /**
+   * A corrected page type takes effect locally as well as being sent: routing reads it,
+   * so the chunks analysed after the edit follow the user rather than the classifier
+   * (content.ts, features/module-routing.ts).
+   */
+  onPageTypeEdit?: (value: PageType) => void;
 }
 
 const FEEDBACK_PROMPTS: Partial<Record<FeedbackTarget, string>> = {
   summary: 'Is this overall verdict right?',
   chunker: 'Did we split this page up sensibly?',
-  chunk: 'Is this the right region, with the right title?',
+  chunk: 'Is this the right slice of the page, with the right title?',
 };
 
 /** Shown above the editable tag row. */
@@ -263,6 +275,80 @@ function renderTagEditor(opts: {
   `;
 }
 
+const PAGE_TYPE_SELECT_STYLE = `
+  font-size: 12px;
+  padding: 3px 6px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  background: white;
+  color: #444;
+`;
+
+/**
+ * The page's `page-type:…` tag (specs/content-classification.md), shown and correctable.
+ *
+ * A select rather than the chip row the other targets use: a page has exactly one type,
+ * so the choice replaces the previous value instead of adding to a set. The correction is
+ * sent as two statements — the old tag off, the new one on — which is what makes a
+ * correction readable as ground truth (specs/feedback.md).
+ *
+ * Shown even when we classified nothing: `unknown` is the common answer, and a user
+ * naming the page type is exactly the label the classifier could not produce.
+ */
+function renderPageTypeRow(opts: {
+  pageType?: Classification<PageType>;
+  canFeedback: boolean;
+  developerMode?: boolean;
+}): string {
+  const value: PageType = opts.pageType?.value ?? 'unknown';
+  const label = PAGE_TYPE_LABELS[value] ?? value;
+  const known = value !== 'unknown';
+
+  // Which classifier said so, for the person deciding whether to correct it.
+  const source = opts.pageType?.source;
+  const provenance =
+    opts.developerMode && known && source && source !== 'none'
+      ? `<div style="font-size: 11px; color: #888; margin-top: 4px;">
+           ${escapeHtml(source)}, ${Math.round((opts.pageType?.confidence ?? 0) * 100)}% confident
+         </div>`
+      : '';
+
+  if (!opts.canFeedback) {
+    return `
+      <div data-page-type style="display: flex; gap: 8px; align-items: center; margin-top: 8px;">
+        <span style="font-size: 11px; color: #666;">Page type</span>
+        <span data-page-type-value style="${TAG_CHIP_STYLE} padding: 3px 10px;">${escapeHtml(label)}</span>
+      </div>
+      ${provenance}
+    `;
+  }
+
+  const options = editableTags('page')
+    .map(
+      (spec) =>
+        `<option value="${escapeHtml(spec.id)}"${spec.id === pageTypeTag(value) ? ' selected' : ''}>${escapeHtml(spec.label)}</option>`
+    )
+    .join('');
+
+  return `
+    <div data-feedback data-feedback-kind="page-type" data-target="page"
+      style="margin-top: 8px;">
+      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        <span style="font-size: 11px; color: #666;">Page type</span>
+        <!-- The "unknown" option is offered only while it is the current state: it
+             describes our answer, not a correction a user would make. -->
+        <select data-page-type-select data-current="${escapeHtml(known ? pageTypeTag(value) : '')}" style="${PAGE_TYPE_SELECT_STYLE}">
+          ${known ? '' : `<option value="">${escapeHtml(PAGE_TYPE_LABELS.unknown)}</option>`}
+          ${options}
+        </select>
+        <span data-status style="font-size: 11px; color: #666;"></span>
+      </div>
+      ${provenance}
+      <div data-trace style="display: none; margin-top: 6px; font-size: 11px; color: #888;"></div>
+    </div>
+  `;
+}
+
 /**
  * Thumbs up/down for one rateable thing, plus the preset issues shown after a thumbs
  * down. Preset lists come from feedback/feedback-issues.ts, so a target's vocabulary is
@@ -368,6 +454,24 @@ function revealTrace(widget: HTMLElement, ctx: FeedbackContext): void {
   `;
 }
 
+/**
+ * Outcome of one submission. `queued` is an acceptance, not a failure: the background
+ * stored it and the flush alarm will send it, so the edit stays on screen. Only a
+ * rejection (bad target, tag outside the vocabulary, sharing off) undoes the edit.
+ */
+interface SendResult {
+  ok: boolean;
+  queued?: boolean;
+}
+
+/** Shown for an edit we hold: the server is unreachable, the correction is not lost. */
+const QUEUED_STATUS = 'Saved — will send when the server is reachable.';
+
+/** Status text for an accepted edit, which may be stored rather than sent. */
+function acceptedStatus(res: SendResult, text: string): string {
+  return res.queued ? QUEUED_STATUS : text;
+}
+
 async function sendFeedback(
   widget: HTMLElement,
   ctx: FeedbackContext,
@@ -379,7 +483,7 @@ async function sendFeedback(
     issueId?: string;
     message?: string;
   }
-): Promise<boolean> {
+): Promise<SendResult> {
   const target = widget.dataset.target as FeedbackTarget;
   const moduleId = widget.dataset.moduleId || undefined;
   setStatus(widget, 'Sending…');
@@ -406,12 +510,14 @@ async function sendFeedback(
         spanId: widget.dataset.spanId || ctx.chunkSpanId,
       },
     });
-    if (res?.ok) return true;
+    if (res?.ok) return { ok: true };
+    // Stored for retry: the user's correction stands, it just has not left the browser.
+    if (res?.queued) return { ok: true, queued: true };
     setStatus(widget, res?.error || 'Could not send feedback');
   } catch {
     setStatus(widget, 'Could not send feedback');
   }
-  return false;
+  return { ok: false };
 }
 
 /**
@@ -459,6 +565,45 @@ function setSelectOption(widget: HTMLElement, tag: string, label: string, presen
  * it reaches by deriving the same localId (feedback/feedback-client.ts).
  */
 function attachFeedbackHandlers(modal: HTMLElement, ctx: FeedbackContext): void {
+  // Correcting the page type: the old value is withdrawn and the new one asserted, so the
+  // pair reads as one correction rather than two unrelated opinions.
+  modal.addEventListener('change', async (e) => {
+    const select =
+      e.target instanceof Element
+        ? (e.target.closest('[data-page-type-select]') as HTMLSelectElement | null)
+        : null;
+    if (!select) return;
+    const widget = select.closest('[data-feedback]') as HTMLElement | null;
+    const tag = select.value;
+    if (!widget || !tag) return;
+    const previous = select.dataset.current;
+    if (tag === previous) return;
+
+    // Show what we recorded, not what was clicked: a send that did not land leaves the
+    // select where it was, as the tag chips do.
+    const revert = () => {
+      select.value = previous ?? '';
+    };
+    if (previous && !(await sendFeedback(widget, ctx, { tag: previous, tagOn: false })).ok) {
+      return revert();
+    }
+    const res = await sendFeedback(widget, ctx, { tag, tagOn: true });
+    if (!res.ok) return revert();
+    select.dataset.current = tag;
+    // "Unknown" was only there to describe the state it has now left.
+    Array.from(select.options)
+      .filter((o) => !o.value)
+      .forEach((o) => o.remove());
+    // Say what the correction did: routing reads the page type, so it changes what gets
+    // analysed from here on, but nothing already analysed is re-run.
+    setStatus(
+      widget,
+      acceptedStatus(res, ctx.onPageTypeEdit ? 'Thanks — applied from here on.' : 'Thanks — noted.')
+    );
+    revealTrace(widget, ctx);
+    ctx.onPageTypeEdit?.(pageTypeFromTag(tag) as PageType);
+  });
+
   // The "+" select: choosing a tag says we missed it.
   modal.addEventListener('change', async (e) => {
     const select = e.target instanceof Element ? (e.target.closest('[data-tag-select]') as HTMLSelectElement | null) : null;
@@ -468,14 +613,15 @@ function attachFeedbackHandlers(modal: HTMLElement, ctx: FeedbackContext): void 
     if (!widget || !tag) return;
     const label = select.options[select.selectedIndex]?.text ?? tag;
     select.value = '';
-    if (!(await sendFeedback(widget, ctx, { tag, tagOn: true }))) return;
+    const res = await sendFeedback(widget, ctx, { tag, tagOn: true });
+    if (!res.ok) return;
     addTagChip(widget, tag, label);
     setSelectOption(widget, tag, label, true);
     select.hidden = true;
     // Nothing left to offer, so the "+" has nothing to open.
     const remaining = Array.from(select.options).filter((o) => o.value).length;
     setHidden(widget, '[data-tag-add]', !remaining);
-    setStatus(widget, 'Added — thanks!');
+    setStatus(widget, acceptedStatus(res, 'Added — thanks!'));
     revealTrace(widget, ctx);
   });
 
@@ -493,12 +639,13 @@ function attachFeedbackHandlers(modal: HTMLElement, ctx: FeedbackContext): void 
       // The x lives inside its chip, so there is no selector to escape a tag id into.
       const chip = remove.closest('[data-tag-chip]') as HTMLElement | null;
       const label = chip?.textContent?.replace('✕', '').trim() || tag;
-      if (!(await sendFeedback(widget, ctx, { tag, tagOn: false }))) return;
+      const res = await sendFeedback(widget, ctx, { tag, tagOn: false });
+      if (!res.ok) return;
       chip?.remove();
       // Offer it again, so a mis-click is one click to undo.
       setSelectOption(widget, tag, label, false);
       setHidden(widget, '[data-tag-add]', false);
-      setStatus(widget, 'Removed — thanks!');
+      setStatus(widget, acceptedStatus(res, 'Removed — thanks!'));
       revealTrace(widget, ctx);
       return;
     }
@@ -515,17 +662,20 @@ function attachFeedbackHandlers(modal: HTMLElement, ctx: FeedbackContext): void 
       e.preventDefault();
       const vote = thumb.dataset.thumb === 'up' ? 'up' : 'down';
       const retracting = widget.dataset.vote === vote;
-      const ok = await sendFeedback(widget, ctx, {
+      const res = await sendFeedback(widget, ctx, {
         thumbsUp: vote === 'up',
         retracted: retracting,
       });
-      if (!ok) return;
+      if (!res.ok) return;
       widget.dataset.vote = retracting ? '' : vote;
       paintThumbs(widget, widget.dataset.vote);
       const showIssues = !retracting && vote === 'down';
       show(widget, '[data-issues]', showIssues ? 'flex' : 'none');
       if (!showIssues) show(widget, '[data-note]', 'none');
-      setStatus(widget, retracting ? '' : showIssues ? 'Thanks! What went wrong?' : 'Thanks!');
+      setStatus(
+        widget,
+        retracting ? '' : acceptedStatus(res, showIssues ? 'Thanks! What went wrong?' : 'Thanks!')
+      );
       if (!retracting) revealTrace(widget, ctx);
       return;
     }
@@ -540,9 +690,10 @@ function attachFeedbackHandlers(modal: HTMLElement, ctx: FeedbackContext): void 
         (widget.querySelector('[data-note-text]') as HTMLTextAreaElement | null)?.focus();
         return;
       }
-      if (await sendFeedback(widget, ctx, { thumbsUp: false, issueId })) {
+      const res = await sendFeedback(widget, ctx, { thumbsUp: false, issueId });
+      if (res.ok) {
         show(widget, '[data-issues]', 'none');
-        setStatus(widget, 'Thanks — noted.');
+        setStatus(widget, acceptedStatus(res, 'Thanks — noted.'));
       }
       return;
     }
@@ -555,10 +706,15 @@ function attachFeedbackHandlers(modal: HTMLElement, ctx: FeedbackContext): void 
         setStatus(widget, 'Nothing to send');
         return;
       }
-      if (await sendFeedback(widget, ctx, { thumbsUp: false, issueId: OTHER_ISSUE_ID, message })) {
+      const res = await sendFeedback(widget, ctx, {
+        thumbsUp: false,
+        issueId: OTHER_ISSUE_ID,
+        message,
+      });
+      if (res.ok) {
         show(widget, '[data-note]', 'none');
         show(widget, '[data-issues]', 'none');
-        setStatus(widget, 'Thanks — noted.');
+        setStatus(widget, acceptedStatus(res, 'Thanks — noted.'));
       }
       return;
     }
@@ -719,6 +875,10 @@ export interface ContentAnalysisModalData extends Partial<ChunkAnalysis> {
   /** How many chunks the page was split into, for chunker feedback. */
   chunkCount?: number;
   pageUrl?: string;
+  /** The page's classified type (classify/page-type.ts), shown under "This page". */
+  pageType?: Classification<PageType>;
+  /** Apply a page-type correction locally, as well as sending it. */
+  onPageTypeEdit?: (value: PageType) => void;
   aiqaServerUrl?: string;
   aiqaOrganisationId?: string;
 }
@@ -744,11 +904,18 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
     feedbackOffReason,
     chunkCount,
     pageUrl,
+    pageType,
+    onPageTypeEdit,
     aiqaServerUrl,
     aiqaOrganisationId,
   } = analysisResults;
   const problemScore = chunkProblemScore(analysisResults);
   const canFeedback = feedbackEnabled && fingerprint && url;
+  /**
+   * A page-type correction needs only the page, so it survives a chunk with no
+   * fingerprint — which is the case the log line below exists for.
+   */
+  const canPageFeedback = !!(feedbackEnabled && (pageUrl || url));
   if ( !canFeedback ) {
     logit('log', 'Content Analysis modal: Feedback is disabled: feedbackEnabled: '+feedbackEnabled+' fingerprint:'+fingerprint+' url:'+url);
   }
@@ -763,6 +930,7 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
     developerMode,
     aiqaServerUrl,
     aiqaOrganisationId,
+    onPageTypeEdit,
   };
   const nutritionData = calculateNutritionData(analyses);
   const trafficLight = getTrafficLight(problemScore);
@@ -967,18 +1135,18 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
         `;
   }
 
-  // Chunker feedback is about the page, not this chunk, so it sits on its own in the
-  // footer — opened from whichever chunk's modal the user happens to have in front.
-  if (canFeedback) {
-    detailsHTML += `
-          <div style="margin-top: 20px; padding-top: 4px; border-top: 1px solid #e0e0e0;">
-            <h3 style="margin: 12px 0 0 0; font-size: 14px; font-weight: 600; color: #333;">
-              This page${chunkCount ? ` — ${chunkCount} chunks` : ''}
-            </h3>
-            ${renderFeedbackWidget({ target: 'chunker' })}
-          </div>
-        `;
-  }
+  // Page-level detail: the page type we classified, and how we split the page up. Neither
+  // is about this chunk, so they sit on their own in the footer — opened from whichever
+  // chunk's modal the user happens to have in front.
+  detailsHTML += `
+        <div style="margin-top: 20px; padding-top: 4px; border-top: 1px solid #e0e0e0;">
+          <h3 style="margin: 12px 0 0 0; font-size: 14px; font-weight: 600; color: #333;">
+            This page${chunkCount ? ` — ${chunkCount} chunks` : ''}
+          </h3>
+          ${renderPageTypeRow({ pageType, canFeedback: canPageFeedback, developerMode })}
+          ${canFeedback ? renderFeedbackWidget({ target: 'chunker' }) : ''}
+        </div>
+      `;
 
   modalContent.innerHTML = detailsHTML;
   modal.appendChild(modalContent);
@@ -1002,7 +1170,7 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
   };
   document.addEventListener('keydown', escapeHandler);
 
-  if (canFeedback) {
+  if (canFeedback || canPageFeedback) {
     attachFeedbackHandlers(modal, feedbackContext);
   }
 }

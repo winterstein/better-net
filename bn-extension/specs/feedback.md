@@ -11,7 +11,7 @@ the exact prompt and response.
 
 ## What can be rated
 
-Four targets in the **Content Analysis** modal, rated in one of two ways:
+Five targets in the **Content Analysis** modal, rated in one of two ways:
 
 | Target | Where | How it is rated |
 | --- | --- | --- |
@@ -19,6 +19,12 @@ Four targets in the **Content Analysis** modal, rated in one of two ways:
 | `chunk` | This chunk's header | **Both.** Tag editing for its own tags (`chunk-type:…`, `advert`, `sponsored`), and a thumb for the region itself. |
 | `summary` | Chunk summary + overall risk score | **Thumb.** A verdict with no tags of its own. |
 | `chunker` | Modal footer, page-level | **Thumb.** How the page was split. |
+| `page` | Modal footer, page-level | **Tag editing**, as a select: the page's `page-type:…` tag (specs/content-classification.md). |
+
+`page` is one value, not a set, so it is a select rather than a chip row, and a
+correction is **two statements** — the old type off, the new one on. Choosing a
+type also applies it locally: routing reads the page type, so the correction
+changes what gets analysed from then on (chunks already analysed are not re-run).
 
 ### What a tag edit records
 
@@ -44,8 +50,8 @@ to correct. `summary` and `chunker` are entirely thumbs. `chunk` keeps one
 alongside its tag editor, because "this shouldn't be a chunk" and "the
 boundaries are wrong" are statements about the region that no tag edit can make.
 
-A thumbs down opens that target's preset issues; `module` has no list, because
-"does not apply" is now expressed by removing the tag.
+A thumbs down opens that target's preset issues; `module` and `page` have no
+list, because "does not apply" is now expressed by editing the tag.
 
 ## Interaction
 
@@ -152,6 +158,15 @@ fields need no migration). Offline or failed sends queue in
 `chrome.storage.local` and flush on the next success. Gated by Data Sharing
 opt-in, as now.
 
+A queued send is **an acceptance, not a failure**: the background answers
+`{ ok: false, queued: true }`, and the modal keeps the edit on screen and says
+"Saved — will send when the server is reachable". Only a rejection (sharing off,
+unknown target, a tag outside the vocabulary) undoes the edit. An unreachable
+`serverEndpoint` otherwise reads as "your correction was refused", which is both
+wrong and discouraging — the correction is stored and goes out on the next
+flush. The endpoint it could not reach is logged, since that is the actual
+fault.
+
 **Two switches, one of them silent.** Feedback needs both Data Sharing → "Share
 anonymous analysis data" (opt-in, off by default) and a server endpoint. The
 endpoint now **defaults to `https://server.better-net.com`**
@@ -163,7 +178,7 @@ would be: a missing gap looks like a broken modal, not a setting.
 
 The POST is an **upsert on a `localId` the client derives** from the statement
 being made and who is making it — user, target, module, the chunk fingerprint (or
-the page url, for `chunker`), and **the tag**. That does three jobs: a preset
+the page url, for the page-level targets), and **the tag**. That does three jobs: a preset
 issue lands on the row its thumb created; the offline queue is keyed the same
 way, so a follow-up made with no connection replaces the queued thumb instead of
 adding to it; and saying the same thing again after a reload **corrects the
@@ -226,16 +241,17 @@ reconcile.
 `FeedbackSubmission` (`src/types/Feedback.ts`). Every record is **either** a
 thumb **or** a tag edit; bn-server rejects one that is neither.
 
-- `target`: `summary` | `module` | `chunker` | `chunk`
-- `tag`, `tagOn`: a tag edit — `module` and `chunk`
+- `target`: `summary` | `module` | `chunker` | `chunk` | `page`
+- `tag`, `tagOn`: a tag edit — `module`, `chunk`, and `page`
 - `thumbsUp`: a thumb — `summary`, `chunker`, `chunk`. `retracted`: withdrawn,
   record kept
 - `issueId`, `issueLabel`: preset chosen on thumbs down (optional)
 - `traceId`, `spanId` (optional)
 - `moduleId` only for `target: module` (legacy `aspectType` accepted by server normalize)
 - `pageUrl` for every target, so any row can be traced back to the page it was
-  given on; for `chunker` it is the subject rather than context, alongside the
-  chunk count and with no chunk fingerprint
+  given on; for the page-level targets (`chunker`, `page` —
+  `PAGE_LEVEL_TARGETS`) it is the subject rather than context, with no chunk
+  fingerprint, and for `chunker` the chunk count alongside
 
 A follow-up preset or note updates the record the thumb created, so one thumbs
 down is one row, not two.

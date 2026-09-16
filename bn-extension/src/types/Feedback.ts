@@ -1,7 +1,25 @@
 /** What the user rated in the Content Analysis modal. See specs/feedback.md */
-export type FeedbackTarget = 'summary' | 'module' | 'chunker' | 'chunk';
+export type FeedbackTarget = 'summary' | 'module' | 'chunker' | 'chunk' | 'page';
 
-export const FEEDBACK_TARGETS: FeedbackTarget[] = ['summary', 'module', 'chunker', 'chunk'];
+export const FEEDBACK_TARGETS: FeedbackTarget[] = [
+	'summary',
+	'module',
+	'chunker',
+	'chunk',
+	'page',
+];
+
+/**
+ * Targets that rate the page rather than one chunk, so they carry `pageUrl` and no chunk
+ * context: `chunker` (how the page was split) and `page` (its `page-type:…` tag).
+ */
+export const PAGE_LEVEL_TARGETS: FeedbackTarget[] = ['chunker', 'page'];
+
+/**
+ * Targets whose feedback is a tag edit, never a thumb. A thumb on a tagged verdict cannot
+ * be read without knowing which way the verdict went; the tag says it directly.
+ */
+export const TAG_EDIT_ONLY_TARGETS: FeedbackTarget[] = ['module', 'page'];
 
 /**
  * A field a later submission may need to wipe. The POST merges onto what is already

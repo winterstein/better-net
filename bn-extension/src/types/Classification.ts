@@ -87,10 +87,11 @@ export const CHUNK_ROLES = [
 export type ChunkRole = (typeof CHUNK_ROLES)[number];
 
 /**
- * Roles a chunker assigns today (chunking/chunk-tags.ts and the platform extractors).
- * The rest of CHUNK_ROLES await classifiers — routing declares them now so adding a
- * classifier does not also mean revisiting five feature definitions.
- * `test/module-routing.test.ts` asserts every role here is routed by every module.
+ * Roles in use today: assigned by the chunkers (chunking/chunk-tags.ts and the platform
+ * extractors) or offered to the user in the Content Analysis modal (Tag.ts
+ * CHUNK_TAG_SPECS). The rest of CHUNK_ROLES await classifiers — routing declares them now
+ * so adding a classifier does not also mean revisiting five feature definitions.
+ * `test/module-routing.test.ts` asserts each of these is routed somewhere.
  */
 export const ASSIGNED_CHUNK_ROLES: ChunkRole[] = [
 	'article',
@@ -98,6 +99,7 @@ export const ASSIGNED_CHUNK_ROLES: ChunkRole[] = [
 	'comment',
 	'search_result',
 	'sidebar',
+	'form',
 	'other',
 ];
 
@@ -107,17 +109,27 @@ export const CHUNK_MODIFIERS = ['advert', 'sponsored', 'ugc', 'paywalled', 'coun
 export type ChunkModifier = (typeof CHUNK_MODIFIERS)[number];
 
 export const CHUNK_ROLE_PREFIX = 'chunk-type:';
+export const PAGE_TYPE_PREFIX = 'page-type:';
 
 /** `article` → `chunk-type:article`, the form stored on `chunk.tags[]`. */
 export function chunkRoleTag<R extends ChunkRole>(role: R): `chunk-type:${R}` {
 	return `${CHUNK_ROLE_PREFIX}${role}`;
 }
 
+/** `article` → `page-type:article`, the key:value tag form (terminology.md). */
+export function pageTypeTag<P extends PageType>(value: P): `page-type:${P}` {
+	return `${PAGE_TYPE_PREFIX}${value}`;
+}
+
+/** `page-type:article` → `article`, or undefined for anything else. */
+export function pageTypeFromTag(tag: string): PageType | undefined {
+	if (!tag?.startsWith(PAGE_TYPE_PREFIX)) return undefined;
+	const value = tag.slice(PAGE_TYPE_PREFIX.length);
+	return (PAGE_TYPES as readonly string[]).includes(value) ? (value as PageType) : undefined;
+}
+
 const ROLE_SET: ReadonlySet<string> = new Set(CHUNK_ROLES);
 const MODIFIER_SET: ReadonlySet<string> = new Set(CHUNK_MODIFIERS);
-
-/** Role names dropped from the vocabulary, kept readable for tags already stored. */
-const LEGACY_ROLES: Record<string, ChunkRole> = { video: 'media' };
 
 /**
  * The chunk's role. `other` when it carries no role tag or an unrecognised one — both
@@ -128,7 +140,6 @@ export function chunkRole(chunk: { tags?: string[] } | null | undefined): ChunkR
 		if (!tag?.startsWith(CHUNK_ROLE_PREFIX)) continue;
 		const role = tag.slice(CHUNK_ROLE_PREFIX.length);
 		if (ROLE_SET.has(role)) return role as ChunkRole;
-		if (LEGACY_ROLES[role]) return LEGACY_ROLES[role];
 	}
 	return 'other';
 }

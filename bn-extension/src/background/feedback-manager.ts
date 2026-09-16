@@ -72,9 +72,13 @@ function toPayload(p: Record<string, unknown>): FeedbackPayload {
 	};
 }
 
+/**
+ * `queued: true` means the feedback is stored and will be sent by the flush alarm — a
+ * dead endpoint must not look to the user like a rejected correction (specs/feedback.md).
+ */
 export async function handleSubmitFeedback(message: {
 	payload?: Record<string, unknown>;
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; queued?: boolean; error?: string }> {
 	const stored = await chrome.storage.sync.get(null);
 	const settings = mergeSettings(stored);
 	if (!isFeedbackEnabled(settings)) {
@@ -94,7 +98,14 @@ export async function handleSubmitFeedback(message: {
 	} catch (err: any) {
 		// Queued by localId, so a follow-up issue replaces the thumb rather than doubling it.
 		await enqueueFeedback(built);
-		return { ok: false, error: err?.message || 'Failed to send feedback' };
+		// The server being unreachable is the common case here (a wrong or undeployed
+		// `serverEndpoint`), so say where we tried: the modal only has room for "saved".
+		logit(
+			'warn',
+			`[BetterNet] [FEEDBACK] queued for retry — ${settings.serverEndpoint} unreachable:`,
+			err?.message
+		);
+		return { ok: false, queued: true, error: err?.message || 'Failed to send feedback' };
 	}
 }
 

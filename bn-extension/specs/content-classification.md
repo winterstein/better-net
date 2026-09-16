@@ -17,25 +17,70 @@ actor, and a page can be all three at once.
 
 ## Status
 
-Spec only. Today's state:
+Routing and page type are in. Chunk-role and site-type classifiers are not.
 
-- `src/types/Tag.ts` — chunk tags: `chunk-type:…` roles plus `advert` / `sponsored`
-  modifiers. No forms, no nav, no cookie banners, no CTAs.
-  Cookie Cutter product tag `consent-ux` is separate from a future role `chunk-type:cookie_banner`.
-- `src/chunking/chunk-tags.ts` — heuristic assignment: platform name → post/search_result,
-  ad-label regex + class/id patterns → advert, else `other`.
-- `ChunkAnalysis.primaryTopic` — doc-comment says IAB Tier 1, but `engine.ts` hardcodes
-  `'unknown'`. Never populated, never read.
-- No site-level or page-level type anywhere. `Page.ts` is url/title/domain/author/description.
-- No filtering. `analyzeChunk` in `src/analysis/engine.ts` runs every enabled feature on
-  every chunk. Gating is user settings only (module toggle, `domainOverrides`, `excludedSites`).
+Built:
+
+- `src/types/Classification.ts` — the three vocabularies (`SiteType`, `PageType`,
+  `ChunkRole`, `ChunkModifier`), plus `Classification { value, confidence, source }` and the
+  0.5 confidence gate. `chunkRole()` / `chunkModifiers()` read them off `chunk.tags[]`.
+- `src/types/Tag.ts` — role tags and modifier tags are now separate lists, derived from
+  those vocabularies. `chunk-type:video` is kept as a legacy alias of the `media` role.
+- `src/features/module-routing.ts` — the routing matrix below, one table, plus
+  `moduleSkipReason()` / `routeChunk()`. Attached to each entry in `registry.ts` as
+  `appliesTo`, enforced in `engine.ts`; skips go on the chunk span as
+  `betternet.routing.skipped` (`factChecker=modifier:advert`), never silently.
+- `src/classify/page-type.ts` — page type from the page: password field and checkout/login
+  URL first, then JSON-LD `@type`, `og:type`, URL shape, DOM shape. Called in the content
+  script, carried on `PageMetadata.pageType`.
+- The hard privacy skip: a confident `login` or `checkout` page gets no content analysis at
+  all, and the popup says why rather than showing an empty result.
+- Visible and correctable: the Content Analysis modal's "This page" section shows the
+  `page-type:…` tag and offers the vocabulary as a select (feedback target `page`, see
+  specs/feedback.md). A correction is sent as two statements — old type off, new type on —
+  and is applied locally, so routing follows the user for the chunks analysed after it.
+  Developer Mode shows which classifier answered and how sure it was.
+
+Not built:
+
+- No chunk-role classifier beyond the existing heuristics, so the roles that would make
+  routing bite — `form`, `cta`, `cookie_banner`, `modal`, `headline_link`, `product_card` —
+  are declared and never assigned. Measured on `test-data/pages/`: 0 of 550 module calls are
+  routed out, because those pages only produce `article`, `post`, and `other` chunks. What
+  routing removes today is adverts (3 modules) on real feeds, which the saved pages lack.
+- No site type: no UT1 bundle, no `siteType` producer, so `skipSites` and the
+  "`app` / `finance` unless opted in" rule are declared but dormant.
+- No topic: `ChunkAnalysis.primaryTopic` is still hardcoded `'unknown'` in `engine.ts`.
+- No `classifier-config.ts` registry/chain file. With one classifier per level the chain is
+  the function body; it earns its keep when a local model becomes a second entry.
+- Not evaluated. No labelled page or chunk set yet, so the two asymmetric errors are
+  asserted by hand in `test/page-type.test.ts` rather than measured.
+
+Decisions taken while building, which differ from what is written below:
+
+- `roles` is an allow-list and the per-module skip lists are exactly its complement, so
+  only the allow-list is written in code. One list to read, and the two cannot disagree.
+- An unknown chunk role is analyzed, not skipped. The spec's rule (unknown → `other` →
+  antiManipulation only) assumes a chunker that assigns real roles; today `other` is what
+  the generic chunker gives plain prose, so that rule would have quietly stopped
+  fact-checking ordinary articles. Same principle at page level, which the spec already has.
+- Credentials and payment are detected before reading the page's own markup. A false
+  negative there sends a sign-in page to a model; a false positive only costs analysis.
+- No module claims the `sidebar` role, so a sidebar-only chunk gets nothing. Teaser chunks
+  are tagged `[article, sidebar]` and the first role wins, so they are still analyzed —
+  `chunking-headlines.ts`. Worth a second look when `headline_link` lands.
+- antiManipulation's "priority pages" (checkout, login) and the hard privacy skip
+  contradict each other. Privacy wins until anti-manipulation can run on-device.
 
 ## Relevant links
 
+- Vocabularies and confidence gate: `src/types/Classification.ts`
 - Chunk tags: `src/types/Tag.ts`, `src/chunking/chunk-tags.ts`
+- Routing matrix: `src/features/module-routing.ts`, applied in `src/analysis/engine.ts`
+- Page classifier: `src/classify/page-type.ts`, called from `src/content/content.ts`
 - Page metadata: `src/types/Page.ts`
-- Routing point: `src/analysis/engine.ts` (`analyzeChunk`), `src/features/registry.ts`
-- JSON-LD extraction already written: `src/features/click-unbait/fetch-destination.ts`
+- Tests: `test/module-routing.test.ts`, `test/page-type.test.ts`
+- JSON-LD extraction for fetched pages (string-based, not shared): `src/features/click-unbait/fetch-destination.ts`
 - Topic axis: `ChunkAnalysis.primaryTopic`
 - Settings gating this composes with: `specs/settings.md` (Off-List, module toggles)
 
@@ -130,6 +175,10 @@ TODO where does this taxonomy come from??
 Each entry in `src/features/registry.ts` declares an `appliesTo` block; the engine filters
 before building tasks. Features may not opt themselves out inside `analyze` — routing lives
 in one place so it can be read and evaluated.
+
+Built: `src/features/module-routing.ts` is the live copy of the matrix below, and is what
+to change. Only the role allow-lists are written there — the skip-role lists here are their
+complement, and duplicating them invites the two to disagree.
 
 factChecker (accuracy)
 - Chunk roles: article, post, comment, search_result, headline_link, review
@@ -320,16 +369,20 @@ local-only by construction.
 
 - New `src/types/Classification.ts`: `SiteType`, `PageType`, `ChunkRole`, `ChunkModifier`,
   and a `Classification { value, confidence, source }` wrapper.
-- New `src/classify/`: the shared JSON-LD/DOM extraction, the classifier implementations,
-  and `classifier-config.ts` (registry + chains, above). `source` on a `Classification`
-  records which classifier answered, so a bad label is traceable to one chain entry.
+- New `src/classify/`: the classifier implementations, and `classifier-config.ts`
+  (registry + chains, above). `source` on a `Classification` records which classifier
+  answered, so a bad label is traceable to one chain entry. The JSON-LD reader is not
+  shared with `click-unbait/fetch-destination.ts`: that one parses fetched HTML as a string
+  and pulls `articleBody`, this one walks the live DOM for `@type`.
 - `Tag.ts`: split `CHUNK_TYPE_TAGS` into role and modifier lists. Keep the existing seven
   values so stored data and the chunk-detail modal keep working.
 - `Page.ts`: add `pageType` and `siteType`.
 - `Chunk`: role tag guaranteed present after `finalizeChunk`.
-- `registry.ts`: `appliesTo: { roles, skipRoles, skipPages, skipSites }` per feature.
+- `registry.ts`: `appliesTo: { roles, skipModifiers, skipPages, skipSites }` per feature.
 - `engine.ts`: filter chunks per feature before building tasks; record skips as trace
   attributes so a missing analysis is visible in AIQA rather than silent.
+
+Done except `classifier-config.ts` and the `siteType` producer — see Status.
 
 ## Evaluation
 

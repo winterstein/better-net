@@ -59,9 +59,9 @@ assert.deepEqual(runsOn([TAG.SIDEBAR]), []);
 assert.equal(chunkRole({ tags: [TAG.ARTICLE, TAG.SIDEBAR] }), 'article');
 assert.deepEqual(runsOn([TAG.ARTICLE, TAG.SIDEBAR]), ALL);
 
-// Legacy `chunk-type:video` reads as the `media` role, which nothing analyzes.
-assert.equal(chunkRole({ tags: ['chunk-type:video'] }), 'media');
-assert.deepEqual(runsOn(['chunk-type:video']), []);
+// The `media` role — video/audio content — is claimed by nobody.
+assert.equal(chunkRole({ tags: ['chunk-type:media'] }), 'media');
+assert.deepEqual(runsOn(['chunk-type:media']), []);
 
 // --- page and site type: only act on a classification we believe ---
 

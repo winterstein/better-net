@@ -27,7 +27,7 @@ import {
 	update_item,
 } from '../db.js';
 import type { FeedbackSubmission, FeedbackTarget } from '../bn-extension-src/types/Feedback.js';
-import { FEEDBACK_TARGETS } from '../bn-extension-src/types/Feedback.js';
+import { FEEDBACK_TARGETS, PAGE_LEVEL_TARGETS } from '../bn-extension-src/types/Feedback.js';
 import type { Chunk } from '../bn-extension-src/types/Chunk.js';
 import type { Page } from '../bn-extension-src/types/Page.js';
 
@@ -85,8 +85,9 @@ function validateBody(body: Partial<FeedbackSubmission>): string | null {
 		if (typeof body.message !== 'string') return 'message must be a string';
 		if (body.message.length > MAX_MESSAGE) return `message exceeds ${MAX_MESSAGE} characters`;
 	}
-	if (body.target === 'chunker') {
-		// Chunker feedback is about how the page was split, so it has no chunk of its own.
+	if (PAGE_LEVEL_TARGETS.includes(body.target as FeedbackTarget)) {
+		// About the page, so there is no chunk of its own: how it was split ('chunker'), or
+		// its `page-type:…` tag ('page' — specs/content-classification.md).
 		if (!body.pageUrl || typeof body.pageUrl !== 'string') return 'pageUrl is required';
 		return null;
 	}
