@@ -98,20 +98,19 @@ modifier tags. `setContentTags` already half-implements this by preserving `adve
 alongside a content tag — make it explicit.
 
 Role tags (extends the current seven):
+See Tag.ts
 
-- article, post, comment, search_result — unchanged
+- article, post, comment, search_result, sidebar, other — unchanged
 - headline_link — a teaser or card that links elsewhere. Click Unbait's real target;
   currently these land in `article` or `other`.
 - review — user or editorial review of a product/place
 - product_card — item tile with price/rating
 - form — input group: fields plus a submit
+- chrome - header, footer, navigation, widgets, etc.
 - cta — button or banner pushing one action (subscribe, buy, sign up)
-- cookie_banner — consent dialog
 - paywall — subscription/registration wall
 - modal — interstitial, newsletter popup, app-install prompt
-- nav — header, footer, breadcrumb, menu
-- media — embedded video/audio player
-- sidebar, other — unchanged
+- media — video/audio content
 
 Modifier tags (orthogonal, may stack):
 

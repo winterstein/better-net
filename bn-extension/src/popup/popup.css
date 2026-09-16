@@ -196,6 +196,21 @@ body {
   margin-top: 8px;
 }
 
+.chunk-stats {
+  margin: -8px 16px 12px;
+  font-size: 12px;
+  color: #666;
+  text-align: center;
+}
+
+.chunk-stats.hidden {
+  display: none;
+}
+
+.chunk-stats-waiting {
+  color: #8a6d00;
+}
+
 .diagnostics-banner {
   margin: 0 16px 12px;
   padding: 10px 12px;

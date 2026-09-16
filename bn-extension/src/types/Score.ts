@@ -27,8 +27,15 @@ export function problemScoreFromFraction(n: number): ProblemScore {
 	return 'low';
 }
 
-/** Bridge to RiskLevel / Nutrient Label (still keyed on [0,1]). */
-export function fractionFromProblemScore(score: ProblemScore): number {
+/**
+ * Bridge to RiskLevel / Nutrient Label (still keyed on [0,1]).
+ *
+ * Tolerates a raw [0,1] number, because not every analyzer emits the enum yet and the
+ * bare `switch` returned `undefined` for anything else — which reached the UI as "NaN%".
+ * Anything unrecognised is treated as the bottom of the range rather than poisoning
+ * arithmetic downstream.
+ */
+export function fractionFromProblemScore(score: ProblemScore | number | undefined): number {
 	switch (score) {
 		case 'high':
 			return 0.75;
@@ -37,6 +44,7 @@ export function fractionFromProblemScore(score: ProblemScore): number {
 		case 'low':
 			return 0.15;
 	}
+	return typeof score === 'number' && Number.isFinite(score) ? Math.max(0, Math.min(1, score)) : 0;
 }
 
 export function tagStrengthFromFraction(n: number): TagStrength {
@@ -59,11 +67,16 @@ export function strengthRank(strength: TagStrength): number {
 	}
 }
 
-/** Worst (highest) of several module problem scores. Empty → low. */
-export function worstProblemScore(scores: ProblemScore[]): ProblemScore {
+/**
+ * Worst (highest) of several module problem scores. Empty → low.
+ * Numbers are accepted for the same reason as fractionFromProblemScore: a module that has
+ * not moved to the enum yet must not silently count as `low`.
+ */
+export function worstProblemScore(scores: Array<ProblemScore | number>): ProblemScore {
 	if (!scores.length) return 'low';
-	if (scores.includes('high')) return 'high';
-	if (scores.includes('medium')) return 'medium';
+	const bands = scores.map((s) => (typeof s === 'number' ? problemScoreFromFraction(s) : s));
+	if (bands.includes('high')) return 'high';
+	if (bands.includes('medium')) return 'medium';
 	return 'low';
 }
 
@@ -115,12 +128,24 @@ export function pickPrimaryIssueTag(tags: IssueTag[]): IssueTag | undefined {
 	});
 }
 
-export function issueTagIds(tags: IssueTag[]): string[] {
-	return tags.map((t) => t.tag);
+/**
+ * Read a tag whether it arrives as an id or a full IssueTag. Analyzers are mid-migration
+ * to IssueTag, and `t.tag` on a plain string yields undefined — which reached the UI as
+ * blank tag chips and made hasIssueTag() always false.
+ */
+function asIssueTag(tag: string | IssueTag): IssueTag {
+	return typeof tag === 'string' ? { tag, strength: 'medium', confidence: 0.5 } : tag;
 }
 
-export function hasIssueTag(tags: IssueTag[], tag: string): boolean {
-	return tags.some((t) => t.tag === tag && t.strength !== 'none');
+export function issueTagIds(tags: Array<string | IssueTag> | undefined): string[] {
+	return (tags ?? []).map((t) => asIssueTag(t).tag);
+}
+
+export function hasIssueTag(tags: Array<string | IssueTag> | undefined, tag: string): boolean {
+	return (tags ?? []).some((t) => {
+		const it = asIssueTag(t);
+		return it.tag === tag && it.strength !== 'none';
+	});
 }
 
 /** Accept string ids or full IssueTag; fill strength/confidence from module defaults. */

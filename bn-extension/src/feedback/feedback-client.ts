@@ -9,7 +9,7 @@
  * (background/feedback-manager.ts).
  */
 
-import { tagsForModule } from '../features/registry.js';
+import { tagsForModule } from '../features/module-tags.js';
 import { fractionFromProblemScore, type ProblemScore } from '../types/Score.js';
 import { FEEDBACK_TARGETS } from '../types/Feedback.js';
 import type { FeedbackSubmission, FeedbackTarget } from '../types/Feedback.js';

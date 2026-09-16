@@ -10,7 +10,8 @@ import {
   riskLevelForScore,
   shouldShowNutrientLabel,
 } from '../src/types/RiskLevel.js';
-import { getTrafficLight } from '../src/content/content-analysis-modal.js';
+import { calculateNutritionData, getTrafficLight } from '../src/content/content-analysis-modal.js';
+import { chunkProblemScore } from '../src/types/ChunkAnalysis.js';
 
 // --- bands ---
 
@@ -26,6 +27,34 @@ assert.equal(getTrafficLight(0.2).label, 'Safe');
 assert.equal(getTrafficLight(0.4).label, 'Caution');
 assert.equal(getTrafficLight(0.7).label, 'High Risk');
 assert.equal(getTrafficLight(0.7).color, '#f44336');
+
+// --- the badge label reads the worst module, and agrees with the traffic light ---
+
+// A published fact-check against the chunk, plus a milder manipulation score. Averaged
+// (0.625) this used to read Caution next to a red light; the worst score is what counts.
+const mixed = [
+  { methodName: 'factChecker', problemScore: 'high', confidence: 1, tags: [] },
+  { methodName: 'antiManipulation', problemScore: 'medium', confidence: 1, tags: [] },
+] as any;
+
+assert.equal(calculateNutritionData(mixed).label, 'High Risk');
+assert.equal(calculateNutritionData(mixed).label, getTrafficLight(chunkProblemScore({ analyses: mixed })).label);
+assert.equal(calculateNutritionData(mixed).highestRisk?.type, 'factChecker');
+
+// An errored module is not a clean bill of health, and does not drag the label down.
+const oneFailed = [
+  { methodName: 'factChecker', problemScore: 'high', confidence: 1, tags: [] },
+  { methodName: 'biasDetector', error: 'timeout', problemScore: 'low', confidence: 0, tags: [] },
+] as any;
+assert.equal(calculateNutritionData(oneFailed).label, 'High Risk');
+
+assert.equal(
+  calculateNutritionData([
+    { methodName: 'biasDetector', problemScore: 'low', confidence: 1, tags: [] },
+  ] as any).label,
+  'Safe'
+);
+assert.equal(calculateNutritionData([]).label, 'No Data');
 
 // --- threshold lookup ---
 

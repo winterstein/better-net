@@ -20,4 +20,9 @@ Target tags (terminology.md):
 - verified-claims — ratings mostly true (working)
 - fringe-view — to-do (demo dataset uses it; live detector not wired)
 
+The Content Analysis modal lists every claim that was looked up, matched or not:
+`metadata.factChecks` is a `ClaimCheck[]` (claim + `status` + any reviews), so
+"checked three claims, none of them rated" is shown as such rather than as an empty
+card. `factChecksFound` counts only the claims that matched.
+
 Coverage overall: partial. Live path needs a Google Fact Check API key; otherwise falls back / empty. No LLM claim extraction yet beyond sentence heuristics.

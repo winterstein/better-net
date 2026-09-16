@@ -15,12 +15,27 @@ import {
 } from '../src/feedback/feedback-client.js';
 import type { FeedbackPayload } from '../src/feedback/feedback-client.js';
 import { issuesForTarget, issueLabel, OTHER_ISSUE_ID } from '../src/feedback/feedback-issues.js';
-import { tagsForModule, ANALYSIS_MODULE_IDS } from '../src/features/registry.js';
+import { tagsForModule } from '../src/features/module-tags.js';
+import { DEFAULT_SERVER_ENDPOINT, mergeSettings } from '../src/settings/modules-esm.js';
+import { ANALYSIS_MODULE_IDS } from '../src/features/registry.js';
 import type { FeedbackSubmission } from '../src/types/Feedback.js';
 
 assert.equal(isFeedbackEnabled({ shareAnonymous: false, serverEndpoint: 'http://x' }), false);
 assert.equal(isFeedbackEnabled({ shareAnonymous: true, serverEndpoint: '' }), false);
 assert.equal(isFeedbackEnabled({ shareAnonymous: true, serverEndpoint: 'http://localhost:3001' }), true);
+
+// Opting in to sharing has to be enough: a blank endpoint used to leave feedback off with
+// nothing in the UI to say so, so mergeSettings supplies the server.
+assert.equal(mergeSettings({}).serverEndpoint, DEFAULT_SERVER_ENDPOINT);
+assert.equal(mergeSettings({ serverEndpoint: '' }).serverEndpoint, DEFAULT_SERVER_ENDPOINT);
+assert.equal(mergeSettings({ serverEndpoint: '  ' }).serverEndpoint, DEFAULT_SERVER_ENDPOINT);
+assert.equal(
+	mergeSettings({ serverEndpoint: 'http://localhost:3001' }).serverEndpoint,
+	'http://localhost:3001',
+	'an endpoint the user set wins'
+);
+assert.equal(isFeedbackEnabled(mergeSettings({ shareAnonymous: true })), true);
+assert.equal(isFeedbackEnabled(mergeSettings({})), false, 'sharing stays opt-in');
 
 // --- every analysis module declares a tag vocabulary, or its card has no feedback ---
 

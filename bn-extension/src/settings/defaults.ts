@@ -91,7 +91,14 @@
     developerMode: false,
     /** Debug aid: outline every chunk on the page. See content/chunk-overlay.ts. */
     showChunkOverlay: false,
-    serverEndpoint: '',
+    // Analyse what is on screen first, and hold back chunks below the fold until they
+    // scroll into view. Off analyses the whole page at once, which is slower to the first
+    // label on a long feed. See content/chunk-scheduler.ts.
+    analyzeOnScreenFirst: true,
+    // bn-server (bn-server/server.better-net.com.nginx). Feedback and the update
+    // manager are unreachable without one, and a blank default meant a fresh profile
+    // showed no feedback controls at all. Overridable in Settings -> Advanced.
+    serverEndpoint: 'https://server.better-net.com',
     // Reuse the server's cached analysis for a page instead of analysing it locally. No service yet.
     useServerCache: false,
     // Product-demo recordings: serve the canned results in analysis/demo-analysis.ts
@@ -129,6 +136,11 @@
         ...defaultModuleState()[m.id],
         ...(stored.modules?.[m.id] || {}),
       };
+    }
+    // A blank endpoint means "use the default": the options page stores '' for an empty
+    // field, which would otherwise pin every existing profile to no server for ever.
+    if (!String(merged.serverEndpoint || '').trim()) {
+      merged.serverEndpoint = DEFAULTS.serverEndpoint;
     }
     merged.domainOverrides = { ...(stored.domainOverrides || {}) };
     merged.excludedSites = Array.isArray(stored.excludedSites)

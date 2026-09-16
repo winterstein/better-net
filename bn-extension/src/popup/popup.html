@@ -43,6 +43,10 @@
         <div id="current-stage" class="current-stage">Analyzing page…</div>
       </div>
 
+      <!-- Live chunk counts: found / analysed / waiting on a scroll. Outside
+           progress-section so it survives a finished pass (popup.ts renderChunkStats). -->
+      <div id="chunk-stats" class="chunk-stats hidden" role="status"></div>
+
       <div id="diagnostics-banner" class="diagnostics-banner hidden" role="status"></div>
 
       <div id="results-section" class="results-section hidden">

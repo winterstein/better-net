@@ -2,6 +2,7 @@
 
 import { findAnalysisByModule } from '../types/ModuleAnalysis.js';
 import { chunkProblemScore } from '../types/ChunkAnalysis.js';
+import { fractionFromProblemScore } from '../types/Score.js';
 import { createPopupLog, runStep } from './popup-diagnostics.js';
 
 const log = createPopupLog();
@@ -94,6 +95,11 @@ class PopupController {
     this.updateInterval = null;
     this.storageListenerAttached = false;
     this.adPreviewActive = false;
+    /** Results are published per pass, so the popup keeps the last one it was given. */
+    this.lastResult = null;
+    this.lastResultAt = 0;
+    this.lastChunkStats = null;
+    this.chunksExpanded = false;
     this.ready = false;
     this.watchdog = null;
     this.startWatchdog();
@@ -252,7 +258,7 @@ class PopupController {
         currentStage: response.status.currentStage,
         neutralisedCount: response.status.neutralisedCount,
         adsHidden: response.status.adsHidden,
-        partialResults: response.status.partialResults,
+        chunkStats: response.status.chunkStats,
         diagnostics: response.status.diagnostics,
         result: response.status.result,
       });
@@ -359,19 +365,30 @@ class PopupController {
     const errorSection = document.getElementById('error-section');
     if (!loadingEl || !analysisEl || !progressSection || !resultsSection || !errorSection) return;
 
-    // Hide all sections first
     loadingEl.classList.add('hidden');
     analysisEl.classList.remove('hidden');
-    progressSection.classList.remove('hidden');
-    resultsSection.classList.add('hidden');
     errorSection.classList.add('hidden');
     this.showDiagnostics(
       data.diagnostics || data.result?.diagnostics || data.result?.summary?.warnings
     );
 
+    // Counts arrive with every update; a result only when a pass finishes. Both are kept,
+    // so a tick that carries one does not blank the other.
+    if (data.chunkStats) this.lastChunkStats = data.chunkStats;
+    this.renderChunkStats();
+
     if (data.status === 'error') {
       this.stopPolling('analysis error');
       this.showError(data.error || 'Analysis failed');
+      return;
+    }
+
+    if (data.status === 'no_chunks') {
+      this.stopPolling('nothing to analyse');
+      progressSection.classList.add('hidden');
+      resultsSection.classList.add('hidden');
+      errorSection.classList.remove('hidden');
+      this.setErrorMessage(data.message || 'No content found to analyse on this page');
       return;
     }
 
@@ -384,41 +401,97 @@ class PopupController {
       return;
     }
 
-    if (data.status === 'not_started' || data.status === 'idle') {
-      document.getElementById('progress-bar').style.width = '0%';
-      document.getElementById('current-stage').textContent =
-        data.currentStage || 'Starting analysis…';
+    this.showResults(data, resultsSection);
+    this.showProgress(data, progressSection);
+  }
+
+  /** The last published result, re-rendered only when a newer one arrives. */
+  showResults(data, resultsSection) {
+    if (data.result && data.result.timestamp !== this.lastResultAt) {
+      this.lastResult = data.result;
+      this.lastResultAt = data.result.timestamp;
+      resultsSection.classList.remove('hidden');
+      this.displayResults(data.result);
+      return;
+    }
+    resultsSection.classList.toggle('hidden', !this.lastResult);
+  }
+
+  /**
+   * Progress stays on screen while chunks are waiting on a scroll: the page is not
+   * finished, it is paused on the reader. It is also why polling restarts — a pass that
+   * starts when the reader scrolls has to be able to wake a popup that stopped polling.
+   */
+  showProgress(data, progressSection) {
+    const waiting = this.lastChunkStats?.waiting ?? 0;
+    const running = !data.status || data.status === 'analyzing' ||
+      data.status === 'not_started' || data.status === 'idle';
+
+    if (!running && !waiting) {
+      progressSection.classList.add('hidden');
+      if (data.status === 'completed') this.stopPolling('analysis complete');
       return;
     }
 
-    if (data.status === 'analyzing') {
-      const progress = data.progress || 0;
-      document.getElementById('progress-bar').style.width = `${progress}%`;
+    progressSection.classList.remove('hidden');
+    const progress = this.progressPercent(data);
+    document.getElementById('progress-bar').style.width = `${progress}%`;
+    document.getElementById('current-stage').textContent = this.stageText(data, waiting);
+    if (data.status === 'analyzing') this.startPolling();
+  }
 
-      const stageEl = document.getElementById('current-stage');
-      const flagged = (data.neutralisedCount || 0) + (data.adsHidden || 0);
-      let stageText = data.currentStage || 'Analyzing page…';
-      if (flagged > 0) {
-        const parts = [];
-        if (data.neutralisedCount > 0) parts.push(`${data.neutralisedCount} labelled`);
-        if (data.adsHidden > 0) parts.push(`${data.adsHidden} ads hidden`);
-        stageText = `${stageText} · ${parts.join(', ')}`;
-      }
-      stageEl.textContent = stageText;
+  /**
+   * Chunks analysed out of chunks known, so the bar does not read 100% while chunks are
+   * still waiting on a scroll. Falls back to the background's figure before any counts.
+   */
+  progressPercent(data) {
+    const stats = this.lastChunkStats;
+    const outstanding = stats
+      ? (stats.inFlight ?? 0) + (stats.queued ?? 0) + (stats.waiting ?? 0)
+      : 0;
+    const total = stats ? stats.analysed + outstanding : 0;
+    if (!total) return data.progress || 0;
+    return Math.round((100 * stats.analysed) / total);
+  }
 
-      if (Array.isArray(data.partialResults) && data.partialResults.length > 0) {
-        this.showPartialResults(data.partialResults, data.stages);
-      }
+  stageText(data, waiting) {
+    if (data.status === 'not_started' || data.status === 'idle') {
+      return data.currentStage || 'Starting analysis…';
+    }
+    if (data.status === 'completed' && waiting > 0) {
+      return 'Up to date with what you have read';
     }
 
-    if (data.status === 'completed' && data.result) {
-      // Show final results
-      this.stopPolling('analysis complete');
-      progressSection.classList.add('hidden');
-      resultsSection.classList.remove('hidden');
-      this.displayResults(data.result);
+    let text = data.currentStage || 'Analyzing page…';
+    const parts = [];
+    if (data.neutralisedCount > 0) parts.push(`${data.neutralisedCount} labelled`);
+    if (data.adsHidden > 0) parts.push(`${data.adsHidden} ads hidden`);
+    return parts.length ? `${text} · ${parts.join(', ')}` : text;
+  }
+
+  /** Chunks found, analysed, in flight, and held back until the reader scrolls to them. */
+  renderChunkStats() {
+    const el = document.getElementById('chunk-stats');
+    if (!el) return;
+    const stats = this.lastChunkStats;
+    if (!stats || !stats.found) {
+      el.classList.add('hidden');
+      el.textContent = '';
+      return;
     }
 
+    const parts = [`${stats.found} chunk${stats.found === 1 ? '' : 's'} found`];
+    parts.push(`${stats.analysed} analysed`);
+    const inProgress = (stats.inFlight ?? 0) + (stats.queued ?? 0);
+    if (inProgress > 0) parts.push(`${inProgress} in progress`);
+    el.textContent = parts.join(' · ');
+    if (stats.waiting > 0) {
+      const span = document.createElement('span');
+      span.className = 'chunk-stats-waiting';
+      span.textContent = ` · ${stats.waiting} waiting until you scroll`;
+      el.appendChild(span);
+    }
+    el.classList.remove('hidden');
   }
 
   showDiagnostics(messages) {
@@ -434,11 +507,6 @@ class PopupController {
     }
     banner.textContent = list.join(' ');
     banner.classList.remove('hidden');
-  }
-
-  showPartialResults(partialResults, stages) {
-    // Optionally show partial results during analysis
-    // This can be enhanced to show intermediate findings
   }
 
   displayResults(result) {
@@ -465,7 +533,9 @@ class PopupController {
       const resultData = findAnalysisByModule(results, key);
       if (!resultData) return;
 
-      const score = resultData.problemScore || 0;
+      // problemScore is the ProblemScore enum ('low' | 'medium' | 'high'); multiplying it
+      // by 100 rendered "NaN%". Bridge to a fraction the same way the modal does.
+      const score = fractionFromProblemScore(resultData.problemScore);
       const confidence = resultData.confidence || 0;
       const scoreClass = score < 0.3 ? 'low' : score < 0.6 ? 'medium' : 'high';
       const scorePercent = (score * 100).toFixed(0);
@@ -498,6 +568,9 @@ class PopupController {
     const icon = document.getElementById('chunks-toggle-icon');
     const open = list.classList.toggle('hidden');
     const expanded = !open;
+    // Remembered: results are re-rendered as later chunks land, and collapsing the list
+    // under the reader would undo the click they just made.
+    this.chunksExpanded = expanded;
     btn.setAttribute('aria-expanded', String(expanded));
     icon.textContent = expanded ? '▾' : '▸';
   }
@@ -516,9 +589,9 @@ class PopupController {
     section.classList.remove('hidden');
     label.textContent = `Page chunks (${chunkResults.length})`;
     list.innerHTML = '';
-    list.classList.add('hidden');
-    document.getElementById('chunks-toggle')?.setAttribute('aria-expanded', 'false');
-    document.getElementById('chunks-toggle-icon').textContent = '▸';
+    list.classList.toggle('hidden', !this.chunksExpanded);
+    document.getElementById('chunks-toggle')?.setAttribute('aria-expanded', String(this.chunksExpanded));
+    document.getElementById('chunks-toggle-icon').textContent = this.chunksExpanded ? '▾' : '▸';
 
     chunkResults.forEach((chunk, index) => {
       const score = chunkProblemScore(chunk);
@@ -821,6 +894,9 @@ class PopupController {
     // Clear existing analysis
     const storageKey = `analysis_${this.currentTabId}`;
     await chrome.storage.local.remove(storageKey);
+    this.lastResult = null;
+    this.lastResultAt = 0;
+    this.lastChunkStats = null;
 
     // Trigger new analysis
     await this.ensureAnalysisStarted();

@@ -249,7 +249,9 @@ const nonBait = await analyzeChunk(
 		},
 	}
 );
-assert.ok(nonBait.problemScore < CLICKBAIT_THRESHOLD);
+// The emitted problemScore is a ProblemScore band (terminology.md), and CLICKBAIT_THRESHOLD
+// is exactly the low/medium boundary — so "below threshold" is the `low` band.
+assert.equal(nonBait.problemScore, 'low');
 assert.equal(fetchCalls, 0);
 assert.equal(nonBait.metadata?.displayTitle, undefined);
 
@@ -278,7 +280,7 @@ const bait = await analyzeChunk(
 		}),
 	}
 );
-assert.ok(bait.problemScore >= CLICKBAIT_THRESHOLD);
+assert.notEqual(bait.problemScore, 'low', 'at or above the clickbait threshold');
 assert.ok(bait.tags.includes('clickbait'));
 assert.ok(bait.metadata?.unbaited);
 assert.ok(String(bait.metadata?.displayTitle).startsWith('['));

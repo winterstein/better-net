@@ -9,6 +9,7 @@ import {
 	isZeroShotPayload,
 	problemScoreFromZeroShotPayload,
 } from '../zero-shot-score.js';
+import { problemScoreFromFraction } from '../../types/Score.js';
 
 const PROMPT_ID = 'defuse-ragebait';
 
@@ -83,7 +84,7 @@ function analyzeWithHeuristics(context) {
   }
 
   return {
-    problemScore: Math.min(score, 1.0),
+    problemScore: problemScoreFromFraction(Math.min(score, 1.0)),
     confidence: 0.6,
     tags,
     explanation: generateExplanation(score, tags),
@@ -116,7 +117,7 @@ function parseAIResponse(responseText) {
         };
       }
       return {
-        problemScore: Math.max(0, Math.min(1, parsed.problemScore ?? parsed.score ?? 0)),
+        problemScore: problemScoreFromFraction(Math.max(0, Math.min(1, parsed.problemScore ?? parsed.score ?? 0))),
         confidence: Math.max(0, Math.min(1, parsed.confidence || 0.7)),
         tags: parsed.tags || [],
         explanation: parsed.explanation || 'Analysis completed'
@@ -130,7 +131,7 @@ function parseAIResponse(responseText) {
   const score = scoreMatch ? parseFloat(scoreMatch[1]) : 0.25;
 
   return {
-    problemScore: Math.max(0, Math.min(1, score)),
+    problemScore: problemScoreFromFraction(Math.max(0, Math.min(1, score))),
     confidence: 0.5,
     tags: [],
     explanation: responseText.substring(0, 200)
@@ -149,7 +150,7 @@ function generateExplanation(score, tags) {
 
 function getMockResults(context) {
   return {
-    problemScore: 0.25 + Math.random() * 0.15,
+    problemScore: problemScoreFromFraction(0.25 + Math.random() * 0.15),
     confidence: 0.80 + Math.random() * 0.15,
     tags: [],
     explanation: 'Mock analysis for ragebait detection'

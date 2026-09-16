@@ -152,6 +152,15 @@ fields need no migration). Offline or failed sends queue in
 `chrome.storage.local` and flush on the next success. Gated by Data Sharing
 opt-in, as now.
 
+**Two switches, one of them silent.** Feedback needs both Data Sharing → "Share
+anonymous analysis data" (opt-in, off by default) and a server endpoint. The
+endpoint now **defaults to `https://server.better-net.com`**
+(`settings/modules-esm.ts`, mirrored in `settings/defaults.ts`), and a blank
+stored value falls back to it — an empty Advanced field means "use the default",
+not "no server". So ticking the sharing box is enough. When feedback is off the
+modal says which switch is off instead of rendering nothing where the controls
+would be: a missing gap looks like a broken modal, not a setting.
+
 The POST is an **upsert on a `localId` the client derives** from the statement
 being made and who is making it — user, target, module, the chunk fingerprint (or
 the page url, for `chunker`), and **the tag**. That does three jobs: a preset
@@ -167,9 +176,16 @@ overwriting the other — while re-adding a tag you removed *is* the same
 statement, so it updates that row. A thumb (no tag) and a tag edit on the same
 chunk are likewise different statements.
 
-A chunk's fingerprint is its url + title (`types/Chunk.ts`), so a page whose body
-changed keeps its id, while a different page — or a retitled one — is a new
-subject. The trade is that a changed mind overwrites rather than appends: we keep
+A chunk's fingerprint is its url + title (`types/Chunk.ts`), assigned by
+`finalizeChunk()` in `chunking/chunk-tags.ts` — the one place every extractor's
+chunks pass through. So a page whose body changed keeps its id, while a
+different page — or a retitled one — is a new subject. Two chunks on one page
+that end up with the same title would share a fingerprint and so share a
+feedback row; no fixture does today, but it is the weakness to watch.
+
+**Feedback needs that fingerprint**: the modal renders no controls without one,
+so a chunker that stops assigning it silently turns feedback off rather than
+failing. `test/chunk-tags.test.ts` guards the contract. The trade is that a changed mind overwrites rather than appends: we keep
 the current verdict per person, not the history of how they got there.
 
 An update **merges** onto what is stored, so a field the client omits keeps its

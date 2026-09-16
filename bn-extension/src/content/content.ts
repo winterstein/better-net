@@ -25,10 +25,13 @@ import {
 } from './content-analysis-modal.js';
 import { applyClickUnbaitFromAnalysis } from './apply-click-unbait.js';
 import { renderChunkOverlays, clearChunkOverlays } from './chunk-overlay.js';
+import { planChunks, scheduleDeferredChunks } from './chunk-scheduler.js';
 import {
   DEFAULT_NUTRIENT_LABEL_MIN_RISK,
   shouldShowNutrientLabel,
 } from '../types/RiskLevel.js';
+import { chunkProblemScore } from '../types/ChunkAnalysis.js';
+import { classifyPageType } from '../classify/page-type.js';
 
 /**
  * Waiting for `load` is not enough on a single-page app: x.com renders its post tree after
@@ -90,11 +93,14 @@ class PageAnalyzer {
       this.currentUrl = window.location.href;
       this.dismissedChunkXpaths = new Set();
       this.feedbackEnabled = false;
+      this.feedbackOffReason = 'sharing-off';
       this.developerMode = false;
       this.showIndicators = true;
       this.nutrientLabelMinRisk = DEFAULT_NUTRIENT_LABEL_MIN_RISK;
       this.showChunkOverlay = false;
       this.lastChunks = [];
+      // Off-screen chunks waiting for a scroll (content/chunk-scheduler.ts).
+      this.chunkSchedule = null;
       this.setupListeners();
       void this.loadFeedbackSettings();
       void this.loadLabelSettings();
@@ -184,6 +190,7 @@ class PageAnalyzer {
       logit('log', '[BetterNet] [CONTENT] SPA navigation, re-analysing:', url);
       document.querySelectorAll('.betternet-chunk-badge').forEach((badge) => badge.remove());
       clearChunkOverlays();
+      this.stopChunkSchedule();
       this.dismissedChunkXpaths.clear();
       this.analyzePage();
     }, SPA_SETTLE_MS);
@@ -194,11 +201,15 @@ class PageAnalyzer {
     try {
       const settings = mergeSettings(await chrome.storage.sync.get(null));
       this.feedbackEnabled = isFeedbackEnabled(settings);
+      // Which of the two switches is off, so the modal can say so rather than just
+      // rendering nothing where the controls should be.
+      this.feedbackOffReason = settings.shareAnonymous ? 'no-endpoint' : 'sharing-off';
       this.developerMode = developerModeFromSettings(settings);
       this.aiqaServerUrl = settings.aiqaServerUrl;
       this.aiqaOrganisationId = settings.aiqaOrganisationId;
     } catch {
       this.feedbackEnabled = false;
+      this.feedbackOffReason = 'sharing-off';
       this.developerMode = false;
     }
   }
@@ -220,11 +231,15 @@ class PageAnalyzer {
     }
   }
 
-  /** Does this chunk clear the user's Nutrient Label risk threshold? */
+  /**
+   * Does this chunk clear the user's Nutrient Label risk threshold? The threshold is a
+   * [0,1] band edge and `summary.problemScore` is a ProblemScore enum, so it has to be
+   * converted — comparing the two directly makes `'high' >= 0.4` false and hides every
+   * label. chunkProblemScore() does the conversion (types/ChunkAnalysis.ts).
+   */
   shouldLabelChunk(analysisResults) {
     if (!this.showIndicators) return false;
-    const score = analysisResults?.summary?.problemScore ?? 0;
-    return shouldShowNutrientLabel(score, this.nutrientLabelMinRisk);
+    return shouldShowNutrientLabel(chunkProblemScore(analysisResults ?? {}), this.nutrientLabelMinRisk);
   }
 
   /** Drop labels that no longer clear the threshold after a settings change. */
@@ -362,30 +377,56 @@ class PageAnalyzer {
         );
       }
 
-      // Debug aid: the chunks exactly as sent, so the boxes match the console and the popup.
-      // Read from the settings loaded above, not the field: the constructor's load may not
-      // have resolved before the first analysis.
-      this.lastChunks = chunks;
-      this.showChunkOverlay = !!settings.showChunkOverlay;
-      if (this.showChunkOverlay) renderChunkOverlays(chunks);
+      // Analyse what the reader can see first, biggest and highest up the page first, and
+      // hold the rest back until it scrolls into view (content/chunk-scheduler.ts).
+      this.stopChunkSchedule();
+      const plan = planChunks(chunks, { gate: settings.analyzeOnScreenFirst !== false });
+      this.lastChunks = plan.ordered;
 
-      // Send chunks to background for analysis
-      logit('log','[BetterNet] [CONTENT] Sending chunks to background for analysis');
+      // Debug aid: the chunks exactly as sent, in the order they were sent, so the boxes
+      // match the console and the popup. Read from the settings loaded above, not the
+      // field: the constructor's load may not have resolved before the first analysis.
+      this.showChunkOverlay = !!settings.showChunkOverlay;
+      if (this.showChunkOverlay) renderChunkOverlays(plan.ordered);
+      this.pageMetadata = {
+        title: content.title,
+        domain: new URL(url).hostname,
+        author: content.metadata?.author || '',
+        description: content.description || '',
+        // Classify before analyzing (specs/content-classification.md): the engine routes
+        // features by page type, and refuses content analysis on login / checkout pages.
+        pageType: classifyPageType(document, url),
+      };
+      logit('log',
+        '[BetterNet] [CONTENT] Sending', plan.analyseNow, 'of', plan.ordered.length,
+        'chunks to background for analysis'
+      );
+
+      // Observe the deferred chunks before sending: the background may answer that it is
+      // analysing everything anyway (a demo page), and then the observer is torn down again.
+      if (plan.deferred.length) {
+        this.chunkSchedule = scheduleDeferredChunks(plan.deferred, (released) =>
+          this.sendMoreChunks(url, released)
+        );
+      }
+
       chrome.runtime.sendMessage({
         type: 'ANALYZE_CHUNKS',
         url,
-        chunks,
+        chunks: plan.ordered,
+        analyseNow: plan.analyseNow,
+        chunksWaiting: plan.deferred.length,
         adsHidden,
         traceSteps: steps,
-        pageMetadata: {
-          title: content.title,
-          domain: new URL(url).hostname,
-          author: content.metadata?.author || '',
-          description: content.description || ''
-        }
+        pageMetadata: this.pageMetadata,
       }, (response) => {
         if (chrome.runtime.lastError) {
           logit('error','[BetterNet] [CONTENT] Error sending message:', chrome.runtime.lastError.message);
+        } else if ((response as any)?.releaseAll) {
+          // The background queued the whole page regardless, so gating would only make the
+          // Popup report chunks as waiting when they are already being analysed.
+          logit('log','[BetterNet] [CONTENT] Background is analysing every chunk; dropping viewport gating');
+          this.stopChunkSchedule();
         } else {
           logit('log','[BetterNet] [CONTENT] Chunks sent successfully');
         }
@@ -394,6 +435,31 @@ class PageAnalyzer {
       logit('error','[BetterNet] [CONTENT] Error extracting chunks:', error);
       this.isAnalyzing = false;
     }
+  }
+
+  /**
+   * Hand over chunks that have scrolled into view. Ignored once the page has moved on:
+   * the analysis for the new URL owns the labels from then on.
+   */
+  sendMoreChunks(url, released) {
+    if (!released?.length || url !== this.analysedUrl) return;
+    logit('log','[BetterNet] [CONTENT] Releasing', released.length, 'chunk(s) scrolled into view');
+    chrome.runtime.sendMessage({
+      type: 'ANALYZE_MORE_CHUNKS',
+      url,
+      chunks: released,
+      chunksWaiting: this.chunkSchedule?.pending() ?? 0,
+      pageMetadata: this.pageMetadata,
+    }, () => {
+      if (chrome.runtime.lastError) {
+        logit('warn','[BetterNet] [CONTENT] Could not send scrolled-in chunks:', chrome.runtime.lastError.message);
+      }
+    });
+  }
+
+  stopChunkSchedule() {
+    this.chunkSchedule?.stop();
+    this.chunkSchedule = null;
   }
 
   async isSiteExcluded(url) {
@@ -653,7 +719,7 @@ class PageAnalyzer {
 
     applyClickUnbaitFromAnalysis(element, combinedResults);
 
-    const score = combinedResults.summary?.problemScore ?? 0;
+    const score = chunkProblemScore(combinedResults ?? {});
     if (!this.shouldLabelChunk(combinedResults)) {
       logit('log',
         `[BetterNet] [CONTENT] No label for chunk (score ${score}, threshold ${this.nutrientLabelMinRisk})`
@@ -713,7 +779,8 @@ class PageAnalyzer {
       badge.className = 'betternet-chunk-badge';
       
       const { analyses = [] } = analysisResults;
-      const problemScore = analysisResults.summary?.problemScore ?? 0;
+      // The fraction, not the enum: removeHiddenBadges() reads this back with Number().
+      const problemScore = chunkProblemScore(analysisResults ?? {});
       badge.dataset.problemScore = String(problemScore);
 
       const trafficLight = getTrafficLight(problemScore);
@@ -801,6 +868,7 @@ class PageAnalyzer {
       showContentAnalysisModal({
         ...analysisResults,
         feedbackEnabled: this.feedbackEnabled,
+        feedbackOffReason: this.feedbackOffReason,
         developerMode: this.developerMode,
         aiqaServerUrl: this.aiqaServerUrl,
         aiqaOrganisationId: this.aiqaOrganisationId,

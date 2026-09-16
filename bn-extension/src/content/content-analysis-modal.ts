@@ -40,6 +40,18 @@ export function getTrafficLight(score: number): TrafficLight {
   return { color, border, label };
 }
 
+/**
+ * The Nutrient Label's headline: the worst thing any module found, not the average of what
+ * they all found.
+ *
+ * The average let a clean module cancel out a bad one — a chunk with a published
+ * fact-check against it (high, 0.75) plus a mild manipulation score (medium, 0.5)
+ * averaged to 0.625 and was labelled Caution while its traffic light was red, because the
+ * light uses chunkProblemScore() (worst). One headline, two numbers. It is also the wrong
+ * reading: a false claim does not become less false because the page is politely written.
+ *
+ * Bands come from riskLevelForScore(), so the label and the light cannot disagree.
+ */
 export function calculateNutritionData(analyses: ModuleAnalysis[]): NutritionData {
   const scores: { type: string; score: number }[] = [];
   const flags: string[] = [];
@@ -58,19 +70,12 @@ export function calculateNutritionData(analyses: ModuleAnalysis[]): NutritionDat
     return { label: 'No Data', score: 0 };
   }
 
-  const avgScore = scores.reduce((sum, s) => sum + s.score, 0) / scores.length;
   const highestRisk = scores.reduce((max, s) => (s.score > max.score ? s : max), scores[0]);
-
-  let label = 'Safe';
-  if (avgScore >= 0.7) {
-    label = 'High Risk';
-  } else if (avgScore >= 0.4) {
-    label = 'Caution';
-  }
+  const score = highestRisk.score;
 
   return {
-    label,
-    score: avgScore,
+    label: riskLevelForScore(score).label,
+    score,
     scores,
     flags: [...new Set(flags)],
     highestRisk,
@@ -130,6 +135,24 @@ const FEEDBACK_PROMPTS: Partial<Record<FeedbackTarget, string>> = {
 
 /** Shown above the editable tag row. */
 const TAG_EDIT_PROMPT = 'Tags — remove what does not fit, add what we missed:';
+
+/**
+ * Say why there is nothing to click. Feedback is gated on two settings and on the chunk
+ * having an id, and rendering nothing at all made a switched-off setting look like a
+ * broken modal. See specs/feedback.md.
+ */
+function renderFeedbackOffNote(reason: string | undefined, hasChunkId: boolean): string {
+  const text = !hasChunkId
+    ? 'No feedback here: this chunk has no id, so a correction could not be attached to it.'
+    : reason === 'no-endpoint'
+      ? 'Feedback is off: no server to send it to. Set Settings → Advanced → Server endpoint.'
+      : 'Feedback is off. Turn on Settings → Data Sharing → “Share anonymous analysis data” to correct what we get wrong.';
+  return `
+    <div data-feedback-off style="margin-top: 10px; border-top: 1px solid #eee; padding-top: 8px; font-size: 11px; color: #888;">
+      ${escapeHtml(text)}
+    </div>
+  `;
+}
 
 const THUMB_STYLE = `
   border: 1px solid #ddd;
@@ -560,6 +583,20 @@ function formatAnalysisExplanation(result: ModuleAnalysis): string {
   return '<span style="color: #999; font-style: italic;">No explanation available.</span>';
 }
 
+/** Per-claim outcome shown when there is no rating badge to show instead. */
+const CLAIM_STATUS_LABELS: Record<string, { label: string; colors: { bg: string; text: string } }> = {
+  unverified: { label: 'Not fact-checked', colors: { bg: '#f5f5f5', text: '#666' } },
+  error: { label: 'Check failed', colors: { bg: '#fff3e0', text: '#f57c00' } },
+};
+
+/**
+ * Every claim the module extracted and looked up, with what came back for each.
+ *
+ * Claims with no match are listed too: "we checked these three and nobody has rated them"
+ * is the module's actual finding, and showing only the matches left the card claiming to
+ * have found nothing without ever saying what it looked for. `metadata.factChecks` is a
+ * ClaimCheck[] (features/fact-checker/factcheck-google.ts).
+ */
 function renderFactCheckClaims(factChecks: unknown[]): string {
   if (!factChecks || factChecks.length === 0) {
     return '';
@@ -567,7 +604,7 @@ function renderFactCheckClaims(factChecks: unknown[]): string {
 
   let html = `
         <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e0e0e0;">
-          <div style="font-weight: 600; font-size: 13px; color: #333; margin-bottom: 12px;">Fact-Checked Claims:</div>
+          <div style="font-weight: 600; font-size: 13px; color: #333; margin-bottom: 12px;">Claims checked (${factChecks.length}):</div>
       `;
 
   factChecks.forEach((claimResult, index) => {
@@ -575,6 +612,9 @@ function renderFactCheckClaims(factChecks: unknown[]): string {
     const claimText = (claim.claim as string) || `Claim ${index + 1}`;
     const reviews = claim.factChecks as unknown[] | undefined;
     const hasReviews = reviews && reviews.length > 0;
+    // Older results carry no status, so infer it rather than labelling them "not checked".
+    const status = (claim.status as string) || (hasReviews ? 'checked' : 'unverified');
+    const statusBadge = CLAIM_STATUS_LABELS[status];
 
     html += `
           <div style="
@@ -582,11 +622,23 @@ function renderFactCheckClaims(factChecks: unknown[]): string {
             padding: 10px;
             background: #f9f9f9;
             border-radius: 6px;
-            border-left: 3px solid #2196f3;
+            border-left: 3px solid ${hasReviews ? '#2196f3' : '#ccc'};
           ">
             <div style="font-size: 12px; font-weight: 600; color: #333; margin-bottom: 8px;">
-              ${truncateText(claimText, 150)}
+              ${escapeHtml(truncateText(claimText, 150))}
             </div>
+            ${
+              statusBadge
+                ? `<span style="
+                    font-size: 11px;
+                    padding: 3px 8px;
+                    border-radius: 12px;
+                    font-weight: 600;
+                    background: ${statusBadge.colors.bg};
+                    color: ${statusBadge.colors.text};
+                  ">${escapeHtml(statusBadge.label)}</span>`
+                : ''
+            }
         `;
 
     if (hasReviews) {
@@ -615,16 +667,17 @@ function renderFactCheckClaims(factChecks: unknown[]): string {
                       background: ${ratingColor.bg};
                       color: ${ratingColor.text};
                       text-transform: capitalize;
-                    ">${rating}</span>
-                    <span style="font-size: 11px; color: #666;">${(review.publisher as string) || 'Unknown Publisher'}</span>
+                    ">${escapeHtml(rating)}</span>
+                    <span style="font-size: 11px; color: #666;">${escapeHtml((review.publisher as string) || 'Unknown Publisher')}</span>
                   </div>
                   ${review.title ? `
                     <div style="font-size: 11px; color: #333; margin-bottom: 4px;">
-                      ${truncateText(review.title as string, 120)}
+                      ${escapeHtml(truncateText(review.title as string, 120))}
                     </div>
                   ` : ''}
                   ${review.url ? `
-                    <a href="${review.url}" target="_blank" style="
+                    <!-- Publisher-supplied, and this whole string goes through innerHTML. -->
+                    <a href="${escapeHtml(review.url)}" target="_blank" rel="noreferrer noopener" style="
                       font-size: 11px;
                       color: #2196f3;
                       text-decoration: none;
@@ -635,9 +688,13 @@ function renderFactCheckClaims(factChecks: unknown[]): string {
         }
       });
     } else {
+      const detail =
+        status === 'error'
+          ? `Could not check this claim${claim.error ? `: ${claim.error}` : ''}`
+          : 'No fact-check published for this claim';
       html += `
-            <div style="font-size: 11px; color: #999; font-style: italic; margin-top: 4px;">
-              No fact-checks found for this claim
+            <div style="font-size: 11px; color: #999; font-style: italic; margin-top: 6px;">
+              ${escapeHtml(detail)}
             </div>
           `;
     }
@@ -649,10 +706,16 @@ function renderFactCheckClaims(factChecks: unknown[]): string {
   return html;
 }
 
+/** Why the feedback controls are absent, so the modal can say so instead of just
+ *  rendering nothing. Set in content.ts, where the settings are known. */
+export type FeedbackOffReason = 'sharing-off' | 'no-endpoint';
+
 /** A chunk's analysis, plus the page-level context the modal needs from content.ts. */
 export interface ContentAnalysisModalData extends Partial<ChunkAnalysis> {
   /** Settings → Advanced → Developer Mode. See specs/feedback.md. */
   developerMode?: boolean;
+  /** Which setting is switching feedback off, when `feedbackEnabled` is false. */
+  feedbackOffReason?: FeedbackOffReason;
   /** How many chunks the page was split into, for chunker feedback. */
   chunkCount?: number;
   pageUrl?: string;
@@ -678,6 +741,7 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
     traceId,
     spanId,
     developerMode,
+    feedbackOffReason,
     chunkCount,
     pageUrl,
     aiqaServerUrl,
@@ -767,7 +831,11 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
               <div style="font-size: 14px; color: #666;">Score: ${(problemScore * 100).toFixed(0)}%</div>
             </div>
           </div>
-          ${canFeedback ? renderFeedbackWidget({ target: 'summary', problemScore }) : ''}
+          ${
+            canFeedback
+              ? renderFeedbackWidget({ target: 'summary', problemScore })
+              : renderFeedbackOffNote(feedbackOffReason, !!(fingerprint && url))
+          }
         </div>
 
         ${

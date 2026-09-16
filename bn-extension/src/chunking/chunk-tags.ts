@@ -4,6 +4,7 @@
 
 import { isLikelyAdElement } from './chunking-fixed-patterns.js';
 import { ensureChunkTitle } from './chunk-title.js';
+import { fingerprint } from '../types/Chunk.js';
 import { findElementByXPath } from '../utils/utils.js';
 import {
   isFacebookHost,
@@ -167,7 +168,14 @@ function platformContentTag(platform) {
 }
 
 /**
- * Apply content + advert tags before returning chunks from extractors.
+ * Apply content + advert tags before returning chunks from extractors, and give the chunk
+ * the identity everything downstream keys on.
+ *
+ * `url` + `fingerprint` were only ever set by createChunk(), which nothing in the chunker
+ * called — so every chunk from a real page arrived with both undefined. bn-server keys
+ * chunk rows on the fingerprint, and the Content Analysis modal hides its feedback
+ * controls without one, so feedback was unreachable outside demo pages.
+ *
  * @param {object} chunk
  * @param {{ platform?: string, url?: string, contentTag?: ChunkTag }} [options]
  */
@@ -175,6 +183,9 @@ export function finalizeChunk(chunk, options: any = {}) {
   const { platform, url = '', contentTag } = options;
   ensureChunkTitle(chunk);
   if (!chunk.tags) chunk.tags = [];
+  if (!chunk.url && url) chunk.url = url;
+  // After ensureChunkTitle: the fingerprint is hash(url + title) (types/Chunk.ts).
+  if (!chunk.fingerprint && chunk.url) chunk.fingerprint = fingerprint(chunk);
 
   const content =
     contentTag ||

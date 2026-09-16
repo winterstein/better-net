@@ -20,6 +20,8 @@ import type { DestinationContent } from './fetch-destination.js';
 import type { ChunkLink } from '../../types/Chunk.js';
 import { formatUnbaitTitle } from './format-unbait-title.js';
 import { CLICKBAIT_THRESHOLD, describeSignals, namedSignals, scoreClickbait } from './clickbait-signals.js';
+import { issueTagIds, problemScoreFromFraction } from '../../types/Score.js';
+import type { IssueTag } from '../../types/Score.js';
 
 const PROMPT_ID = 'click-unbait';
 const UNRAVEL_PROMPT_ID = 'click-unbait-unravel';
@@ -57,7 +59,8 @@ function headlineOf(chunk: any, pageMetadata: any = {}): string {
 interface Detection {
 	problemScore?: number | string;
 	confidence?: number;
-	tags?: Array<string | { tag: string; strength?: string; confidence?: number }>;
+	/** Ids or full IssueTags, depending on which detection path produced it. */
+	tags?: Array<string | IssueTag>;
 	explanation?: string;
 	metadata?: Record<string, unknown>;
 }
@@ -115,7 +118,8 @@ export async function analyzeChunk(chunk, pageMetadata: any = {}, options: any =
 		return detection;
 	}
 
-	const tags = uniqueTags([...(detection.tags || []), 'clickbait']);
+	// detection.tags may be ids or full IssueTags depending on which path produced it.
+	const tags = uniqueTags([...issueTagIds(detection.tags), 'clickbait']);
 
 	const destUrl = pickDestinationUrl(chunk, pageMetadata.url, originalTitle);
 	if (!destUrl || !originalTitle) {
@@ -278,7 +282,7 @@ function analyzeWithHeuristics(headline: string) {
 	const named = namedSignals(flags);
 
 	return {
-		problemScore: score,
+		problemScore: problemScoreFromFraction(score),
 		confidence: named.length >= 2 ? 0.75 : named.length === 1 ? 0.6 : 0.5,
 		// Product tag only; signal ids stay in metadata for diagnostics.
 		tags: isBait ? ['clickbait'] : [],
@@ -348,7 +352,7 @@ function parseAIResponse(responseText: string, headline = '') {
 	}
 	const score = Math.max(0, Math.min(1, parseFloat(scoreMatch[1])));
 	return {
-		problemScore: score,
+		problemScore: problemScoreFromFraction(score),
 		confidence: 0.5,
 		tags: score >= CLICKBAIT_THRESHOLD ? ['clickbait'] : [],
 		explanation: responseText.substring(0, 200),

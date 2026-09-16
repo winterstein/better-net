@@ -77,6 +77,10 @@ test('an SPA navigation gets analysed and labelled', async ({ context }) => {
     );
     expect(labelled).toContain('Lab Grown Meat Causes Cancer');
   } finally {
+    // close() waits for open sockets, and Chrome keeps the page's connection alive: the
+    // test body finished in ~3s and then sat here until the 180s test timeout, failing
+    // about half the runs. Drop the connections first.
+    server.closeAllConnections?.();
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });

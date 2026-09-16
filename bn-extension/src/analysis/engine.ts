@@ -3,6 +3,7 @@
  */
 
 import { ANALYSIS_MODULES, ANALYSIS_MODULE_IDS } from '../features/registry.js';
+import { hardSkipPageReason, routeChunk } from '../features/module-routing.js';
 import { traceStep, setAttributes, traceIds } from '../tracing/tracer-hook.js';
 import { logit } from '../utils/logger.js';
 import { completeModuleAnalysis } from '../types/ModuleAnalysis.js';
@@ -44,8 +45,23 @@ async function analyzeChunk(
   const analyses: ModuleAnalysis[] = [];
   const tasks = [];
 
+  // Classify before analyzing (specs/content-classification.md): settings say which
+  // modules the user wants, routing says which of them this chunk is worth spending on.
+  // Skips are traced, not silent — a missing analysis must be explainable in AIQA.
+  const pageSkip = hardSkipPageReason(pageMetadata);
+  const { run, skipped } = pageSkip
+    ? { run: [], skipped: Object.fromEntries(enabledFeatures.map((id) => [id, pageSkip])) }
+    : routeChunk(enabledFeatures, chunk, pageMetadata);
+  if (Object.keys(skipped).length) {
+    setAttributes(analysisOptions.trace, {
+      'betternet.routing.skipped': Object.entries(skipped)
+        .map(([id, reason]) => `${id}=${reason}`)
+        .join(','),
+    });
+  }
+
   for (const feature of ANALYSIS_MODULES) {
-    if (!enabledFeatures.includes(feature.id)) continue;
+    if (!run.includes(feature.id)) continue;
     tasks.push(
       traceStep(
         `betternet.feature.${feature.id}`,
@@ -108,8 +124,128 @@ async function analyzeChunk(
   };
 }
 
+/** One chunk, traced, with the feedback trace ids the modal needs attached. */
+async function analyzeTracedChunk(
+  chunk: Chunk,
+  pageMetadata: Partial<PageMetadata>,
+  analysisOptions: Partial<AnalysisOptions> & { enabledFeatures?: string[] }
+): Promise<ChunkAnalysis> {
+  return traceStep(
+    'betternet.analyze_chunk',
+    { parent: analysisOptions.trace, attributes: chunkAttributes(chunk) },
+    async (span) => {
+      const analysis = await analyzeChunk(chunk, pageMetadata, {
+        ...analysisOptions,
+        trace: span,
+      });
+      setAttributes(span, { output: chunkOutput(analysis) });
+      // The modal links feedback on this chunk (and on the chunker) to this trace.
+      const ids = traceIds(span);
+      analysis.traceId = ids?.traceId;
+      analysis.spanId = ids?.spanId;
+      return analysis;
+    }
+  );
+}
+
+/** Live counts for the Popup's chunk progress line (popup/popup.ts). */
+export interface ChunkQueueCounts {
+  /** Waiting for a free worker. */
+  queued: number;
+  /** Being analysed right now. */
+  active: number;
+  /** Finished, successfully or not. */
+  done: number;
+}
+
+export interface ChunkQueue {
+  /** Queue more chunks — allowed while the queue is running. */
+  add(chunks: Chunk[]): void;
+  /** Resolves when nothing is queued or in flight. Re-await it after another add(). */
+  idle(): Promise<void>;
+  counts(): ChunkQueueCounts;
+  /** Finished analyses, in the order the chunks were added. */
+  results(): ChunkAnalysis[];
+}
+
 /**
- * Analyze chunks in parallel batches.
+ * A worker pool over a queue the caller can push to while it is running.
+ *
+ * Chunks now arrive in batches rather than all at once: the content script holds back
+ * chunks that are off screen and releases them as they scroll into view
+ * (content/chunk-scheduler.ts). A fixed batch loop could not take work mid-flight, so a
+ * chunk released by a scroll waited for the whole batch — and on a long feed that is the
+ * one chunk the reader is looking at.
+ */
+export function createChunkQueue(
+  pageMetadata: Partial<PageMetadata> = {},
+  options: Partial<AnalysisOptions> & { enabledFeatures?: string[]; maxConcurrency?: number } = {},
+  onAnalysis?: (chunk: Chunk, result: ChunkAnalysis) => void
+): ChunkQueue {
+  const { maxConcurrency = 5, ...analysisOptions } = options;
+  /** Slot per submitted chunk, so results keep submission (= priority) order. */
+  const slots: (ChunkAnalysis | undefined)[] = [];
+  const waiting: { chunk: Chunk; slot: number }[] = [];
+  let active = 0;
+  let done = 0;
+  let idleWaiters: (() => void)[] = [];
+
+  function releaseIdle() {
+    if (active || waiting.length) return;
+    const waiters = idleWaiters;
+    idleWaiters = [];
+    for (const resolve of waiters) resolve();
+  }
+
+  async function runJob(job: { chunk: Chunk; slot: number }) {
+    try {
+      const result = await analyzeTracedChunk(job.chunk, pageMetadata, analysisOptions);
+      slots[job.slot] = result;
+      if (onAnalysis) onAnalysis(job.chunk, result);
+    } catch (error) {
+      // analyzeChunk() already absorbs per-feature failures, so this is the chunk itself
+      // failing. One bad chunk must not stall the rest of the page.
+      logit('warn', '[ANALYSIS] chunk failed:', error?.message ?? error);
+    }
+  }
+
+  function pump() {
+    while (active < maxConcurrency && waiting.length) {
+      const job = waiting.shift();
+      active += 1;
+      void runJob(job).then(() => {
+        active -= 1;
+        done += 1;
+        pump();
+        releaseIdle();
+      });
+    }
+  }
+
+  return {
+    add(chunks: Chunk[] = []) {
+      for (const chunk of chunks) {
+        waiting.push({ chunk, slot: slots.length });
+        slots.push(undefined);
+      }
+      pump();
+    },
+    idle() {
+      if (!active && !waiting.length) return Promise.resolve();
+      return new Promise<void>((resolve) => idleWaiters.push(resolve));
+    },
+    counts() {
+      return { queued: waiting.length, active, done };
+    },
+    results() {
+      return slots.filter(Boolean) as ChunkAnalysis[];
+    },
+  };
+}
+
+/**
+ * Analyze a fixed set of chunks, `maxConcurrency` at a time.
+ * Thin wrapper over createChunkQueue() for callers with the whole page in hand.
  */
 export async function analyzeChunksParallel(
   chunks: Chunk[],
@@ -117,37 +253,10 @@ export async function analyzeChunksParallel(
   options: Partial<AnalysisOptions> & { enabledFeatures?: string[]; maxConcurrency?: number } = {},
   onAnalysis?: (chunk: Chunk, result: ChunkAnalysis) => void
 ): Promise<ChunkAnalysis[]> {
-  const { maxConcurrency = 5, ...analysisOptions } = options;
-  const results: ChunkAnalysis[] = [];
-
-  for (let i = 0; i < chunks.length; i += maxConcurrency) {
-    const batch = chunks.slice(i, i + maxConcurrency);
-    const batchResults = await Promise.all(
-      batch.map(async (chunk) => {
-        const result = await traceStep(
-          'betternet.analyze_chunk',
-          { parent: analysisOptions.trace, attributes: chunkAttributes(chunk) },
-          async (span) => {
-            const analysis = await analyzeChunk(chunk, pageMetadata, {
-              ...analysisOptions,
-              trace: span,
-            });
-            setAttributes(span, { output: chunkOutput(analysis) });
-            // The modal links feedback on this chunk (and on the chunker) to this trace.
-            const ids = traceIds(span);
-            analysis.traceId = ids?.traceId;
-            analysis.spanId = ids?.spanId;
-            return analysis;
-          }
-        );
-        if (onAnalysis) onAnalysis(chunk, result);
-        return result;
-      })
-    );
-    results.push(...batchResults);
-  }
-
-  return results;
+  const queue = createChunkQueue(pageMetadata, options, onAnalysis);
+  queue.add(chunks);
+  await queue.idle();
+  return queue.results();
 }
 
 /** Span attributes identifying a chunk. Text length only, never the text itself. */

@@ -65,6 +65,14 @@
 
           <div class="setting-item">
             <label class="checkbox-label">
+              <input type="checkbox" id="analyze-on-screen-first">
+              <span><strong>Analyze what is on screen first</strong></span>
+            </label>
+            <span class="setting-description">Label the content you are reading sooner. Chunks below the fold are analysed as you scroll to them. Turn off to analyse the whole page at once.</span>
+          </div>
+
+          <div class="setting-item">
+            <label class="checkbox-label">
               <input type="checkbox" id="show-indicators">
               <span><strong>Show analysis indicators</strong></span>
             </label>
@@ -211,8 +219,8 @@
 
           <div class="setting-item">
             <label for="server-endpoint"><strong>Server endpoint</strong></label>
-            <span class="setting-description">bn-server base URL for feedback, cached analysis, and updates (e.g. http://localhost:3001)</span>
-            <input type="url" id="server-endpoint" placeholder="https://api.betternet.org" autocomplete="off">
+            <span class="setting-description">bn-server base URL for feedback, cached analysis, and updates. Leave blank for the default (https://server.better-net.com); use http://localhost:3001 against a local server.</span>
+            <input type="url" id="server-endpoint" placeholder="https://server.better-net.com" autocomplete="off">
           </div>
 
           <h3 class="subsection-title">AIQA tracing</h3>

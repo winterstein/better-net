@@ -1,5 +1,5 @@
 ---
-name: sdd
+name: spec-simple
 description: >-
   Simple spec-driven development for BetterNet. Collects requirements by talking
   to the user, then writes short human-friendly specs under
@@ -86,6 +86,7 @@ Stop asking once you can fill overview, examples, out-of-scope, and a rough buil
 ## Build plan
 
 1. {Small ordered steps — enough to start, not a novel}
+{Each step should have status: planning | building | MVP | done}
 
 ## Test plan
 

@@ -30,13 +30,21 @@ export function defaultModuleState() {
   );
 }
 
+/**
+ * bn-server base URL (bn-server/server.better-net.com.nginx). Feedback is switched off
+ * without one, so a blank default meant the Content Analysis modal showed no feedback
+ * controls at all until someone found Settings → Advanced. Keep in step with
+ * settings/defaults.ts (duplicated for bundling, see AGENTS.md).
+ */
+export const DEFAULT_SERVER_ENDPOINT = 'https://server.better-net.com';
+
 // TODO wtf is this code? it smells bogus
 export function mergeSettings(stored: any = {}) {
   const modules = { ...defaultModuleState(), ...(stored.modules || {}) };
   for (const m of MODULES) {
     modules[m.id] = { ...defaultModuleState()[m.id], ...(stored.modules?.[m.id] || {}) };
   }
-  return {
+  const merged = {
     analysisMode: 'local',
     localModelId: 'flan-t5-small',
     showIndicators: true,
@@ -52,12 +60,22 @@ export function mergeSettings(stored: any = {}) {
     developerMode: false,
     /** Debug aid: outline every chunk on the page. See content/chunk-overlay.ts. */
     showChunkOverlay: false,
+    // Analyse on-screen chunks first, deferring the rest until they scroll into view
+    // (content/chunk-scheduler.ts). Keep in step with settings/defaults.ts.
+    analyzeOnScreenFirst: true,
     demoMode: true, // TODO: set to false for production
     excludedSites: [],
     domainOverrides: {},
+    serverEndpoint: DEFAULT_SERVER_ENDPOINT,
     ...stored,
     modules,
   };
+  // A blank endpoint means "use the default": the options page stores '' for an empty
+  // field, which would otherwise pin every existing profile to no server for ever.
+  if (!String(merged.serverEndpoint || '').trim()) {
+    merged.serverEndpoint = DEFAULT_SERVER_ENDPOINT;
+  }
+  return merged;
 }
 
 /**

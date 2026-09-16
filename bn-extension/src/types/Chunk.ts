@@ -57,6 +57,19 @@ export function createChunk(data: Partial<Chunk> & { url: string; text: string }
 	} as Chunk;
 }
 
+/**
+ * Identity for de-duplicating a chunk within one page analysis, or '' when the chunk
+ * carries none (and so must be taken at face value).
+ *
+ * The xpath comes first because it is the one field that differs per element on a page:
+ * `fingerprint` is hash(url + title), so two untitled chunks on a page share one. Used
+ * where the same chunk can be offered twice — a chunk released by a scroll may already be
+ * queued (background/background.ts addChunks).
+ */
+export function chunkKey(chunk: Partial<Chunk>): string {
+	return String(chunk?.xpath || chunk?.id || chunk?.fingerprint || '');
+}
+
 export function fingerprint(chunk: Chunk): string {
 	const ftext = chunk.url + (chunk.title || "");
 	return hash(ftext);

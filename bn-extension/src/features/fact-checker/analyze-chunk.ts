@@ -23,7 +23,7 @@ export async function analyzeChunk(chunk, pageMetadata: any = {}, options: any =
     logit('warn', '[factChecker] analysis failed:', error.message);
     return {
       error: error.message,
-      problemScore: 0,
+      problemScore: 'low',
       confidence: 0,
       tags: [],
       explanation: `Fact check unavailable: ${error.message}`,

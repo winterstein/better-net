@@ -669,6 +669,7 @@ class SettingsController {
     setValue('aiqa-organisation-id', s.aiqaOrganisationId || '');
     setValue('aiqa-sampling-rate', String(s.aiqaSamplingRate ?? 1));
     setChecked('developer-mode', developerModeFromSettings(s));
+    setChecked('analyze-on-screen-first', s.analyzeOnScreenFirst !== false);
     setChecked('show-chunk-overlay', !!s.showChunkOverlay);
     setDeveloperMode(developerModeFromSettings(s));
   }
@@ -690,6 +691,7 @@ class SettingsController {
       analysisMode: document.getElementById('analysis-mode').value,
       localModelId: document.getElementById('local-model-id').value,
       autoAnalyze: document.getElementById('auto-analyze').checked,
+      analyzeOnScreenFirst: document.getElementById('analyze-on-screen-first').checked,
       showIndicators: document.getElementById('show-indicators').checked,
       nutrientLabelMinRisk: document.getElementById('nutrient-label-min-risk').value,
       BN_OPENAI_API_KEY: document.getElementById('openai-key').value.trim(),

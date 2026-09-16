@@ -8,10 +8,29 @@ import { extractClaims } from './extract-claims.js';
 import type { ModuleAnalysis } from '../../types/ModuleAnalysis.js';
 import { getGoogleFactCheckKey } from '../../utils/env-utils.js';
 import { logit } from '../../utils/logger.js';
+import { normalizeIssueTags, problemScoreFromFraction } from '../../types/Score.js';
 
 const FACT_CHECK_API_BASE = 'https://factchecktools.googleapis.com/v1alpha1';
 const MAX_CLAIMS_TO_CHECK = 3; // Limit number of claims to check per chunk
 const MIN_CLAIM_LENGTH = 10; // Minimum length for a claim to be worth checking
+
+/** How one claim's lookup went. `unverified` is the common case: nobody has fact-checked it. */
+export type ClaimCheckStatus = 'checked' | 'unverified' | 'error';
+
+/**
+ * One extracted claim and what came back for it. Every claim we looked at gets one of
+ * these, including the ones nothing came back for — the modal and the popup list them,
+ * and a claim missing from the list reads as a claim we never checked.
+ */
+export interface ClaimCheck {
+	claim: string;
+	status: ClaimCheckStatus;
+	/** Matching fact-checked claims from Google, each with its own `claimReview` list. */
+	factChecks: unknown[];
+	totalResults: number;
+	/** Why the lookup failed, when `status` is `error`. */
+	error?: string;
+}
 
 /**
  * Search for fact-checks related to a claim
@@ -156,7 +175,7 @@ export async function factCheckContent(chunk, pageMetadata: any = {}, options: a
 
   if (!apiKey) {
     return {
-      problemScore: 0.5,
+      problemScore: problemScoreFromFraction(0.5),
       confidence: 0.0,
       tags: [],
       explanation: 'Google Fact Check API key not configured',
@@ -167,7 +186,7 @@ export async function factCheckContent(chunk, pageMetadata: any = {}, options: a
   const text = chunk.text || '';
   if (text.length < MIN_CLAIM_LENGTH) {
     return {
-      problemScore: 0.5,
+      problemScore: problemScoreFromFraction(0.5),
       confidence: 0.0,
       tags: [],
       explanation: 'Content too short to fact-check',
@@ -180,40 +199,58 @@ export async function factCheckContent(chunk, pageMetadata: any = {}, options: a
   
   if (claims.length === 0) {
     return {
-      problemScore: 0.2,
+      problemScore: problemScoreFromFraction(0.2),
       confidence: 0.6,
-      tags: ['no-claims'],
+      tags: normalizeIssueTags(['no-claims'], 'high', 0.6),
       explanation: 'No verifiable claims found in content',
       metadata: { factChecks: [] },
     } satisfies Partial<ModuleAnalysis>;
   }
 
-  // Search for fact-checks for each claim
-  const factCheckResults = [];
+  // Search for fact-checks for each claim. Every claim gets an entry, matched or not:
+  // "we looked and found nothing" is a different thing to say than saying nothing.
+  const claimChecks: ClaimCheck[] = [];
   let totalRatingScore = 0;
   let checkedClaims = 0;
 
   for (const claim of claims.slice(0, maxClaims)) {
+    let result;
     try {
-      const result = await searchFactChecks(claim, apiKey, languageCode);
-      
-      if (result.claims && result.claims.length > 0) {
-        factCheckResults.push({
-          claim,
-          factChecks: result.claims,
-          totalResults: result.totalResults
-        });
-
-        // Use the first claim's rating as representative
-        if (result.claims[0].ratingScore !== undefined) {
-          totalRatingScore += result.claims[0].ratingScore;
-          checkedClaims++;
-        }
-      }
+      result = await searchFactChecks(claim, apiKey, languageCode);
     } catch (error) {
       console.error('[BetterNet] [FACT_CHECK] Error checking claim:', claim, error);
+      claimChecks.push({ claim, status: 'error', factChecks: [], totalResults: 0, error: error.message });
+      continue;
+    }
+
+    const matches = result.claims ?? [];
+    if (matches.length === 0) {
+      claimChecks.push({
+        claim,
+        // searchFactChecks reports a failed lookup rather than throwing, so an error here
+        // means "we could not check", not "nobody has checked it".
+        status: result.error ? 'error' : 'unverified',
+        factChecks: [],
+        totalResults: 0,
+        error: result.error,
+      });
+      continue;
+    }
+
+    claimChecks.push({
+      claim,
+      status: 'checked',
+      factChecks: matches,
+      totalResults: result.totalResults ?? matches.length,
+    });
+    // Use the first match's rating as representative
+    if (matches[0].ratingScore !== undefined) {
+      totalRatingScore += matches[0].ratingScore;
+      checkedClaims++;
     }
   }
+
+  const factCheckResults = claimChecks.filter((c) => c.factChecks.length > 0);
 
   // Calculate overall score
   // Lower score = more false/misleading (inverted for fake news detection)
@@ -223,8 +260,8 @@ export async function factCheckContent(chunk, pageMetadata: any = {}, options: a
 
   const tags: string[] = [];
   const metadata: Record<string, unknown> = {
-    factChecks: factCheckResults,
-    claimsChecked: claims.length,
+    factChecks: claimChecks,
+    claimsChecked: claimChecks.length,
     factChecksFound: factCheckResults.length,
     averageRating: avgRating,
   };
@@ -239,30 +276,37 @@ export async function factCheckContent(chunk, pageMetadata: any = {}, options: a
     tags.push('verified-claims');
   }
 
-  const explanation = generateExplanation(factCheckResults, avgRating, fakeNewsScore);
+  const explanation = generateExplanation(claimChecks, avgRating);
 
   return {
-    problemScore: fakeNewsScore,
+    problemScore: problemScoreFromFraction(fakeNewsScore),
     confidence: factCheckResults.length > 0 ? 0.8 : 0.3,
-    tags,
+    tags: normalizeIssueTags(tags, 'medium', 0.6),
     explanation,
     metadata,
   } satisfies Partial<ModuleAnalysis>;
 }
 
 /**
- * Generate explanation from fact-check results
- * @param {Array<Object>} factCheckResults - Fact-check results
+ * Generate explanation from fact-check results. Says how many claims were looked up, so
+ * "nothing found" reads as a search that happened rather than a module that did nothing.
+ * @param {ClaimCheck[]} claimChecks - Every claim looked up, matched or not
  * @param {number} avgRating - Average rating score
- * @param {number} fakeNewsScore - Calculated fake news score
  * @returns {string} Human-readable explanation
  */
-function generateExplanation(factCheckResults, avgRating, fakeNewsScore) {
-  if (factCheckResults.length === 0) {
-    return 'No fact-checks found for claims in this content. Unable to verify claims independently.';
+function generateExplanation(claimChecks: ClaimCheck[], avgRating: number): string {
+  const matched = claimChecks.filter((c) => c.factChecks.length > 0);
+  const failed = claimChecks.filter((c) => c.status === 'error');
+
+  if (matched.length === 0) {
+    const claimCount = `${claimChecks.length} claim${claimChecks.length === 1 ? '' : 's'}`;
+    if (failed.length === claimChecks.length && failed.length > 0) {
+      return `Could not reach fact-check sources for ${claimCount} in this content. Unable to verify independently.`;
+    }
+    return `Checked ${claimCount} against fact-check sources; none of them have been fact-checked. Unable to verify independently.`;
   }
 
-  const totalChecks = factCheckResults.reduce((sum, result) => sum + result.totalResults, 0);
+  const totalChecks = matched.reduce((sum, result) => sum + result.totalResults, 0);
   
   if (avgRating < 0.3) {
     return `Fact-checked: Found ${totalChecks} fact-check(s) indicating claims are mostly FALSE or MISLEADING. Exercise extreme caution.`;

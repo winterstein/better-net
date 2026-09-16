@@ -26,6 +26,13 @@ export default defineConfig({
       timeout: 180_000,
     },
     {
+      name: 'live-status',
+      testMatch: '**/live-status.spec.ts',
+      // A long page analysed on the default local heuristics, plus a popup round-trip.
+      timeout: 180_000,
+      dependencies: ['smoke'],
+    },
+    {
       name: 'e2e',
       testMatch: '**/fixtures.spec.ts',
       dependencies: ['smoke'],

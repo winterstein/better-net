@@ -63,4 +63,45 @@ assert(
   'ad class still infers advert on long text'
 );
 
+/*
+ * Chunk identity. finalizeChunk is the one place every extractor's chunks pass through, so
+ * it is where url + fingerprint get set. Nothing in the chunker called createChunk(), so
+ * chunks from real pages used to arrive with both undefined — which silently hid the
+ * Content Analysis modal's feedback controls (it needs a fingerprint) and left bn-server
+ * with no key for the chunk row. See specs/feedback.md.
+ */
+const bare = finalizeChunk(
+  { text: 'A story about something that happened', title: 'A headline' },
+  { url: 'https://news.example.com/story' }
+);
+assert(bare.url === 'https://news.example.com/story', 'finalizeChunk sets the chunk url');
+assert(!!bare.fingerprint, 'finalizeChunk fingerprints the chunk');
+
+// Same url + title is the same chunk across page loads: that is what the fingerprint is for.
+const again = finalizeChunk(
+  { text: 'A story about something that happened, reworded', title: 'A headline' },
+  { url: 'https://news.example.com/story' }
+);
+assert(again.fingerprint === bare.fingerprint, 'fingerprint is stable across an edit to the body');
+
+// A different page, or a retitled one, is a different chunk.
+assert(
+  finalizeChunk({ text: 'x', title: 'A headline' }, { url: 'https://news.example.com/other' })
+    .fingerprint !== bare.fingerprint,
+  'a different page is a different chunk'
+);
+assert(
+  finalizeChunk({ text: 'x', title: 'Another headline' }, { url: 'https://news.example.com/story' })
+    .fingerprint !== bare.fingerprint,
+  'a retitled chunk is a different chunk'
+);
+
+// An extractor that already knows the identity keeps it.
+const preset = finalizeChunk(
+  { text: 'x', title: 'T', url: 'https://a.example/1', fingerprint: 'given' },
+  { url: 'https://b.example/2' }
+);
+assert(preset.url === 'https://a.example/1', 'an existing chunk url is not overwritten');
+assert(preset.fingerprint === 'given', 'an existing fingerprint is not overwritten');
+
 console.log('✅ chunk-tags tests passed');

@@ -32,6 +32,23 @@
   rows. Quizzes are scored 0 — engagement bait, but with no withheld answer on a destination
   page there is nothing honest to put in the brackets
 - Popup: expand page chunks list; click chunk to highlight on page
+- **Analysis scheduling** (`specs/analysis-scheduling.md`): the first label arrives sooner on
+  a long page. Chunks are analysed biggest-and-highest-first
+  (`content/chunk-scheduler.ts`), chunks below the fold wait until they scroll into view
+  (IntersectionObserver, 600px margin; off switch in Settings -> AI Model; a chunk with no
+  box on the page cannot be observed, so it is analysed at once rather than lost), and the
+  background analyses them as a stream of passes over a queue that takes work mid-flight
+  (`analysis/engine.ts` createChunkQueue) rather than one fixed batch. Each pass publishes a
+  cumulative result, so the popup shows live counts — found / analysed / in progress /
+  waiting until you scroll — and results that fill in as the page is read. A superseded page
+  view (SPA navigation) no longer publishes its results over the current page. Demo pages
+  are exempt from gating, so recordings analyse the whole page at once
+- **Nutrient Label headline**: the badge (and the modal's "Overall") reads the worst module
+  score, not the mean of all of them, from the same bands as the traffic light
+  (`riskLevelForScore`). Averaging let a mild module cancel a severe one — a chunk with a
+  published fact-check against it (high) plus a medium manipulation score averaged to 0.625
+  and read "Caution" beside a red light. It is also the wrong reading: a false claim is not
+  less false because the page is politely written
 - **Nutrient Label threshold**: Settings -> AI Model -> *Label content rated* picks the lowest risk band that earns a label (Safe / Caution / High Risk). Default Caution, so safe chunks are unlabelled. Bands live in `src/types/RiskLevel.ts` and drive both the traffic light and the threshold; changes apply to open tabs without a reload
 - **Chunk overlay** (debug aid, Settings -> Advanced -> *Show chunk overlay*): draws a
   transparent coloured box with `#index chunk-id` over every chunk the page produced, so
