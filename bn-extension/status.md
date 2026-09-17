@@ -9,7 +9,8 @@
   (`strength` high|medium|low|none, `problemScore` high|medium|low — see `terminology.md` /
   `types/Score.ts`); feedback target is `module` (legacy `aspect` accepted by bn-server).
   Chunk roles use `chunk-type:…` on `chunk.tags[]`; Ad Blocker `advert` / `sponsored` are
-  modifiers on the same array.
+  modifiers on the same array, as is `product` (the chunk offers something for sale — a shop
+  listing, or a commercial landing page's main chunk).
 - **Content classification — routing + page type**: `specs/content-classification.md`.
   Vocabularies in `types/Classification.ts` (site / page / chunk role / modifier, each answer
   carrying confidence + which classifier said so, gated at 0.5). `features/module-routing.ts`
@@ -17,7 +18,9 @@
   veto it, and the page types it must not touch; `registry.ts` exposes it as `appliesTo` and
   `engine.ts` enforces it, recording every skip on the chunk span as
   `betternet.routing.skipped` so a missing analysis is explainable in AIQA. Adverts no
-  longer get fact-checked, bias-checked, or unbaited. `classify/page-type.ts` derives page
+  longer get fact-checked, bias-checked, or unbaited, and a `product` chunk gets the
+  fact-check and the dark-pattern check but not bias or toxicity — nothing assigns that
+  modifier automatically yet, but the modal offers it and routing honours it. `classify/page-type.ts` derives page
   type in the content script — password field / checkout-login URL first, then JSON-LD
   `@type`, `og:type`, URL shape, DOM shape — and a confident `login` or `checkout` page gets
   no content analysis at all, with the reason shown in the popup's diagnostics banner.
@@ -407,7 +410,9 @@ exactly what they lack. Keep them, but add new coverage as pages.
   chunker only ever assigns `article` / `post` / `search_result` / `other`: measured on
   `test-data/pages/`, 0 of 550 module calls are routed out. Next, in order of value:
   chunk roles from element semantics (`form`, `cta`, `cookie_banner`, `modal`,
-  `headline_link` — the last is Click Unbait's real target and currently lands in `other`);
+  `headline_link` — the last is Click Unbait's real target and currently lands in `other`),
+  and with them the `product` modifier from price patterns + buy/add-to-cart semantics with
+  the `product` page type as a prior;
   then site type from a shipped UT1 bundle, which is what turns on the "no analysis on
   banking apps" rule; then topic (IAB Tier 1) for `primaryTopic`, still hardcoded
   `'unknown'`. A labelled page/chunk set is the gate for any of it — the metric is the two

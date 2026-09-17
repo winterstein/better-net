@@ -2,7 +2,13 @@
  * Chunk tag helper tests.
  */
 
-import { TAG, hasTag, inferAdvert, finalizeChunk } from '../src/chunking/chunk-tags.js';
+import {
+  TAG,
+  hasTag,
+  inferAdvert,
+  finalizeChunk,
+  setContentTags,
+} from '../src/chunking/chunk-tags.js';
 
 function assert(condition, message) {
   if (!condition) {
@@ -62,6 +68,17 @@ assert(
   inferAdvert({ text: article.text, metadata: { classes: ['ad-slot'] } }),
   'ad class still infers advert on long text'
 );
+
+// --- setContentTags replaces the role and keeps every modifier: a product offer that gets
+// re-tagged as an article is still a product offer (types/Classification.ts) ---
+const retagged = setContentTags(
+  { tags: [TAG.OTHER, TAG.PRODUCT, TAG.ADVERT] },
+  [TAG.ARTICLE]
+);
+assert(hasTag(retagged, TAG.ARTICLE), 'setContentTags applies the new role');
+assert(!hasTag(retagged, TAG.OTHER), 'setContentTags drops the old role');
+assert(hasTag(retagged, TAG.PRODUCT), 'setContentTags keeps the product modifier');
+assert(hasTag(retagged, TAG.ADVERT), 'setContentTags keeps the advert modifier');
 
 /*
  * Chunk identity. finalizeChunk is the one place every extractor's chunks pass through, so

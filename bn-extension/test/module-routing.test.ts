@@ -37,6 +37,30 @@ assert.equal(moduleSkipReason('factChecker', { tags: [TAG.POST, TAG.ADVERT] }), 
 // `sponsored` is disclosed editorial content, not an ad slot — it stays analyzable.
 assert.deepEqual(runsOn([TAG.ARTICLE, TAG.SPONSORED]).includes('factChecker'), true);
 
+// --- `product`: content that offers something for sale. Fact-checked ("clinically
+// proven") and checked for dark patterns; not read for bias or toxicity, matching how the
+// `product` page type already routes ---
+
+assert.deepEqual(runsOn([TAG.ARTICLE, TAG.PRODUCT]), [
+	'factChecker',
+	'antiManipulation',
+	'clickUnbait',
+]);
+assert.equal(
+	moduleSkipReason('biasDetector', { tags: [TAG.ARTICLE, TAG.PRODUCT] }),
+	'modifier:product'
+);
+assert.equal(
+	moduleSkipReason('defuseRagebait', { tags: [TAG.POST, TAG.PRODUCT] }),
+	'modifier:product'
+);
+// The main chunk of a commercial landing page: the modifier must not cost it a fact-check.
+assert.equal(moduleSkipReason('factChecker', { tags: [TAG.ARTICLE, TAG.PRODUCT] }), null);
+// A shop listing tile — the role is claimed by anti-manipulation, the modifier adds nothing.
+assert.deepEqual(runsOn(['chunk-type:product_card', TAG.PRODUCT]), ['antiManipulation']);
+// Stacks with advert, and the stricter skip wins.
+assert.deepEqual(runsOn([TAG.ARTICLE, TAG.PRODUCT, TAG.ADVERT]), ['antiManipulation']);
+
 // --- roles ---
 
 assert.deepEqual(runsOn([TAG.ARTICLE]), ALL);

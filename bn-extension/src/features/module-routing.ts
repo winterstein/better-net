@@ -45,22 +45,28 @@ export const MODULE_ROUTING: Record<string, AppliesTo> = {
 		roles: ['article', 'post', 'comment', 'search_result', 'headline_link', 'review'],
 		// Adverts do carry false health and investment claims, but the text we can reach is
 		// usually a brand name and a disclosure label — the claim lives in the image. Revisit
-		// when ad chunks can capture the creative.
+		// when ad chunks can capture the creative. `product` is deliberately not here: a
+		// sales pitch is where "clinically proven" lives, and unlike an ad slot the claim is
+		// in text we can read.
 		skipModifiers: ['advert'],
 		skipPages: ['checkout', 'login', 'app', 'form', 'profile', 'error'],
 	},
 	biasDetector: {
 		roles: ['article', 'post', 'comment', 'search_result', 'headline_link'],
-		skipModifiers: ['advert'],
+		// `product`, like the page type of the same name: sales copy is one-sided by
+		// definition, so calling it biased is noise rather than news.
+		skipModifiers: ['advert', 'product'],
 		skipPages: ['checkout', 'login', 'app', 'product', 'form', 'error'],
 	},
 	antiManipulation: {
 		// The inversion of the fact-check list: the one feature that wants the transactional
-		// furniture, and the one that copes with unstructured UI.
+		// furniture, and the one that copes with unstructured UI. A `product` modifier is a
+		// prior here rather than a gate — the roles it lands on are already allowed.
 		roles: [...TRANSACTIONAL, 'cookie_banner', 'paywall', 'modal', 'post', 'article'],
 	},
 	defuseRagebait: {
 		roles: ['post', 'comment', 'article', 'headline_link'],
+		skipModifiers: ['product'],
 		skipPages: ['checkout', 'login', 'app', 'product', 'error'],
 	},
 	clickUnbait: {

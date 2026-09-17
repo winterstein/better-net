@@ -26,6 +26,8 @@ Built:
   0.5 confidence gate. `chunkRole()` / `chunkModifiers()` read them off `chunk.tags[]`.
 - `src/types/Tag.ts` — role tags and modifier tags are now separate lists, derived from
   those vocabularies. `chunk-type:video` is kept as a legacy alias of the `media` role.
+  `setContentTags` preserves every modifier when a chunk's role is rewritten, so re-tagging
+  cannot drop `advert` or `product`.
 - `src/features/module-routing.ts` — the routing matrix below, one table, plus
   `moduleSkipReason()` / `routeChunk()`. Attached to each entry in `registry.ts` as
   `appliesTo`, enforced in `engine.ts`; skips go on the chunk span as
@@ -48,6 +50,11 @@ Not built:
   are declared and never assigned. Measured on `test-data/pages/`: 0 of 550 module calls are
   routed out, because those pages only produce `article`, `post`, and `other` chunks. What
   routing removes today is adverts (3 modules) on real feeds, which the saved pages lack.
+- No detector for the `product` modifier. It is in the vocabulary, routed (fact-check and
+  anti-manipulation yes, bias and ragebait no), and offerable in the Content Analysis modal
+  so a user can apply it — but nothing assigns it automatically yet. Price patterns plus
+  buy/add-to-cart button semantics are the cheap heuristic, and the `product` page type is
+  the prior. Same state as `ugc`, `paywalled`, and `countdown`.
 - No site type: no UT1 bundle, no `siteType` producer, so `skipSites` and the
   "`app` / `finance` unless opted in" rule are declared but dormant.
 - No topic: `ChunkAnalysis.primaryTopic` is still hardcoded `'unknown'` in `engine.ts`.
@@ -161,6 +168,10 @@ Modifier tags (orthogonal, may stack):
 
 - advert — paid placement (existing behaviour, keep as modifier)
 - sponsored — disclosed native/affiliate content
+- product — offers something for sale: a shop listing, or the main chunk of a commercial
+  landing page. Commercial intent, so a modifier rather than a role: a landing page's pitch
+  is still an `article` we want fact-checked, and `product_card` is the narrower structural
+  thing (an item tile in a grid). The chunk-level counterpart of the `product` page type.
 - ugc — user-generated
 - paywalled — truncated behind a wall
 - countdown — contains a live timer or scarcity counter
@@ -185,6 +196,8 @@ factChecker (accuracy)
 - Skip roles: form, cta, cookie_banner, paywall, modal, nav, media, product_card, sidebar
 - Skip modifiers: advert
 - Skip pages: checkout, login, app, form, profile, error
+- `product` is not skipped: a sales pitch is where "clinically proven" lives, and unlike an
+  ad slot the claim is in text we can read
 - Raise sensitivity on health, finance, and elections topics
 - Adverts are skipped for now, despite false health and investment claims being a wanted
   target. Ad slots are inserted dynamically and carry their claim in the image, so the text
@@ -194,17 +207,21 @@ factChecker (accuracy)
 biasDetector
 - Chunk roles: article, post, comment, search_result, headline_link
 - Skip roles: everything transactional or furniture
+- Skip modifiers: advert, product — sales copy is one-sided by definition, so calling it
+  biased is noise; the same reasoning as the `product` page skip below it
 - Skip pages: checkout, login, app, product, form, error
 
 antiManipulation (scams, dark patterns)
 - Chunk roles: form, cta, cookie_banner, paywall, modal, product_card, advert, post, article
 - Skip roles: nav, comment, search_result, media
+- The `product` modifier is a prior, not a gate: the roles it lands on are already allowed
 - Priority pages: checkout, product, form, login — the inversion of the fact-check list
 - The `countdown` modifier is a strong prior, not a verdict: real deadlines exist
 
 defuseRagebait (toxicity)
 - Chunk roles: post, comment, article, headline_link
 - Skip roles: form, cta, product_card, nav, cookie_banner, paywall, media
+- Skip modifiers: product
 - Skip pages: checkout, login, app, product, error
 
 clickUnbait

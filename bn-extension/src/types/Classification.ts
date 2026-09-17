@@ -103,8 +103,24 @@ export const ASSIGNED_CHUNK_ROLES: ChunkRole[] = [
 	'other',
 ];
 
-/** Orthogonal to role; may stack. `advert` / `sponsored` come from the Ad Blocker. */
-export const CHUNK_MODIFIERS = ['advert', 'sponsored', 'ugc', 'paywalled', 'countdown'] as const;
+/**
+ * Orthogonal to role; may stack. `advert` / `sponsored` come from the Ad Blocker.
+ *
+ * `product` is commercial intent, not structure: the chunk offers something for sale — a
+ * shop listing, or the main chunk of a commercial landing page. A modifier rather than a
+ * role because a role is exactly-one, and a landing page's pitch is still an `article` (or
+ * `other`) that we want fact-checked; the `product_card` role is the narrower thing, an
+ * item tile in a grid. It is the chunk-level counterpart of the `product` page type, and
+ * routes the same way: anti-manipulation's home ground, no bias or toxicity check.
+ */
+export const CHUNK_MODIFIERS = [
+	'advert',
+	'sponsored',
+	'product',
+	'ugc',
+	'paywalled',
+	'countdown',
+] as const;
 
 export type ChunkModifier = (typeof CHUNK_MODIFIERS)[number];
 

@@ -6,6 +6,7 @@ import { isLikelyAdElement } from './chunking-fixed-patterns.js';
 import { ensureChunkTitle } from './chunk-title.js';
 import { fingerprint } from '../types/Chunk.js';
 import { findElementByXPath } from '../utils/utils.js';
+import { CHUNK_MODIFIERS } from '../types/Classification.js';
 import {
   isFacebookHost,
   isFacebookSponsoredPost,
@@ -18,6 +19,8 @@ import {
 export const TAG = {
   ADVERT: 'advert',
   SPONSORED: 'sponsored',
+  /** Offers something for sale — a shop listing, or a landing page's pitch. A modifier. */
+  PRODUCT: 'product',
   ARTICLE: 'chunk-type:article',
   POST: 'chunk-type:post',
   SEARCH_RESULT: 'chunk-type:search_result',
@@ -34,6 +37,9 @@ const ROLE_TAGS = new Set([
   TAG.SIDEBAR,
   TAG.OTHER,
 ]);
+
+/** The full modifier vocabulary, so setContentTags does not have to list them by hand. */
+const MODIFIER_TAGS: ReadonlySet<string> = new Set(CHUNK_MODIFIERS);
 
 /** Labels an ad unit puts on itself. Matched as a label, never as prose — see
  *  isLikelyAdFromChunkText. */
@@ -66,14 +72,16 @@ export function addTag(chunk, tag) {
 }
 
 /**
+ * Replace the chunk's role tags, keeping every modifier it already carries. Modifiers are
+ * orthogonal to the role (types/Classification.ts), so re-tagging a chunk's role must not
+ * drop the fact that it is an advert or a product offer.
+ *
  * @param {object} chunk
  * @param {ChunkTag[]} tags
  */
 export function setContentTags(chunk, tags) {
-  const withoutContent = (chunk.tags || []).filter(
-    (t) => t === TAG.ADVERT || t === TAG.SPONSORED
-  );
-  chunk.tags = [...new Set([...tags, ...withoutContent])];
+  const modifiers = (chunk.tags || []).filter((t) => MODIFIER_TAGS.has(t));
+  chunk.tags = [...new Set([...tags, ...modifiers])];
   return chunk;
 }
 

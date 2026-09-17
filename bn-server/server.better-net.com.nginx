@@ -2,6 +2,22 @@
 # Copy or symlink into nginx sites-available; enable site; reload nginx.
 # DNS: point server.better-net.com (or api.betternet.org) at the server IP.
 
+# Force HTTPS for the production name only. localserver.better-net.com is a local
+# dev alias (resolves to this host) and is served over plain HTTP, since no
+# Let's Encrypt cert covers it.
+map "$scheme://$host" $bn_force_https {
+	default "";
+	"http://server.better-net.com" "1";
+}
+
+# HSTS is sticky - browsers honour it for the whole max-age - so send it only for
+# the production name over TLS. Sending it for localserver would pin that alias to
+# HTTPS in every developer's browser for a year.
+map "$scheme://$host" $bn_hsts {
+	default "";
+	"https://server.better-net.com" "max-age=31536000";
+}
+
 server {
 	server_name server.better-net.com localserver.better-net.com;
 
@@ -14,26 +30,88 @@ server {
 	absolute_redirect off;
 	port_in_redirect off;
 
-	# Adjust cert paths after certbot (e.g. certbot certonly -d server.better-net.com)
-	ssl_certificate /etc/letsencrypt/live/better-net.com/fullchain.pem;
-	ssl_certificate_key /etc/letsencrypt/live/better-net.com/privkey.pem;
+	# Cert issued 2026-09-17 via `certbot certonly --nginx -d server.better-net.com`,
+	# expires 2026-12-16, auto-renewed by certbot's scheduled task.
+	#
+	# Renewal uses the nginx authenticator (see /etc/letsencrypt/renewal/
+	# server.better-net.com.conf), which injects an exact-match
+	# `location = /.well-known/acme-challenge/<token>` into this server block at
+	# renewal time. Exact-match locations win over the `location /` prefix below, so
+	# the force-HTTPS redirect does not shadow the challenge. There is deliberately
+	# no webroot ACME location here - nothing would use it.
+	#
+	# Keep server.better-net.com DNS-only in Cloudflare: a proxied API hostname caps
+	# origin responses at ~100s, which the long analysis timeouts below need.
+	#
+	# Run `sudo nginx -t` before reloading. nginx config load is atomic, so a bad
+	# cert path here is [emerg] and takes every other vhost on this shared host down
+	# with it - not just this one.
+	#
+	# nginx on this host is 1.24.0, so `listen ... http2` is correct here. Do not
+	# switch to the newer `http2 on;` directive - that needs nginx >= 1.25.1.
+	ssl_certificate /etc/letsencrypt/live/server.better-net.com/fullchain.pem;
+	ssl_certificate_key /etc/letsencrypt/live/server.better-net.com/privkey.pem;
 	ssl_protocols TLSv1.2 TLSv1.3;
 	ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
 	ssl_prefer_server_ciphers off;
 
 	large_client_header_buffers 4 32k;
+	# Analysis requests POST page text, feedback carries chunk content.
+	client_max_body_size 2m;
 
-	add_header X-Frame-Options SAMEORIGIN always;
+	# Every response header lives in the location block below: nginx inherits
+	# add_header into a location only if that location sets none of its own, so a
+	# server-level add_header here would be silently dropped for all API traffic.
 
 	location / {
-		proxy_pass http://localhost:3001;
+		# Production name only - see $bn_force_https. Must come before the preflight
+		# branch: browsers treat a redirected preflight as a CORS failure, so plain
+		# HTTP is simply not a supported way to reach the production API.
+		if ($bn_force_https) {
+			return 301 https://$host$request_uri;
+		}
+
+		# CORS preflight: answered here because Fastify registers no OPTIONS routes,
+		# so a proxied preflight would 404. add_header inside `if` likewise replaces
+		# the enclosing level's headers, hence the repeated CORS set.
+		if ($request_method = OPTIONS) {
+			add_header 'Access-Control-Allow-Origin' $http_origin always;
+			add_header 'Access-Control-Allow-Methods' 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS' always;
+			# Requested headers are reflected rather than listed: extension and future
+			# clients send varying headers, and a fixed list would silently block them.
+			# Safe to be open here because credentials are not allowed (see below).
+			add_header 'Access-Control-Allow-Headers' $http_access_control_request_headers always;
+			add_header 'Access-Control-Max-Age' 86400 always;
+			add_header 'Vary' 'Origin' always;
+			return 204;
+		}
+
+		# 127.0.0.1 not localhost: localhost resolves to ::1 as well as 127.0.0.1 on
+		# a dual-stack host, and Fastify binds 0.0.0.0 (IPv4 only) - see src/server.ts.
+		proxy_pass http://127.0.0.1:3001;
+		# 1.1 + empty Connection keeps the upstream connection alive and allows
+		# chunked/streamed responses. nginx defaults to HTTP/1.0 without this.
+		proxy_http_version 1.1;
+		proxy_set_header Connection "";
 		proxy_set_header X-Real-IP $remote_addr;
 		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 		proxy_set_header Host $http_host;
 		proxy_set_header X-Forwarded-Proto $scheme;
-		add_header 'Access-Control-Allow-Origin' "$http_origin";
-		add_header 'Access-Control-Allow-Credentials' 'true';
-		add_header 'Cache-Control' 'no-cache';
+
+		# `always` so 4xx/5xx carry CORS too, otherwise browser callers see an opaque
+		# CORS failure instead of the real status.
+		#
+		# The origin is reflected but Access-Control-Allow-Credentials is deliberately
+		# NOT set: this API has no cookie or session auth, and reflecting any origin
+		# *while* allowing credentials would let any website make authenticated calls.
+		# If cookie/token auth is ever added, replace $http_origin with an allowlist.
+		add_header 'Access-Control-Allow-Origin' $http_origin always;
+		add_header 'Vary' 'Origin' always;
+		add_header 'Cache-Control' 'no-cache' always;
+		add_header Strict-Transport-Security $bn_hsts always;
+		# DENY not SAMEORIGIN: this host serves JSON only, nothing should be framed.
+		add_header X-Frame-Options DENY always;
+
 		# Long-running analysis requests (LLM calls)
 		proxy_read_timeout 600s;
 		proxy_connect_timeout 60s;

@@ -16,7 +16,7 @@ Five targets in the **Content Analysis** modal, rated in one of two ways:
 | Target | Where | How it is rated |
 | --- | --- | --- |
 | `module` | One per module card (Fact Checker, Bias, Click Unbait, …) | **Tag editing.** Its tags are what it asserts, so they are what you correct. |
-| `chunk` | This chunk's header | **Both.** Tag editing for its own tags (`chunk-type:…`, `advert`, `sponsored`), and a thumb for the region itself. |
+| `chunk` | This chunk's header | **Both.** Tag editing for its own tags (`chunk-type:…`, `advert`, `sponsored`, `product`), and a thumb for the region itself. |
 | `summary` | Chunk summary + overall risk score | **Thumb.** A verdict with no tags of its own. |
 | `chunker` | Modal footer, page-level | **Thumb.** How the page was split. |
 | `page` | Modal footer, page-level | **Tag editing**, as a select: the page's `page-type:…` tag (specs/content-classification.md). |

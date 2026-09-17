@@ -46,6 +46,7 @@ export const CHUNK_TAG_SPECS: TagSpec[] = [
 	{ id: 'chunk-type:other', label: 'Other' },
 	{ id: 'advert', label: 'Advert' },
 	{ id: 'sponsored', label: 'Sponsored / advertorial' },
+	{ id: 'product', label: 'Product offer' },
 ];
 
 /**
