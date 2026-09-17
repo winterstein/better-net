@@ -4,6 +4,7 @@
 
 import { factCheckContent } from './factcheck-google.js';
 import { logit } from '../../utils/logger.js';
+import type { ModuleAnalysis } from '../../types/ModuleAnalysis.js';
 
 /**
  * @param {Object} chunk
@@ -11,7 +12,11 @@ import { logit } from '../../utils/logger.js';
  * @param {Object} options
  * @returns {Promise<Object>}
  */
-export async function analyzeChunk(chunk, pageMetadata: any = {}, options: any = {}) {
+export async function analyzeChunk(
+  chunk,
+  pageMetadata: any = {},
+  options: any = {}
+): Promise<Partial<ModuleAnalysis>> {
   const { config = {} } = options;
   try {
     const result = await factCheckContent(chunk, pageMetadata, {

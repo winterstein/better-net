@@ -715,7 +715,7 @@ function buildChunk(pageUrl: string, spec: DemoChunkSpec, index: number): DemoCh
     // Matches the DOM that renderDemoPage() produces. On the live pages the chunker
     // supplies the real xpath and demoAnalysisForChunk() matches on title/text instead.
     xpath: `/html/body/main/article[${index + 1}]`,
-    tags: ['post'],
+    tags: ['chunk-type:post'],
     isPrimary: index === 0,
   });
   const analyses = spec.analyses.map((a, i) => buildModule(a, `${index}-${i}`, spec.title));

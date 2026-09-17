@@ -2,6 +2,7 @@ import tap from 'tap';
 import Fastify, { FastifyInstance } from 'fastify';
 import chunkRoutes from '../src/routes/chunk.js';
 import { db_init, db_close } from '../src/db.js';
+import { PROBLEM_SCORES } from '../src/bn-extension-src/types/Score.js';
 
 // load .env
 import dotenv from 'dotenv';
@@ -121,7 +122,8 @@ tap.test('Chunk_analyze_POST_and_GET', async (t) => {
 	t.equal(analyzeRes.statusCode, 200, 'Analyze POST should return 200');
 	const analysisResult = analyzeRes.json() as any;
 	t.ok(analysisResult.chunkId, 'Analysis result should have chunkId');
-	t.ok(typeof analysisResult.summary?.problemScore === 'number', 'Analysis result should have summary.problemScore');
+	// problemScore is the high|medium|low ProblemScore enum, not a [0,1] number
+	t.ok(PROBLEM_SCORES.includes(analysisResult.summary?.problemScore), 'Analysis result should have summary.problemScore');
 	t.ok(Array.isArray(analysisResult.analyses), 'Analysis result should have analyses array');
 	t.ok(analysisResult.chunkId, 'Analysis result should have chunkId');
 
