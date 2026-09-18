@@ -62,6 +62,10 @@ POST /api/account/link        { code: "K7QP-2F" }           (from the webapp, wi
 -> 410 code expired or already used
 ```
 
+A device belongs to at most one account: linking one that is already linked elsewhere **moves**
+it, which is how a mis-link gets fixed without a separate unlink endpoint. No feedback moves or
+is lost — rows stay owned by their local id.
+
 **Own feedback** — their own data, so nothing is redacted. Newest first, paginated.
 
 ```
@@ -88,8 +92,9 @@ GET /api/feedback/all?target=module&moduleId=clickUnbait&page=0     (JWT, isStaf
 
 - Aggregate scores per chunk/module, and export for model training (already future work in
   extension-server-feedback.md)
-- Editing feedback. **Deleting** it needs its own slice: "show me my data" invites "now delete
-  it", and that has to cover unlinked devices too.
+- Editing feedback. **Deleting** it is specified separately, in
+  [delete-my-data](../../../../bn-extension/specs/accounts/delete-my-data/spec.md); that slice
+  covers one browser, so account-wide deletion across linked devices is still open.
 - Auth for the rest of the API. `GET /api/chunk` and `GET /api/page` currently list everything
   unauthenticated, which caps what a staff-only view actually protects.
 - Staff management UI — `isStaff` is set by hand in the database.
