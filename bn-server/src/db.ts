@@ -64,6 +64,10 @@ async function db_init(): Promise<boolean> {
 	const port = Number(process.env.DB_PORT) || 5432;
 	const user = process.env.DB_USERNAME || 'postgres';
 	const password = process.env.DB_PASSWORD || '';
+	// Hosted Postgres (Neon) refuses non-TLS connections; local dev/test Postgres has no
+	// cert. Neon's chain is publicly trusted, so default verification is fine.
+	const isLocalDB = host === 'localhost' || host === '127.0.0.1';
+	const ssl = isLocalDB ? undefined : true;
 	
 	// First, connect to default database to create the target database if needed
 	const adminPool = new Pool({
@@ -72,6 +76,7 @@ async function db_init(): Promise<boolean> {
 		database: 'postgres', // Connect to default database
 		user,
 		password,
+		ssl,
 	});
 	
 	const adminClient = await adminPool.connect();
@@ -113,6 +118,7 @@ async function db_init(): Promise<boolean> {
 		database,
 		user,
 		password,
+		ssl,
 	});
 	const client = await pool.connect();
 	

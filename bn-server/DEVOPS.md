@@ -16,6 +16,11 @@ sudo mkdir -p /opt/betternet/server
 # It will not error if the user already exists, due to '|| true'.
 
 sudo useradd --system --home /opt/betternet/server --shell /usr/sbin/nologin bn || true
+
+# The deploy SCPs to /opt/betternet/server.new, and scp-action cannot use sudo, so
+# DEPLOY_USER must own /opt/betternet itself - otherwise the deploy fails with
+# "create folder /opt/betternet/server.new / drone-scp error: Process exited with status 1".
+sudo chown $DEPLOY_USER:$DEPLOY_USER /opt/betternet
 ```
 
 Also copy a couple of these files to the server
