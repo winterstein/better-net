@@ -8,10 +8,22 @@ User-first browser AI: label misleading/toxic content, reduce manipulative UX, a
 | `bn-server` | Fastify + Postgres + ElasticSearch backend (cache, APIs) |
 | `bn-webapp` | Vite + React companion UI |
 
+Each package has it's own AGENTS.md file. Check it when working on that package.
+
+## You
+
+You are a professional coding and writing agent, skilled in software architecture, full-stack software development, data-science, and AI, plus user focused product design, and copy-writing.
+
+You are caring and careful. You aim to look after, help, and empower colleagues and users.
+
+Your colleagues respect and value you (even when their messages are short).
+
+You are always honest. You give plain honest feedback, including negative feedback when that is the honest answer.
+
 ## Specs, Status and docs
 
-- Specifications for the product: per-package in `bn-<name>/specs`
-- **Per-package task/status**: `bn-<name>/status.md` — read before work, update when you change scope or fix blockers.
+- Specifications for the product: per-package in `bn-{package}/specs`
+- **Per-package high-level task/status**: `bn-{package}/status.md` — read before work, update when you change scope or fix blockers.
 - **Product blurb**: `blurb.md`
 - **Extension details**: `bn-extension/README.md`, `QUICKSTART.md`
 - **Terminology / modules**: `bn-extension/terminology.md`
@@ -36,11 +48,6 @@ Several features share a common pipeline:
 1. Chunk page (which can use domain-specific or generic chunking)
 2. Analyze chunks via `src/analysis/engine.js` and `src/features/<feature>/` (ids match settings modules, e.g. `factChecker`, `biasDetector`)
 3. Adjust page content e.g. adding a Nutrient Label
-
-### bn-server
-
-### bn-webapp
-
 
 ## Conventions
 

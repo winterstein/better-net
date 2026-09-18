@@ -124,7 +124,9 @@ jobs:
         env:
           SERVER_PORT: ${{ vars.SERVER_PORT || '3001' }}
           SERVER_HOST: ${{ vars.SERVER_HOST || '0.0.0.0' }}
-          DB_HOST: ${{ vars.DB_HOST }}
+          # DB_HOST is stored as a SECRET, not a variable - vars.DB_HOST resolves to
+          # empty, which writes DB_HOST= into .env and crash-loops the service.
+          DB_HOST: ${{ secrets.DB_HOST }}
           DB_PORT: ${{ vars.DB_PORT || '5432' }}
           DB_NAME: ${{ vars.DB_NAME || 'betternet' }}
           DB_USERNAME: ${{ vars.DB_USERNAME }}
