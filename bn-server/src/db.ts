@@ -160,8 +160,29 @@ async function db_init(): Promise<boolean> {
 		await client.query(`CREATE INDEX IF NOT EXISTS idx_feedback_props ON feedback USING GIN (props);`);
 		await client.query(`CREATE INDEX IF NOT EXISTS idx_feedback_chunkId ON feedback (chunkId);`);
 		await client.query(`CREATE INDEX IF NOT EXISTS idx_feedback_pageId ON feedback (pageId);`);
-		// The client's localId makes POST /api/feedback an upsert; this is its lookup.
-		await client.query(`CREATE INDEX IF NOT EXISTS idx_feedback_localId ON feedback ((props->>'localId'));`);
+		/*
+		 * The client's localId makes POST /api/feedback an upsert; this is its lookup, and
+		 * UNIQUE is what makes the upsert safe — the route reads then inserts, so without it
+		 * two concurrent POSTs for one localId both insert and the duplicate is invisible
+		 * afterwards (the read takes LIMIT 1).
+		 *
+		 * A new name, because the old index was not unique and CREATE ... IF NOT EXISTS
+		 * matches on name alone: reusing it would silently keep the non-unique one.
+		 */
+		await client.query(`DROP INDEX IF EXISTS idx_feedback_localId;`);
+		try {
+			await client.query(
+				`CREATE UNIQUE INDEX IF NOT EXISTS uq_feedback_localId ON feedback ((props->>'localId'));`
+			);
+		} catch (indexError) {
+			// Pre-existing duplicates would fail the CREATE. Losing the constraint is better
+			// than refusing to boot, so warn loudly and carry on with a plain index.
+			console.warn(
+				'Could not create uq_feedback_localId (duplicate localIds already stored?):',
+				(indexError as Error)?.message
+			);
+			await client.query(`CREATE INDEX IF NOT EXISTS idx_feedback_localId ON feedback ((props->>'localId'));`);
+		}
 		console.log('Feedback table initialized successfully');
 	} catch (error) {
 		console.error('Error initializing tables:', error);

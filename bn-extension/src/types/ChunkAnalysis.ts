@@ -53,15 +53,24 @@ export function riskFromProblemScore(score: ProblemScore): RiskRating {
 	return riskFromScore(fractionFromProblemScore(score));
 }
 
-/** Worst module problemScore as a [0,1] fraction for Nutrient Label / RiskLevel. */
-export function chunkProblemScore(analysis: Partial<ChunkAnalysis>): number {
+/**
+ * Worst module problemScore as a band. Prefer this over chunkProblemScore() when the value
+ * is stored or sent: the band is the source of truth and survives new bands being added,
+ * where a [0,1] fraction has to be re-bucketed and loses anything finer than the mapping.
+ */
+export function chunkProblemBand(analysis: Partial<ChunkAnalysis>): ProblemScore {
 	if (analysis.summary?.problemScore) {
-		return fractionFromProblemScore(analysis.summary.problemScore);
+		return analysis.summary.problemScore;
 	}
 	const scores = (analysis.analyses ?? [])
 		.filter((a) => !a.error && a.problemScore)
 		.map((a) => a.problemScore);
-	return fractionFromProblemScore(worstProblemScore(scores));
+	return worstProblemScore(scores);
+}
+
+/** Worst module problemScore as a [0,1] fraction for Nutrient Label / RiskLevel. */
+export function chunkProblemScore(analysis: Partial<ChunkAnalysis>): number {
+	return fractionFromProblemScore(chunkProblemBand(analysis));
 }
 
 export function buildChunkSummary(analyses: ModuleAnalysis[]): ChunkAnalysisSummary {

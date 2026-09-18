@@ -30,6 +30,7 @@ import type { FeedbackSubmission, FeedbackTarget } from '../bn-extension-src/typ
 import { FEEDBACK_TARGETS, PAGE_LEVEL_TARGETS } from '../bn-extension-src/types/Feedback.js';
 import type { Chunk } from '../bn-extension-src/types/Chunk.js';
 import type { Page } from '../bn-extension-src/types/Page.js';
+import { problemScoreFromFraction } from '../bn-extension-src/types/Score.js';
 
 /** Legacy AspectType → moduleId (pre Module/Tag rename). */
 const LEGACY_ASPECT_TO_MODULE: Record<string, string> = {
@@ -50,7 +51,12 @@ const MAX_MESSAGE = 500;
  * `aspect` target is remapped to `module`.
  */
 function normalizeBody(
-	body: Partial<FeedbackSubmission> & { applies?: boolean; target?: string }
+	body: Omit<Partial<FeedbackSubmission>, 'problemScore'> & {
+		applies?: boolean;
+		target?: string;
+		/** Legacy: a [0,1] fraction where a band is stored now. */
+		problemScore?: FeedbackSubmission['problemScore'] | number;
+	}
 ): Partial<FeedbackSubmission> {
 	const rawTarget = body.target as string | undefined;
 	if (!rawTarget && body.aspectType) body.target = 'module';
@@ -62,7 +68,13 @@ function normalizeBody(
 	if (typeof body.thumbsUp !== 'boolean' && typeof body.applies === 'boolean') {
 		body.thumbsUp = body.applies;
 	}
-	return body;
+	// problemScore is stored as a ProblemScore band (types/Feedback.ts). Older extensions
+	// send a [0,1] fraction, so bucket it here rather than storing two shapes in one field.
+	if (typeof body.problemScore === 'number') {
+		body.problemScore = problemScoreFromFraction(body.problemScore);
+	}
+	// The numeric shape is bucketed away just above, so this is now a plain submission.
+	return body as Partial<FeedbackSubmission>;
 }
 
 function validateBody(body: Partial<FeedbackSubmission>): string | null {
@@ -170,24 +182,47 @@ async function feedbackRoutes(fastify: FastifyInstance) {
 
 		const existing = await get_feedback_by_local_id(body.localId!);
 		if (existing) {
-			// A follow-up: keep what the thumb recorded and layer the new fields over it.
-			// Only undefined is "unchanged" — an explicit null is a field being cleared.
-			const { id, created, ...rest } = existing as Record<string, any>;
-			const merged = { ...rest, ...stripUndefined(feedbackItem), updated: new Date() };
-			await update_item('feedback', id as number, merged as any);
-			return reply.code(200).send({ id, createdAt: created || new Date().toISOString() });
+			return reply.code(200).send(await applyFollowUp(existing, feedbackItem));
 		}
 
-		const id = (await create_item('feedback', feedbackItem as any)) as number;
-		const createdItem = await get_item('feedback', id);
-		const createdAt = (createdItem as any)?.created || new Date().toISOString();
-		return reply.code(201).send({ id, createdAt });
+		try {
+			const id = (await create_item('feedback', feedbackItem as any)) as number;
+			const createdItem = await get_item('feedback', id);
+			const createdAt = (createdItem as any)?.created || new Date().toISOString();
+			return reply.code(201).send({ id, createdAt });
+		} catch (err) {
+			// A concurrent POST for the same localId got there first (uq_feedback_localId in
+			// db.ts), so this one is a follow-up after all rather than a second opinion.
+			if (!isUniqueViolation(err)) throw err;
+			const winner = await get_feedback_by_local_id(body.localId!);
+			if (!winner) throw err;
+			return reply.code(200).send(await applyFollowUp(winner, feedbackItem));
+		}
 	});
 }
 
 /** Absent fields in a follow-up must not wipe what the thumb already recorded. */
 function stripUndefined(item: Record<string, unknown>): Record<string, unknown> {
 	return Object.fromEntries(Object.entries(item).filter(([, v]) => v !== undefined));
+}
+
+/**
+ * Keep what the thumb recorded and layer the new fields over it. Only undefined is
+ * "unchanged" — an explicit null is a field being cleared.
+ */
+async function applyFollowUp(
+	existing: Record<string, any>,
+	feedbackItem: Record<string, unknown>
+): Promise<{ id: number; createdAt: string }> {
+	const { id, created, ...rest } = existing;
+	const merged = { ...rest, ...stripUndefined(feedbackItem), updated: new Date() };
+	await update_item('feedback', id as number, merged as any);
+	return { id: id as number, createdAt: created || new Date().toISOString() };
+}
+
+/** Postgres unique_violation — see uq_feedback_localId in db.ts. */
+function isUniqueViolation(err: unknown): boolean {
+	return (err as { code?: string })?.code === '23505';
 }
 
 export default feedbackRoutes;

@@ -98,7 +98,9 @@ const thumbWidget = (target: string) =>
 const moduleTags = tagEditor('module');
 assert.equal(moduleTags.dataset.moduleId, 'clickUnbait');
 assert.equal(moduleTags.dataset.spanId, 'd'.repeat(16), 'module feedback points at its own span');
-assert.equal(moduleTags.dataset.score, '0.75', 'the widget carries what we claimed');
+// data-score carries the ProblemScore band, not a [0,1] fraction: the band is what gets
+// stored, so the modal must not round-trip it through one (types/Feedback.ts).
+assert.equal(moduleTags.dataset.score, 'high', 'the widget carries the band we claimed');
 assert.equal(moduleTags.querySelector('[data-thumb]'), null, 'the module card has no thumb');
 assert.equal(moduleTags.querySelector('[data-issue]'), null, 'and no preset issues');
 

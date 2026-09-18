@@ -14,10 +14,12 @@ import {
 	getOrCreateDeviceId,
 	isFeedbackEnabled,
 	submitFeedback,
+	FeedbackSubmitError,
 } from '../feedback/feedback-client.js';
 import type { FeedbackPayload } from '../feedback/feedback-client.js';
 import type { FeedbackSubmission, FeedbackTarget } from '../types/Feedback.js';
 import { configureAiqaTracing, mirrorFeedbackToAiqa } from '../tracing/aiqa-tracer.js';
+import { PROBLEM_SCORES, type ProblemScore } from '../types/Score.js';
 import { logit } from '../utils/logger.js';
 
 const FLUSH_ALARM = 'bn-feedback-flush';
@@ -46,6 +48,12 @@ function traceComment(entry: FeedbackSubmission): string {
 	return parts.join(' — ');
 }
 
+/** Accepts either shape and rejects anything else, so a stray value is dropped not stored. */
+function problemScoreOrFraction(v: unknown): ProblemScore | number | undefined {
+	if (typeof v === 'number') return v;
+	return PROBLEM_SCORES.includes(v as ProblemScore) ? (v as ProblemScore) : undefined;
+}
+
 function toPayload(p: Record<string, unknown>): FeedbackPayload {
 	return {
 		target: p.target as FeedbackTarget,
@@ -65,7 +73,8 @@ function toPayload(p: Record<string, unknown>): FeedbackPayload {
 		chunkCount: typeof p.chunkCount === 'number' ? p.chunkCount : undefined,
 		moduleId: p.moduleId ? String(p.moduleId) : undefined,
 		analysisId: p.analysisId ? String(p.analysisId) : undefined,
-		problemScore: typeof p.problemScore === 'number' ? p.problemScore : undefined,
+		// A band passes through; a fraction from an older modal is bucketed downstream.
+		problemScore: problemScoreOrFraction(p.problemScore),
 		confidence: typeof p.confidence === 'number' ? p.confidence : undefined,
 		traceId: p.traceId ? String(p.traceId) : undefined,
 		spanId: p.spanId ? String(p.spanId) : undefined,
@@ -96,6 +105,12 @@ export async function handleSubmitFeedback(message: {
 		void flushFeedbackQueue(settings);
 		return { ok: true };
 	} catch (err: any) {
+		// A rejected payload will be rejected again, so do not queue it and do not tell the
+		// user it is saved — that promised a retry that could never succeed.
+		if (err instanceof FeedbackSubmitError && err.permanent) {
+			logit('warn', '[BetterNet] [FEEDBACK] rejected by server, not queued:', err.message);
+			return { ok: false, error: err.message };
+		}
 		// Queued by localId, so a follow-up issue replaces the thumb rather than doubling it.
 		await enqueueFeedback(built);
 		// The server being unreachable is the common case here (a wrong or undeployed

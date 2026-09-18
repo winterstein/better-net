@@ -182,5 +182,20 @@ jobs:
 
             sudo systemctl daemon-reload
             sudo systemctl restart bn-server
-            sleep 2
-            sudo systemctl status bn-server --no-pager -l
+            sleep 3
+
+            # No sudo here: the deploy user's sudo is a narrow allowlist. These are
+            # read-only queries, and the journal is best-effort - it only prints if the
+            # user can read it. `systemctl status` alone just says "status=1/FAILURE".
+            systemctl status bn-server --no-pager -l || true
+            journalctl -u bn-server -n 30 --no-pager || true
+
+            # "activating (auto-restart)" is not active, so this catches a crash loop
+            if ! systemctl is-active --quiet bn-server; then
+              echo "ERROR: bn-server not active after restart"
+              exit 1
+            fi
+
+            # Confirm it serves, not just that systemd started it
+            curl -fsS --max-time 10 "http://127.0.0.1:${SERVER_PORT:-3001}/health" \
+              || { echo "ERROR: health check failed on port ${SERVER_PORT:-3001}"; exit 1; }

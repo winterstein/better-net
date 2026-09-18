@@ -1,3 +1,5 @@
+import type { ProblemScore } from './Score.js';
+
 /** What the user rated in the Content Analysis modal. See specs/feedback.md */
 export type FeedbackTarget = 'summary' | 'module' | 'chunker' | 'chunk' | 'page';
 
@@ -79,7 +81,13 @@ export interface FeedbackSubmission {
 	/** Legacy pre-Module rename; accepted by server normalize only */
 	aspectType?: string;
 	analysisId?: string;
-	problemScore?: number;
+	/**
+	 * The band we claimed, so a correction can be weighed against what we said. Stored as
+	 * the `ProblemScore` enum rather than a [0,1] fraction: the bands are the vocabulary,
+	 * and adding a finer one later must not require re-bucketing stored feedback. Legacy
+	 * extensions send a fraction; the server normalizes it (bn-server routes/feedback.ts).
+	 */
+	problemScore?: ProblemScore;
 	confidence?: number;
 	/** AIQA trace for the page analysis. Absent when tracing was off or unsampled. */
 	traceId?: string;

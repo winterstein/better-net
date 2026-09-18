@@ -1,7 +1,7 @@
 import tap from 'tap';
 import Fastify, { FastifyInstance } from 'fastify';
 import feedbackRoutes from '../src/routes/feedback.js';
-import { db_init, db_close, get_item, get_feedback_by_local_id } from '../src/db.js';
+import { db_init, db_close, db_get_client, get_item, get_feedback_by_local_id } from '../src/db.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -139,7 +139,78 @@ tap.test('Feedback_POST_upserts_on_localId', async (t) => {
 	const stored = (await get_feedback_by_local_id(id)) as any;
 	t.equal(stored.issueId, 'score-too-high');
 	t.equal(stored.issueLabel, 'Score too high');
-	t.equal(stored.problemScore, 0.9, 'what the thumb recorded is not wiped by the follow-up');
+	t.equal(
+		stored.problemScore,
+		'high',
+		'a legacy fraction is stored as a band, and is not wiped by the follow-up'
+	);
+});
+
+// problemScore is a ProblemScore band, so adding a finer band later needs no migration.
+tap.test('Feedback_POST_stores_problemScore_as_a_band', async (t) => {
+	const bandId = localId('band');
+	const res = await post({
+		localId: bandId,
+		target: 'summary',
+		chunkFingerprint: 'test-fp-feedback-band',
+		chunkUrl: 'https://example.com/band',
+		thumbsUp: false,
+		problemScore: 'medium',
+	});
+	t.equal(res.statusCode, 201);
+	t.equal(((await get_feedback_by_local_id(bandId)) as any).problemScore, 'medium', 'kept as sent');
+
+	// A pre-band extension sends [0,1]; 0.5 falls in the medium band (types/Score.ts).
+	const legacyId = localId('band-legacy');
+	await post({
+		localId: legacyId,
+		target: 'summary',
+		chunkFingerprint: 'test-fp-feedback-band-legacy',
+		chunkUrl: 'https://example.com/band-legacy',
+		thumbsUp: false,
+		problemScore: 0.5,
+	});
+	t.equal(
+		((await get_feedback_by_local_id(legacyId)) as any).problemScore,
+		'medium',
+		'a legacy fraction is bucketed, not stored as a number'
+	);
+});
+
+/*
+ * The upsert reads then inserts, so two POSTs racing on one localId both used to insert and
+ * the duplicate was then invisible (the read takes LIMIT 1). uq_feedback_localId stops the
+ * second insert, and the route turns that into the follow-up it actually is.
+ */
+tap.test('Feedback_POST_concurrent_same_localId_is_one_row', async (t) => {
+	const id = localId('race');
+	const base = {
+		localId: id,
+		target: 'summary',
+		chunkFingerprint: 'test-fp-feedback-race',
+		chunkUrl: 'https://example.com/race',
+		thumbsUp: false,
+	};
+
+	const [a, b] = await Promise.all([
+		post({ ...base, message: 'first' }),
+		post({ ...base, message: 'second' }),
+	]);
+
+	const codes = [a.statusCode, b.statusCode].sort();
+	t.same(codes, [200, 201], 'one insert, one follow-up - never two inserts');
+	t.equal((a.json() as any).id, (b.json() as any).id, 'both answer for the same row');
+
+	const client = await db_get_client();
+	try {
+		const rows = await client.query(
+			`SELECT COUNT(*)::int AS n FROM feedback WHERE props->>'localId' = $1`,
+			[id]
+		);
+		t.equal(rows.rows[0].n, 1, 'exactly one row for this localId');
+	} finally {
+		client.release();
+	}
 });
 
 // Chunker feedback is about the page, so it has no chunk of its own.

@@ -106,7 +106,9 @@ assert.equal(removed.tagOn, false);
 assert.equal(removed.thumbsUp, undefined, 'a tag edit is not a thumb');
 assert.equal(removed.retracted, undefined);
 assert.equal(removed.moduleId, 'clickUnbait');
-assert.equal(removed.problemScore, 0.8, 'what we claimed, for weighing the correction');
+// The band we claimed, for weighing the correction. 0.8 came in as a fraction and is
+// bucketed on the way to storage — see the problemScore block below.
+assert.equal(removed.problemScore, 'high', 'what we claimed, for weighing the correction');
 
 // "+" then picking a tag: we missed it.
 const added = await ok({ ...MODULE, tag: 'clickbait', tagOn: true });
@@ -311,5 +313,21 @@ assert.match(
 	}),
 	/too long/
 );
+
+// problemScore is stored as a band: the enum is the vocabulary, and a finer band added
+// later must not mean re-bucketing what is already stored (types/Feedback.ts).
+{
+	const band = await ok({ ...CHUNK, thumbsUp: true, problemScore: 'high' });
+	assert.equal(band.problemScore, 'high', 'a band is stored as sent');
+
+	const fraction = await ok({ ...CHUNK, thumbsUp: true, problemScore: 0.9 });
+	assert.equal(fraction.problemScore, 'high', 'a fraction from an older caller is bucketed');
+
+	const low = await ok({ ...CHUNK, thumbsUp: true, problemScore: 0.1 });
+	assert.equal(low.problemScore, 'low');
+
+	const none = await ok({ ...CHUNK, thumbsUp: true });
+	assert.equal(none.problemScore, undefined, 'absent stays absent rather than becoming low');
+}
 
 console.log('✅ feedback tests passed');

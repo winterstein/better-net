@@ -10,7 +10,7 @@
  */
 
 import { tagsForModule } from '../features/module-tags.js';
-import { fractionFromProblemScore, type ProblemScore } from '../types/Score.js';
+import { problemScoreFromFraction, type ProblemScore } from '../types/Score.js';
 import {
 	FEEDBACK_TARGETS,
 	PAGE_LEVEL_TARGETS,
@@ -51,13 +51,55 @@ export async function getOrCreateDeviceId(): Promise<string> {
 	return newId;
 }
 
+async function readQueue(): Promise<FeedbackSubmission[]> {
+	const { [FEEDBACK_QUEUE_KEY]: queue = [] } = await chrome.storage.local.get(FEEDBACK_QUEUE_KEY);
+	return Array.isArray(queue) ? queue : [];
+}
+
+/**
+ * Serialises read-modify-write on the queue. chrome.storage has no transaction, so two
+ * overlapping updates both read the same array and the second `set` discards the first —
+ * which silently dropped feedback when an enqueue landed while a flush was mid-send.
+ * One background worker owns the queue, so chaining promises here is enough.
+ */
+let queueWrites: Promise<unknown> = Promise.resolve();
+function withQueueWrite<T>(fn: () => Promise<T>): Promise<T> {
+	const run = queueWrites.then(fn, fn);
+	queueWrites = run.catch(() => undefined);
+	return run;
+}
+
 /** Replaces any queued entry for the same localId: the latest version is the one to send. */
 export async function enqueueFeedback(entry: FeedbackSubmission): Promise<void> {
-	const { [FEEDBACK_QUEUE_KEY]: queue = [] } = await chrome.storage.local.get(FEEDBACK_QUEUE_KEY);
-	const existing: FeedbackSubmission[] = Array.isArray(queue) ? queue : [];
-	const next = existing.filter((item) => item.localId !== entry.localId);
-	next.push(entry);
-	await chrome.storage.local.set({ [FEEDBACK_QUEUE_KEY]: next });
+	return withQueueWrite(async () => {
+		const existing = await readQueue();
+		const next = existing.filter((item) => item.localId !== entry.localId);
+		next.push(entry);
+		await chrome.storage.local.set({ [FEEDBACK_QUEUE_KEY]: next });
+	});
+}
+
+/**
+ * A non-OK response. `permanent` marks the ones retrying cannot fix: the server has
+ * rejected the payload itself, so re-sending it every 30 minutes forever would only keep
+ * a dead entry in the queue and keep telling the user it is about to be sent.
+ * 408 and 429 are 4xx but are about timing, so they stay retryable.
+ */
+export class FeedbackSubmitError extends Error {
+	readonly status: number;
+	constructor(status: number, body: string) {
+		super(`Feedback failed (${status}): ${body}`);
+		this.name = 'FeedbackSubmitError';
+		this.status = status;
+	}
+	get permanent(): boolean {
+		return this.status >= 400 && this.status < 500 && this.status !== 408 && this.status !== 429;
+	}
+}
+
+/** A network error has no status and is always worth retrying. */
+function isPermanentFailure(err: unknown): boolean {
+	return err instanceof FeedbackSubmitError && err.permanent;
 }
 
 export async function submitFeedback(
@@ -73,32 +115,55 @@ export async function submitFeedback(
 	});
 	if (!res.ok) {
 		const text = await res.text().catch(() => '');
-		throw new Error(`Feedback failed (${res.status}): ${text}`);
+		throw new FeedbackSubmitError(res.status, text);
 	}
 	return res.json();
 }
 
-/** @returns number of queued items successfully sent */
+/**
+ * Send what is queued. Only entries this run finished with are removed, and the removal
+ * re-reads the queue, so anything enqueued while we were awaiting the network survives.
+ *
+ * @returns number of queued items successfully sent
+ */
+let flushing = false;
 export async function flushFeedbackQueue(
 	settings: { shareAnonymous?: boolean; serverEndpoint?: string },
 	fetchImpl: typeof fetch = fetch
 ): Promise<number> {
 	if (!isFeedbackEnabled(settings)) return 0;
-	const { [FEEDBACK_QUEUE_KEY]: queue = [] } = await chrome.storage.local.get(FEEDBACK_QUEUE_KEY);
-	if (!Array.isArray(queue) || queue.length === 0) return 0;
+	// Two flushes overlapping would send every entry twice; the alarm and the post-submit
+	// flush can both fire at once (background/feedback-manager.ts).
+	if (flushing) return 0;
+	flushing = true;
+	try {
+		const queue = await readQueue();
+		if (queue.length === 0) return 0;
 
-	const remaining: FeedbackSubmission[] = [];
-	let sent = 0;
-	for (const item of queue) {
-		try {
-			await submitFeedback(item, settings.serverEndpoint!, fetchImpl);
-			sent++;
-		} catch {
-			remaining.push(item);
+		// Identity, not localId: if a follow-up for the same localId is queued while we are
+		// sending, it is a *different* entry and must stay. A key mismatch here would retry
+		// an entry rather than drop it, and the POST is an upsert, so that way is the safe one.
+		const done = new Set<string>();
+		let sent = 0;
+		for (const item of queue) {
+			try {
+				await submitFeedback(item, settings.serverEndpoint!, fetchImpl);
+				done.add(JSON.stringify(item));
+				sent++;
+			} catch (err) {
+				// Rejected payloads are dropped: see FeedbackSubmitError.permanent.
+				if (isPermanentFailure(err)) done.add(JSON.stringify(item));
+			}
 		}
+		await withQueueWrite(async () => {
+			const current = await readQueue();
+			const remaining = current.filter((item) => !done.has(JSON.stringify(item)));
+			await chrome.storage.local.set({ [FEEDBACK_QUEUE_KEY]: remaining });
+		});
+		return sent;
+	} finally {
+		flushing = false;
 	}
-	await chrome.storage.local.set({ [FEEDBACK_QUEUE_KEY]: remaining });
-	return sent;
 }
 
 /** What the modal sends in BN_SUBMIT_FEEDBACK: either a thumb or one tag edit. */
@@ -120,6 +185,7 @@ export interface FeedbackPayload {
 	chunkCount?: number;
 	moduleId?: string;
 	analysisId?: string;
+	/** The band we claimed. A [0,1] fraction is accepted and bucketed, for older callers. */
 	problemScore?: ProblemScore | number;
 	confidence?: number;
 	traceId?: string;
@@ -243,12 +309,13 @@ export async function buildFeedbackSubmission(
 	submission.chunkFingerprint = payload.chunkFingerprint;
 	submission.chunkUrl = payload.chunkUrl;
 	submission.chunkTitle = payload.chunkTitle;
-	// What we claimed, so a correction can be weighed against how sure we were.
+	// What we claimed, so a correction can be weighed against how sure we were. Stored as a
+	// band; a fraction from an older caller is bucketed here, the one place it happens.
 	if (payload.problemScore !== undefined) {
 		submission.problemScore =
 			typeof payload.problemScore === 'number'
-				? payload.problemScore
-				: fractionFromProblemScore(payload.problemScore);
+				? problemScoreFromFraction(payload.problemScore)
+				: payload.problemScore;
 	}
 
 	if (payload.target === 'module') {

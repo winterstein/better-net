@@ -2,8 +2,9 @@
 
 import type { ModuleAnalysis } from '../types/ModuleAnalysis.js';
 import type { ChunkAnalysis } from '../types/ChunkAnalysis.js';
-import { chunkProblemScore } from '../types/ChunkAnalysis.js';
-import { fractionFromProblemScore, issueTagIds } from '../types/Score.js';
+import { chunkProblemBand, chunkProblemScore } from '../types/ChunkAnalysis.js';
+import { PROBLEM_SCORES, fractionFromProblemScore, issueTagIds } from '../types/Score.js';
+import type { ProblemScore } from '../types/Score.js';
 import type { FeedbackTarget } from '../types/Feedback.js';
 import { riskLevelForScore } from '../types/RiskLevel.js';
 import { issuesForTarget, issueLabel, OTHER_ISSUE_ID } from '../feedback/feedback-issues.js';
@@ -229,7 +230,7 @@ function renderTagEditor(opts: {
   moduleId?: string;
   tags: string[];
   spanId?: string;
-  problemScore?: number;
+  problemScore?: ProblemScore;
 }): string {
   const { target, moduleId, tags, spanId, problemScore } = opts;
   const vocabulary = editableTags(target, moduleId);
@@ -255,7 +256,7 @@ function renderTagEditor(opts: {
     <div data-feedback data-feedback-kind="tags"
       data-target="${escapeHtml(target)}"
       data-module-id="${escapeHtml(moduleId ?? '')}"
-      data-score="${problemScore ?? 0}"
+      data-score="${escapeHtml(problemScore ?? '')}"
       data-span-id="${escapeHtml(spanId ?? '')}"
       style="margin-top: 10px; border-top: 1px solid #eee; padding-top: 8px;">
       <div style="font-size: 11px; color: #666; margin-bottom: 6px;">${TAG_EDIT_PROMPT}</div>
@@ -360,7 +361,7 @@ function renderPageTypeRow(opts: {
  */
 function renderFeedbackWidget(opts: {
   target: FeedbackTarget;
-  problemScore?: number;
+  problemScore?: ProblemScore;
   spanId?: string;
 }): string {
   const { target, problemScore, spanId } = opts;
@@ -374,7 +375,7 @@ function renderFeedbackWidget(opts: {
   return `
     <div data-feedback data-feedback-kind="thumb"
       data-target="${escapeHtml(target)}"
-      data-score="${problemScore ?? 0}"
+      data-score="${escapeHtml(problemScore ?? '')}"
       data-span-id="${escapeHtml(spanId ?? '')}"
       style="margin-top: 10px; border-top: 1px solid #eee; padding-top: 8px;">
       <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
@@ -472,6 +473,11 @@ function acceptedStatus(res: SendResult, text: string): string {
   return res.queued ? QUEUED_STATUS : text;
 }
 
+/** `data-score` holds a band; anything else (an old fraction in stale DOM) is dropped. */
+function asProblemScore(v?: string): ProblemScore | undefined {
+	return PROBLEM_SCORES.includes(v as ProblemScore) ? (v as ProblemScore) : undefined;
+}
+
 async function sendFeedback(
   widget: HTMLElement,
   ctx: FeedbackContext,
@@ -505,7 +511,7 @@ async function sendFeedback(
         pageUrl: ctx.pageUrl,
         chunkCount: ctx.chunkCount,
         moduleId,
-        problemScore: Number(widget.dataset.score || '0'),
+        problemScore: asProblemScore(widget.dataset.score),
         traceId: ctx.traceId,
         spanId: widget.dataset.spanId || ctx.chunkSpanId,
       },
@@ -910,6 +916,8 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
     aiqaOrganisationId,
   } = analysisResults;
   const problemScore = chunkProblemScore(analysisResults);
+  // The band is what feedback stores; the fraction above is only for the % and colour.
+  const problemBand = chunkProblemBand(analysisResults);
   const canFeedback = feedbackEnabled && fingerprint && url;
   /**
    * A page-type correction needs only the page, so it survives a chunk with no
@@ -1001,7 +1009,7 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
           </div>
           ${
             canFeedback
-              ? renderFeedbackWidget({ target: 'summary', problemScore })
+              ? renderFeedbackWidget({ target: 'summary', problemScore: problemBand })
               : renderFeedbackOffNote(feedbackOffReason, !!(fingerprint && url))
           }
         </div>
@@ -1112,7 +1120,7 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
                       target: 'module',
                       moduleId,
                       tags,
-                      problemScore: score,
+                      problemScore: result.error ? undefined : result.problemScore || 'low',
                       spanId: result.spanId,
                     })
                   : ''
