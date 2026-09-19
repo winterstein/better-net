@@ -10,6 +10,8 @@ import assert from 'node:assert/strict';
 import { installChromeMock } from './helpers/chrome-mock.js';
 import {
 	FEEDBACK_QUEUE_KEY,
+	clearFeedbackQueue,
+	deleteMyFeedback,
 	enqueueFeedback,
 	flushFeedbackQueue,
 	submitFeedback,
@@ -153,6 +155,51 @@ installChromeMock({ storage: {} });
 	});
 	assert.equal(sent, 0);
 	assert.equal((await queued()).length, 1, 'still queued for when sharing is turned on');
+}
+
+// --- deleting must not leave the queue to re-send what was just deleted ---------------
+// The flush alarm runs every 30 minutes, so a queue left behind would resurrect the data
+// minutes later (specs/accounts/delete-my-data).
+installChromeMock({ storage: {} });
+{
+	await enqueueFeedback(entry('pending-when-deleted'));
+	assert.equal((await queued()).length, 1, 'something is waiting to be sent');
+
+	const calls: string[] = [];
+	const deleted = await deleteMyFeedback('https://server.example', 'owner-1', async (url) => {
+		calls.push(String(url));
+		return response(200, { deleted: 4 });
+	});
+	assert.equal(deleted, 4, 'reports what the server removed');
+	assert.match(calls[0], /\/api\/feedback\/delete-mine$/);
+	assert.deepEqual(await queued(), [], 'the pending queue is cleared too');
+
+	// The regression: a flush right after a delete must send nothing.
+	let posts = 0;
+	const sent = await flushFeedbackQueue(settings, async () => {
+		posts++;
+		return response(200);
+	});
+	assert.equal(posts, 0, 'nothing is re-sent after a delete');
+	assert.equal(sent, 0);
+}
+
+// The queue is cleared before the request, so a failed delete still leaves nothing pending:
+// dropping unsent feedback is what the user asked for, resurrecting it is not.
+installChromeMock({ storage: {} });
+{
+	await enqueueFeedback(entry('pending-when-delete-fails'));
+	await assert.rejects(() =>
+		deleteMyFeedback('https://server.example', 'owner-1', async () => response(500))
+	);
+	assert.deepEqual(await queued(), [], 'the queue went first');
+}
+
+installChromeMock({ storage: {} });
+{
+	await enqueueFeedback(entry('cleared'));
+	await clearFeedbackQueue();
+	assert.deepEqual(await queued(), []);
 }
 
 console.log('✅ feedback queue tests passed');

@@ -38,6 +38,12 @@ export function defaultModuleState() {
  */
 export const DEFAULT_SERVER_ENDPOINT = 'https://server.better-net.com';
 
+/**
+ * bn-webapp base URL (bn-webapp/specs/feedback/feedback-viewer). Where "View my feedback"
+ * goes. Keep in step with settings/defaults.ts.
+ */
+export const DEFAULT_WEBAPP_URL = 'https://app.better-net.com';
+
 // TODO wtf is this code? it smells bogus
 export function mergeSettings(stored: any = {}) {
   const modules = { ...defaultModuleState(), ...(stored.modules || {}) };

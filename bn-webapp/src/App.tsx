@@ -14,6 +14,9 @@ import PageDetail from './pages/PageDetail';
 import AnalyzeUrl from './pages/AnalyzeUrl';
 import ChunksList from './chunks/ChunksList';
 import ChunkDetail from './chunks/ChunkDetail';
+import MyFeedback from './feedback/MyFeedback';
+import StaffFeedback from './feedback/StaffFeedback';
+import { AuthStatus, StaffNavItem } from './auth/AuthStatus';
 
 function App() {
   const [navOpen, setNavOpen] = useState(false);
@@ -48,8 +51,16 @@ function App() {
                   Chunks
                 </Link>
               </NavItem>
+              <NavItem>
+                <Link to="/feedback" className="nav-link" onClick={() => setNavOpen(false)}>
+                  My feedback
+                </Link>
+              </NavItem>
+              {/* Only shown to staff, so a normal user is not invited into a 403. */}
+              <StaffNavItem onNavigate={() => setNavOpen(false)} />
             </Nav>
           </Collapse>
+          <AuthStatus />
         </Container>
       </Navbar>
       <Container className="mt-4">
@@ -60,6 +71,8 @@ function App() {
           <Route path="/pages/:id" element={<PageDetail />} />
           <Route path="/chunks" element={<ChunksList />} />
           <Route path="/chunks/:id" element={<ChunkDetail />} />
+          <Route path="/feedback" element={<MyFeedback />} />
+          <Route path="/staff/feedback" element={<StaffFeedback />} />
         </Routes>
       </Container>
     </div>

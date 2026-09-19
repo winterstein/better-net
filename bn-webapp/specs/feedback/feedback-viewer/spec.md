@@ -18,7 +18,8 @@ origin with credentials deliberately off).
 
 ## Status
 
-draft. Sign-in and linking come first; both views are thin once those work.
+MVP. Both views built and their logic tested (bn-webapp/test/feedback-viewer.test.ts).
+Remaining: the cert and a deploy for app.better-net.com, and an Auth0 SPA application.
 
 ## Relevant links
 
@@ -75,13 +76,14 @@ server, so it stays out of nginx access logs and `Referer` headers.
 
 ## Build plan
 
-1. `app.better-net.com`: nginx vhost, cert, and a static build deploy. status: planning
-2. Auth0 SPA sign-in, and `api.ts` sending the JWT as a Bearer header. status: planning
-3. Link step: read `#link=` from the fragment, post it after sign-in, strip the URL. status: planning
-4. `/feedback` page and the three empty/expired states above. status: planning
+1. `app.better-net.com`: nginx vhost written and validated; cert and deploy still to do. status: planning
+2. Auth0 SPA sign-in, and `api.ts` sending the JWT as a Bearer header. status: MVP
+3. Link step: read `#link=` from the fragment, post it after sign-in, strip the URL. status: MVP
+4. `/feedback` page and the three empty/expired states above. status: MVP
 5. **View my feedback** button in the extension options page (Account section): request a link
-   code, open the webapp. status: planning
-6. `/staff/feedback` with filters and pagination. status: planning
+   code, open the webapp. status: MVP
+6. `/staff/feedback` with filters and pagination. status: MVP (target filter and a page limit;
+   no paging controls yet)
 
 Step 5 is the only change outside bn-webapp.
 

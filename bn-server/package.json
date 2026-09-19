@@ -24,6 +24,7 @@
   "description": "",
   "dependencies": {
     "fastify": "^4.24.3",
+    "jose": "^6.2.12",
     "pg": "^8.11.3"
   },
   "devDependencies": {

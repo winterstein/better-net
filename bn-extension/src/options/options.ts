@@ -1,6 +1,7 @@
 // better:net settings (options page)
 
 import { LOCAL_MODELS, formatBytes } from '../ai/model-catalog.js';
+import { setupAccountFeedback } from './account-feedback.js';
 import { MODEL_STATUS, isBusyStatus, isInstalled } from '../ai/model-status.js';
 import { DEFAULT_NUTRIENT_LABEL_MIN_RISK, RISK_LEVELS } from '../types/RiskLevel.js';
 import { logit, setDeveloperMode, developerModeFromSettings } from '../utils/logger.js';
@@ -79,6 +80,11 @@ class SettingsController {
     for (const type of ['change', 'input']) {
       document.addEventListener(type, (e) => this.rememberEdit(e.target as Element), true);
     }
+    // Account -> view / delete my feedback (options/account-feedback.ts).
+    setupAccountFeedback({
+      sendMessage: (message) => sendExtensionMessage(message),
+      openUrl: (url) => chrome.tabs.create({ url }),
+    });
     document.getElementById('save-btn')?.addEventListener('click', () => this.saveSettings());
     document.getElementById('reset-btn')?.addEventListener('click', () => this.resetSettings());
     document.getElementById('add-excluded-site-btn')?.addEventListener('click', () =>

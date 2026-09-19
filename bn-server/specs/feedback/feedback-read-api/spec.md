@@ -15,7 +15,8 @@ Consumed by bn-webapp — see [feedback-viewer](../../../../bn-webapp/specs/feed
 
 ## Status
 
-draft.
+MVP. All endpoints built and tested (bn-server/test/test_accounts.ts), with Auth0 stood in
+for by a local keypair — so the verification path is exercised but the real tenant is not.
 
 ## Relevant links
 
@@ -101,11 +102,11 @@ GET /api/feedback/all?target=module&moduleId=clickUnbait&page=0     (JWT, isStaf
 
 ## Build plan
 
-1. `ownerKey` on writes: record the local id on every submission, derive `localId` from it. status: planning
-2. Auth0 JWT verification middleware (JWKS, `iss`, `aud`) + `users` table (`sub, email, isStaff, created`), row created on first sign-in. status: planning
-3. Device linking: `POST /api/account/link-code` and `POST /api/account/link`. status: planning
-4. `GET /api/feedback/mine`: rows for the account's linked owner keys, paginated. status: planning
-5. `GET /api/feedback/all`: staff only, pseudonymised, filters + pagination. status: planning
+1. `ownerKey` on writes: record the local id on every submission, derive `localId` from it. status: MVP
+2. Auth0 JWT verification middleware (JWKS, `iss`, `aud`) + `bnuser` table (`sub, email, isStaff, created`), row created on first sign-in. status: MVP
+3. Device linking: `POST /api/account/link-code` and `POST /api/account/link`. status: MVP
+4. `GET /api/feedback/mine`: rows for the account's linked owner keys, paginated. status: MVP
+5. `GET /api/feedback/all`: staff only, pseudonymised, filters + pagination. status: MVP
 
 ## Test plan
 

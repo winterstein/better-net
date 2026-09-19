@@ -43,6 +43,11 @@ export function isFeedbackEnabled(settings: {
 	return !!(settings.shareAnonymous && settings.serverEndpoint?.trim());
 }
 
+/**
+ * The local id: created once per browser profile, never sent anywhere but bn-server, and
+ * unguessable because possession of it is what proves ownership of this browser's feedback
+ * (specs/accounts/user-identity). Kept in `local`, not `sync`, so it does not roam.
+ */
 export async function getOrCreateDeviceId(): Promise<string> {
 	const { [DEVICE_ID_KEY]: id } = await chrome.storage.local.get(DEVICE_ID_KEY);
 	if (typeof id === 'string' && id) return id;
@@ -166,6 +171,71 @@ export async function flushFeedbackQueue(
 	}
 }
 
+async function postJson(
+	serverEndpoint: string,
+	path: string,
+	body: unknown,
+	fetchImpl: typeof fetch = fetch
+): Promise<any> {
+	const base = serverEndpoint.replace(/\/$/, '');
+	const res = await fetchImpl(`${base}${path}`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(body),
+	});
+	if (!res.ok) {
+		const text = await res.text().catch(() => '');
+		throw new FeedbackSubmitError(res.status, text);
+	}
+	return res.json();
+}
+
+/** How much this browser has sent, for the delete confirmation to state a number. */
+export async function countMyFeedback(
+	serverEndpoint: string,
+	ownerKey: string,
+	fetchImpl: typeof fetch = fetch
+): Promise<number> {
+	const { count } = await postJson(serverEndpoint, '/api/feedback/count-mine', { localId: ownerKey }, fetchImpl);
+	return Number(count) || 0;
+}
+
+/**
+ * Delete this browser's feedback, server-side and locally.
+ *
+ * The queue goes first, deliberately: it holds feedback that has not reached the server, and
+ * the flush alarm runs every 30 minutes, so leaving it would re-send and resurrect what was
+ * just deleted. If the request then fails, the worst case is dropping unsent feedback — which
+ * is what the user asked for (specs/accounts/delete-my-data).
+ */
+export async function deleteMyFeedback(
+	serverEndpoint: string,
+	ownerKey: string,
+	fetchImpl: typeof fetch = fetch
+): Promise<number> {
+	await clearFeedbackQueue();
+	const { deleted } = await postJson(serverEndpoint, '/api/feedback/delete-mine', { localId: ownerKey }, fetchImpl);
+	return Number(deleted) || 0;
+}
+
+export async function clearFeedbackQueue(): Promise<void> {
+	return withQueueWrite(async () => {
+		await chrome.storage.local.set({ [FEEDBACK_QUEUE_KEY]: [] });
+	});
+}
+
+/**
+ * A short single-use code standing in for the local id, so the long-lived id never has to
+ * reach the webapp (specs/accounts/user-identity).
+ */
+export async function requestLinkCode(
+	serverEndpoint: string,
+	ownerKey: string,
+	fetchImpl: typeof fetch = fetch
+): Promise<{ code: string; expires: string }> {
+	return await postJson(serverEndpoint, '/api/account/link-code', { localId: ownerKey }, fetchImpl);
+}
+
 /** What the modal sends in BN_SUBMIT_FEEDBACK: either a thumb or one tag edit. */
 export interface FeedbackPayload {
 	target: FeedbackTarget;
@@ -204,9 +274,14 @@ export interface FeedbackPayload {
  *
  * A chunk's fingerprint is its url + title (types/Chunk.ts), so a page whose body changed
  * keeps its id, while a different page — or a retitled one — is treated as a new subject.
+ *
+ * Keyed on the local id, never the email: the email is optional and can be set at any time,
+ * so keying on it would move every localId the moment someone filled it in — orphaning their
+ * earlier feedback and inserting duplicates instead of updating (specs/accounts/user-identity).
  */
 export async function feedbackLocalId(parts: {
-	userId: string;
+	/** The local id. Not the email: an email can be set later, which would move the key. */
+	ownerKey: string;
 	target: FeedbackTarget;
 	moduleId?: string;
 	chunkFingerprint?: string;
@@ -215,7 +290,7 @@ export async function feedbackLocalId(parts: {
 }): Promise<string> {
 	// The chunk when there is one; the page for the page-level targets, which have no chunk.
 	const subject = parts.chunkFingerprint || parts.pageUrl || '';
-	const key = [parts.userId, parts.target, parts.moduleId ?? '', subject, parts.tag ?? ''].join('|');
+	const key = [parts.ownerKey, parts.target, parts.moduleId ?? '', subject, parts.tag ?? ''].join('|');
 	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key));
 	const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
 	return `fb-${hex.slice(0, 24)}`;
@@ -229,10 +304,18 @@ export async function feedbackLocalId(parts: {
  * target's own vocabulary, so a tag the UI never offered is a caller bug and is rejected
  * rather than stored as an opinion.
  */
+export interface FeedbackIdentity {
+	/** The local id that owns this feedback. Required. */
+	ownerKey: string;
+	/** Optional unverified email label. Never used to key or authorise anything. */
+	email?: string;
+}
+
 export async function buildFeedbackSubmission(
 	payload: FeedbackPayload,
-	userId: string
+	identity: FeedbackIdentity
 ): Promise<FeedbackSubmission | { error: string }> {
+	if (!identity?.ownerKey) return { error: 'Missing owner key' };
 	if (!FEEDBACK_TARGETS.includes(payload.target)) {
 		return { error: `Unknown feedback target: ${payload.target}` };
 	}
@@ -271,7 +354,7 @@ export async function buildFeedbackSubmission(
 
 	const submission: FeedbackSubmission = {
 		localId: await feedbackLocalId({
-			userId,
+			ownerKey: identity.ownerKey,
 			target: payload.target,
 			moduleId: payload.moduleId,
 			chunkFingerprint: payload.chunkFingerprint,
@@ -283,7 +366,8 @@ export async function buildFeedbackSubmission(
 		pageUrl: payload.pageUrl,
 		traceId: payload.traceId,
 		spanId: payload.spanId,
-		userId,
+		ownerKey: identity.ownerKey,
+		userId: identity.email,
 	};
 
 	if (isTagEdit) {

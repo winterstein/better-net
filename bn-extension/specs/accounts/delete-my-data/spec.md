@@ -15,7 +15,7 @@ data". A button that overpromises on deletion is worse than one with a narrow sc
 
 ## Status
 
-draft.
+MVP. Built and tested; the AIQA trace copy is still out of scope (below).
 
 ## Relevant links
 
@@ -84,11 +84,11 @@ what the user asked for anyway.
 ## Build plan
 
 1. `POST /api/feedback/delete-mine`: hard-delete rows by `ownerKey`, return the count.
-   Depends on `ownerKey` existing on writes (step 1 of user-identity). status: planning
-2. A count for the confirmation dialog — either a field on the delete response used
-   afterwards, or a small count endpoint if the dialog should show it before confirming. status: planning
-3. Options page: button, confirmation dialog, result and error states. status: planning
-4. Clear `bnFeedbackQueue` as part of the same action. status: planning
+   Depends on `ownerKey` existing on writes (step 1 of user-identity). status: MVP
+2. A count for the confirmation dialog — `POST /api/feedback/count-mine`, so the dialog can
+   name a number before anything is deleted. status: MVP
+3. Options page: button, confirmation dialog, result and error states. status: MVP
+4. Clear `bnFeedbackQueue` as part of the same action. status: MVP
 
 ## Test plan
 

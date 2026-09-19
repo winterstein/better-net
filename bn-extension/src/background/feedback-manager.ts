@@ -9,10 +9,13 @@
 import { mergeSettings } from '../settings/modules-esm.js';
 import {
 	buildFeedbackSubmission,
+	countMyFeedback,
+	deleteMyFeedback,
 	enqueueFeedback,
 	flushFeedbackQueue,
 	getOrCreateDeviceId,
 	isFeedbackEnabled,
+	requestLinkCode,
 	submitFeedback,
 	FeedbackSubmitError,
 } from '../feedback/feedback-client.js';
@@ -94,8 +97,10 @@ export async function handleSubmitFeedback(message: {
 		return { ok: false, error: 'Feedback sharing is disabled in Settings → Data Sharing' };
 	}
 
-	const userId = (settings.accountEmail as string)?.trim() || (await getOrCreateDeviceId());
-	const built = await buildFeedbackSubmission(toPayload(message.payload || {}), userId);
+	// The local id owns the feedback; the email is an unverified label and may be absent.
+	const ownerKey = await getOrCreateDeviceId();
+	const email = (settings.accountEmail as string)?.trim() || undefined;
+	const built = await buildFeedbackSubmission(toPayload(message.payload || {}), { ownerKey, email });
 	if ('error' in built) return { ok: false, error: built.error };
 
 	void mirrorToAiqa(built, settings);
@@ -137,5 +142,61 @@ async function mirrorToAiqa(entry: FeedbackSubmission, settings: Record<string, 
 		});
 	} catch (error) {
 		logit('warn', '[BetterNet] [FEEDBACK] AIQA mirror failed:', (error as Error)?.message);
+	}
+}
+
+/**
+ * The options page's Account section talks to bn-server through these. All three are
+ * authorised by possession of the local id, which never leaves the extension except as a
+ * one-time link code (specs/accounts/user-identity, specs/accounts/delete-my-data).
+ *
+ * They do not require Data Sharing to be on: someone who has turned it off still needs to be
+ * able to see and delete what was sent while it was on.
+ */
+async function serverEndpointOrFail(): Promise<string> {
+	const settings = mergeSettings(await chrome.storage.sync.get(null));
+	const endpoint = (settings.serverEndpoint as string)?.trim();
+	if (!endpoint) throw new Error('No server endpoint is configured');
+	return endpoint;
+}
+
+/** @returns the webapp URL to open, with a one-time link code in the fragment. */
+export async function handleFeedbackLink(): Promise<{ ok: boolean; url?: string; error?: string }> {
+	try {
+		const settings = mergeSettings(await chrome.storage.sync.get(null));
+		const endpoint = await serverEndpointOrFail();
+		const ownerKey = await getOrCreateDeviceId();
+		const { code } = await requestLinkCode(endpoint, ownerKey);
+		const base = String(settings.webappUrl || '').replace(/\/$/, '');
+		if (!base) return { ok: false, error: 'No webapp URL is configured' };
+		// Fragment, not query string: a fragment is never sent to the server, so the code
+		// stays out of access logs and Referer headers.
+		return { ok: true, url: `${base}/feedback#link=${encodeURIComponent(code)}` };
+	} catch (err: any) {
+		logit('warn', '[BetterNet] [FEEDBACK] link code failed:', err?.message);
+		return { ok: false, error: err?.message || 'Could not reach the server' };
+	}
+}
+
+/** The number the delete confirmation states, so it is not a blind "delete everything". */
+export async function handleFeedbackCount(): Promise<{ ok: boolean; count?: number; error?: string }> {
+	try {
+		const endpoint = await serverEndpointOrFail();
+		const count = await countMyFeedback(endpoint, await getOrCreateDeviceId());
+		return { ok: true, count };
+	} catch (err: any) {
+		return { ok: false, error: err?.message || 'Could not reach the server' };
+	}
+}
+
+export async function handleFeedbackDelete(): Promise<{ ok: boolean; deleted?: number; error?: string }> {
+	try {
+		const endpoint = await serverEndpointOrFail();
+		const deleted = await deleteMyFeedback(endpoint, await getOrCreateDeviceId());
+		logit('log', '[BetterNet] [FEEDBACK] deleted this device\'s feedback:', deleted);
+		return { ok: true, deleted };
+	} catch (err: any) {
+		logit('warn', '[BetterNet] [FEEDBACK] delete failed:', err?.message);
+		return { ok: false, error: err?.message || 'Could not reach the server' };
 	}
 }

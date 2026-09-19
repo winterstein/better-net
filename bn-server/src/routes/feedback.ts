@@ -31,6 +31,14 @@ import { FEEDBACK_TARGETS, PAGE_LEVEL_TARGETS } from '../bn-extension-src/types/
 import type { Chunk } from '../bn-extension-src/types/Chunk.js';
 import type { Page } from '../bn-extension-src/types/Page.js';
 import { problemScoreFromFraction } from '../bn-extension-src/types/Score.js';
+import {
+	allFeedback,
+	countFeedbackForOwner,
+	deleteFeedbackForOwner,
+	feedbackForOwners,
+	ownerKeysForAccount,
+} from '../accounts.js';
+import { requireAuth, requireStaff } from '../auth.js';
 
 /** Legacy AspectType → moduleId (pre Module/Tag rename). */
 const LEGACY_ASPECT_TO_MODULE: Record<string, string> = {
@@ -177,6 +185,8 @@ async function feedbackRoutes(fastify: FastifyInstance) {
 			confidence: body.confidence,
 			traceId: body.traceId,
 			spanId: body.spanId,
+			// Who owns this row: reads and deletes are keyed on it, and no read returns it.
+			ownerKey: body.ownerKey,
 			userId: body.userId,
 		};
 
@@ -199,6 +209,75 @@ async function feedbackRoutes(fastify: FastifyInstance) {
 			return reply.code(200).send(await applyFollowUp(winner, feedbackItem));
 		}
 	});
+
+	/**
+	 * Own feedback. "Mine" means rows owned by a local id linked to this account, so a user
+	 * who has never linked a device gets an empty list plus linkedDevices: 0 — the webapp
+	 * shows a different message for that than for "linked but nothing rated yet".
+	 */
+	fastify.get<{ Querystring: FeedbackQuery }>('/mine', async (
+		request: FastifyRequest<{ Querystring: FeedbackQuery }>,
+		reply: FastifyReply
+	) => {
+		const user = await requireAuth(request, reply);
+		if (!user) return reply;
+		const ownerKeys = await ownerKeysForAccount(user.sub);
+		const page = await feedbackForOwners(ownerKeys, filtersFrom(request.query));
+		return reply.send({ ...page, linkedDevices: ownerKeys.length });
+	});
+
+	/** All feedback, staff only. Pseudonymised in accounts.ts, never here. */
+	fastify.get<{ Querystring: FeedbackQuery }>('/all', async (
+		request: FastifyRequest<{ Querystring: FeedbackQuery }>,
+		reply: FastifyReply
+	) => {
+		const staff = await requireStaff(request, reply);
+		if (!staff) return reply;
+		return reply.send(await allFeedback(filtersFrom(request.query)));
+	});
+
+	/**
+	 * Delete this browser's feedback. Authorised by possession of the local id, like
+	 * /api/account/link-code — the extension is never signed in
+	 * (specs/accounts/delete-my-data). The extension must also clear its pending queue, or
+	 * the flush alarm would re-send and resurrect what was just deleted.
+	 */
+	fastify.post<{ Body: { localId?: string } }>('/delete-mine', async (
+		request: FastifyRequest<{ Body: { localId?: string } }>,
+		reply: FastifyReply
+	) => {
+		const localId = request.body?.localId?.trim();
+		if (!localId) return reply.code(400).send({ error: 'A local id is required' });
+		return reply.send({ deleted: await deleteFeedbackForOwner(localId) });
+	});
+
+	/** The count the confirmation dialog shows before anything is deleted. */
+	fastify.post<{ Body: { localId?: string } }>('/count-mine', async (
+		request: FastifyRequest<{ Body: { localId?: string } }>,
+		reply: FastifyReply
+	) => {
+		const localId = request.body?.localId?.trim();
+		if (!localId) return reply.code(400).send({ error: 'A local id is required' });
+		return reply.send({ count: await countFeedbackForOwner(localId) });
+	});
+}
+
+interface FeedbackQuery {
+	target?: string;
+	moduleId?: string;
+	tag?: string;
+	limit?: string;
+	offset?: string;
+}
+
+function filtersFrom(q: FeedbackQuery = {}) {
+	return {
+		target: q.target,
+		moduleId: q.moduleId,
+		tag: q.tag,
+		limit: q.limit ? Number(q.limit) : undefined,
+		offset: q.offset ? Number(q.offset) : undefined,
+	};
 }
 
 /** Absent fields in a follow-up must not wipe what the thumb already recorded. */

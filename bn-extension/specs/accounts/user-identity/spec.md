@@ -20,9 +20,8 @@ feedback stays anonymous; only going back to *look* at it needs an account.
 
 ## Status
 
-draft. The local id exists and is in use (`getOrCreateDeviceId`). The `accountEmail` field
-exists but is **unverified free text**: it must not be used to link or authorise anything.
-Auth0 replaces it as the source of a verified email — see Must-nots.
+MVP. Feedback is keyed on the local id, the email is a label only, and linking works via a
+one-time code. Not yet exercised against a real Auth0 tenant.
 
 ## Relevant links
 
@@ -99,10 +98,10 @@ here. See Out of scope.
 ## Build plan
 
 1. Derive `feedbackLocalId` from the local id rather than `userId`, and send the local id as
-   the owner on every submission. status: planning
-2. Keep `accountEmail` as an unverified label only — make sure nothing authorises on it. status: planning
-3. Request a link code and open the webapp, from the options page Account section. status: planning
-4. Options page: show whether this device is linked, and to which account. status: planning
+   the owner on every submission. status: MVP
+2. Keep `accountEmail` as an unverified label only — make sure nothing authorises on it. status: MVP
+3. Request a link code and open the webapp, from the options page Account section. status: MVP
+4. Options page: show whether this device is linked, and to which account. status: planning (the button and delete are in; the linked-state display is not)
 
 Step 1 is the prerequisite for the feedback read API. Steps 3-4 are what the user actually
 touches; the account itself lives in Auth0, so there is nothing to build for that here.

@@ -99,6 +99,8 @@
     // manager are unreachable without one, and a blank default meant a fresh profile
     // showed no feedback controls at all. Overridable in Settings -> Advanced.
     serverEndpoint: 'https://server.better-net.com',
+    // bn-webapp, where "View my feedback" opens (bn-webapp/specs/feedback/feedback-viewer).
+    webappUrl: 'https://app.better-net.com',
     // Reuse the server's cached analysis for a page instead of analysing it locally. No service yet.
     useServerCache: false,
     // Product-demo recordings: serve the canned results in analysis/demo-analysis.ts

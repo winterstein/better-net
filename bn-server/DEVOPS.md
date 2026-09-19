@@ -67,10 +67,13 @@ Manual: GitHub → Actions → **Deploy Server** → **Run workflow**.
 | var | `DB_PORT` | Postgres port (default 5432) |
 | var | `DB_NAME` | Database name (default betternet) |
 | var | `DB_USERNAME` | Postgres user |
+| var | `AUTH0_DOMAIN` | Auth0 tenant, e.g. `winterstein.eu.auth0.com`. Read endpoints 401 without it |
+| var | `AUTH0_AUDIENCE` | Auth0 API identifier the webapp's token must carry |
 | var | `BN_AIQA_ENDPOINT` | Optional AIQA traces URL |
 | var | `RUN_AS_USER` | Service owner (default: `DEPLOY_USER`; prefer `bn`) |
 | secret | `DEPLOY_SSH_KEY` | Private key for `DEPLOY_USER` |
 | secret | `DB_PASSWORD` | Postgres password |
+| secret | `BN_PSEUDONYM_SECRET` | Keys staff-view submitter pseudonyms. Set once; changing it re-pseudonymises everyone |
 | secret | `BN_OPENAI_API_KEY` | Optional LLM key |
 | secret | `BN_ANTHROPIC_API_KEY` | Optional LLM key |
 | secret | `BN_GOOGLE_API_KEY` | Optional fact-check key |
@@ -93,3 +96,30 @@ npm run build && npm start
 Health check: `curl http://localhost:3001/health`
 
 Tests: `npm test` (requires local Postgres; copy `.env.test` is committed — override there if your local user/password differ).
+
+## bn-webapp
+
+Static React app, served by nginx from `/opt/betternet/webapp`
+(`bn-webapp/app.better-net.com.nginx`). Needs its own cert before the vhost is enabled:
+
+```bash
+sudo certbot certonly --nginx -d app.better-net.com
+sudo cp bn-webapp/app.better-net.com.nginx /etc/nginx/sites-available/app.better-net.com
+sudo ln -s /etc/nginx/sites-available/app.better-net.com /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Build-time config (Vite bakes these in, so they are not secrets):
+
+| var | Notes |
+|-----|-------|
+| `VITE_API_BASE` | `https://server.better-net.com/api` in production; defaults to `/api` for the dev proxy |
+| `VITE_AUTH0_DOMAIN` | Same tenant as the server's `AUTH0_DOMAIN` |
+| `VITE_AUTH0_CLIENT_ID` | Auth0 **SPA** application client id |
+| `VITE_AUTH0_AUDIENCE` | Must match the server's `AUTH0_AUDIENCE`, or tokens are rejected |
+
+Auth0 SPA application settings need `https://app.better-net.com` as an allowed callback URL,
+logout URL, and web origin.
+
+There is no deploy workflow for bn-webapp yet — `npm run build` and copy `dist/` to
+`/opt/betternet/webapp`.

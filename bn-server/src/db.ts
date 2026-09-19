@@ -183,7 +183,43 @@ async function db_init(): Promise<boolean> {
 			);
 			await client.query(`CREATE INDEX IF NOT EXISTS idx_feedback_localId ON feedback ((props->>'localId'));`);
 		}
+		// Reads and deletes are keyed on the owner (specs/accounts/user-identity).
+		await client.query(`CREATE INDEX IF NOT EXISTS idx_feedback_ownerKey ON feedback ((props->>'ownerKey'));`);
 		console.log('Feedback table initialized successfully');
+
+		/*
+		 * Accounts. Identity is the Auth0 `sub`, not the email: an Auth0 email can change and
+		 * a sub cannot. `bnuser` rather than `user`, which is reserved in SQL.
+		 */
+		console.log('Creating account tables...');
+		await client.query(`CREATE TABLE IF NOT EXISTS bnuser (
+			id SERIAL PRIMARY KEY,
+			sub TEXT NOT NULL UNIQUE,
+			email TEXT,
+			isStaff BOOLEAN NOT NULL DEFAULT FALSE,
+			created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`);
+		/*
+		 * One device belongs to at most one account, which is what the UNIQUE on ownerKey
+		 * enforces: linking a device that is already linked elsewhere moves it, and that is
+		 * how a mis-link is fixed (specs/accounts/user-identity). Feedback never moves.
+		 */
+		await client.query(`CREATE TABLE IF NOT EXISTS accountDevice (
+			id SERIAL PRIMARY KEY,
+			sub TEXT NOT NULL,
+			ownerKey TEXT NOT NULL UNIQUE,
+			created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`);
+		await client.query(`CREATE INDEX IF NOT EXISTS idx_accountDevice_sub ON accountDevice (sub);`);
+		// Single-use, short-lived, so the long-lived local id never reaches the webapp.
+		await client.query(`CREATE TABLE IF NOT EXISTS linkCode (
+			code TEXT PRIMARY KEY,
+			ownerKey TEXT NOT NULL,
+			expires TIMESTAMP NOT NULL,
+			used BOOLEAN NOT NULL DEFAULT FALSE,
+			created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`);
+		console.log('Account tables initialized successfully');
 	} catch (error) {
 		console.error('Error initializing tables:', error);
 		throw error;

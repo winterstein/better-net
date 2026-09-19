@@ -130,7 +130,15 @@ jobs:
           DB_PORT: ${{ vars.DB_PORT || '5432' }}
           DB_NAME: ${{ vars.DB_NAME || 'betternet' }}
           DB_USERNAME: ${{ vars.DB_USERNAME }}
+          # Auth0 verifies the webapp's JWT (bn-server/src/auth.ts). Without these the read
+          # endpoints reject every request, since an unconfigured server must not accept
+          # unverified tokens.
+          AUTH0_DOMAIN: ${{ vars.AUTH0_DOMAIN }}
+          AUTH0_AUDIENCE: ${{ vars.AUTH0_AUDIENCE }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          # Keys the staff view's submitter pseudonyms. Changing it re-pseudonymises everyone,
+          # so it is set once and left alone.
+          BN_PSEUDONYM_SECRET: ${{ secrets.BN_PSEUDONYM_SECRET }}
           BN_AIQA_ENDPOINT: ${{ vars.BN_AIQA_ENDPOINT }}
           BN_OPENAI_API_KEY: ${{ secrets.BN_OPENAI_API_KEY }}
           BN_ANTHROPIC_API_KEY: ${{ secrets.BN_ANTHROPIC_API_KEY }}
@@ -141,7 +149,7 @@ jobs:
           username: ${{ env.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ env.DEPLOY_PORT }}
-          envs: SERVER_PORT,SERVER_HOST,DB_HOST,DB_PORT,DB_NAME,DB_USERNAME,DB_PASSWORD,BN_AIQA_ENDPOINT,BN_OPENAI_API_KEY,BN_ANTHROPIC_API_KEY,BN_GOOGLE_API_KEY,RUN_AS_USER
+          envs: SERVER_PORT,SERVER_HOST,DB_HOST,DB_PORT,DB_NAME,DB_USERNAME,DB_PASSWORD,AUTH0_DOMAIN,AUTH0_AUDIENCE,BN_PSEUDONYM_SECRET,BN_AIQA_ENDPOINT,BN_OPENAI_API_KEY,BN_ANTHROPIC_API_KEY,BN_GOOGLE_API_KEY,RUN_AS_USER
           script: |
             cd /opt/betternet/server
 
@@ -166,6 +174,9 @@ jobs:
               echo "DB_NAME=${DB_NAME:-betternet}"
               echo "DB_USERNAME=${DB_USERNAME}"
               echo "DB_PASSWORD=${DB_PASSWORD}"
+              [ -n "${AUTH0_DOMAIN}" ] && echo "AUTH0_DOMAIN=${AUTH0_DOMAIN}"
+              [ -n "${AUTH0_AUDIENCE}" ] && echo "AUTH0_AUDIENCE=${AUTH0_AUDIENCE}"
+              [ -n "${BN_PSEUDONYM_SECRET}" ] && echo "BN_PSEUDONYM_SECRET=${BN_PSEUDONYM_SECRET}"
               [ -n "${BN_AIQA_ENDPOINT}" ] && echo "BN_AIQA_ENDPOINT=${BN_AIQA_ENDPOINT}"
               [ -n "${BN_OPENAI_API_KEY}" ] && echo "BN_OPENAI_API_KEY=${BN_OPENAI_API_KEY}"
               [ -n "${BN_ANTHROPIC_API_KEY}" ] && echo "BN_ANTHROPIC_API_KEY=${BN_ANTHROPIC_API_KEY}"

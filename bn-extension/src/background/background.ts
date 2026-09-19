@@ -25,7 +25,13 @@ import { getGoogleFactCheckKey, getOpenAIKey, getAnthropicKey, initializeChromeS
 import { logit, setTabId, setDeveloperMode, developerModeFromSettings } from '../utils/logger.js';
 import { setupModelManager } from './model-manager.js';
 import { setupUpdateManager } from './update-manager.js';
-import { setupFeedbackManager, handleSubmitFeedback } from './feedback-manager.js';
+import {
+  setupFeedbackManager,
+  handleSubmitFeedback,
+  handleFeedbackCount,
+  handleFeedbackDelete,
+  handleFeedbackLink,
+} from './feedback-manager.js';
 import { migrateDeveloperMode } from '../settings/migrate-settings.js';
 import { clearToolbarBadge, forgetToolbarBadge, updateToolbarBadge } from './toolbar-badge.js';
 import { shouldBlockPageAds } from '../ad-blocker/run.js';
@@ -157,6 +163,9 @@ class AnalysisManager {
           'GET_AD_BLOCK_STATUS',
           'SITE_EXCLUSION_CHANGED',
           'BN_SUBMIT_FEEDBACK',
+          'BN_FEEDBACK_LINK',
+          'BN_FEEDBACK_COUNT',
+          'BN_FEEDBACK_DELETE',
           'POPUP_OPENED',
           'POPUP_ERROR',
         ]);
@@ -288,6 +297,22 @@ class AnalysisManager {
       case 'BN_SUBMIT_FEEDBACK': {
         const result = await handleSubmitFeedback(message);
         sendResponse(result);
+        break;
+      }
+
+      // Options page -> Account. See specs/accounts/user-identity.
+      case 'BN_FEEDBACK_LINK': {
+        sendResponse(await handleFeedbackLink());
+        break;
+      }
+
+      case 'BN_FEEDBACK_COUNT': {
+        sendResponse(await handleFeedbackCount());
+        break;
+      }
+
+      case 'BN_FEEDBACK_DELETE': {
+        sendResponse(await handleFeedbackDelete());
         break;
       }
 

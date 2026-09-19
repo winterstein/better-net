@@ -93,5 +93,15 @@ export interface FeedbackSubmission {
 	traceId?: string;
 	/** The exact step: the feature span for a module, the chunk span otherwise. */
 	spanId?: string;
+	/**
+	 * Who owns this feedback: the extension's local id (specs/accounts/user-identity).
+	 * Unguessable, per browser profile, and the only thing ownership is keyed on — reads and
+	 * deletes are authorised by it. Never returned by a read endpoint.
+	 */
+	ownerKey?: string;
+	/**
+	 * Optional unverified email from Settings -> Account. A label for context only: it is
+	 * guessable and unproven, so it must never authorise anything. Absent for most users.
+	 */
 	userId?: string;
 }

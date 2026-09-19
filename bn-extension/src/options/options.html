@@ -147,6 +147,35 @@
             <span class="setting-description">Sign-in and sync coming soon. Stored locally for now.</span>
             <input type="email" id="account-email" placeholder="you@example.com" autocomplete="email">
           </div>
+
+          <!-- Feedback you have given. See specs/accounts/user-identity. -->
+          <div class="setting-item">
+            <label><strong>Your feedback</strong></label>
+            <span class="setting-description">
+              See the corrections you have sent us. Opens better:net on the web, where you
+              will be asked to sign in — the extension itself never needs an account.
+            </span>
+            <button type="button" id="feedback-view">View my feedback</button>
+            <p id="feedback-view-status" class="setting-description" role="status" aria-live="polite"></p>
+          </div>
+
+          <div class="setting-item">
+            <label><strong>Delete my feedback</strong></label>
+            <span class="setting-description">
+              Permanently deletes the feedback sent from this browser. Feedback sent from your
+              other browsers is not affected.
+            </span>
+            <button type="button" id="feedback-delete">Delete my feedback</button>
+
+            <!-- Confirmation. Hidden until the button is pressed; Cancel is focused first. -->
+            <div id="feedback-delete-confirm" class="hidden" role="group" aria-labelledby="feedback-delete-prompt">
+              <p id="feedback-delete-prompt"><strong></strong></p>
+              <button type="button" id="feedback-delete-cancel">Cancel</button>
+              <button type="button" id="feedback-delete-yes">Yes, delete</button>
+            </div>
+            <p id="feedback-delete-status" class="setting-description" role="status" aria-live="polite"></p>
+          </div>
+
           <p class="placeholder-note">Account sync and subscription management are not yet available.</p>
         </section>
 

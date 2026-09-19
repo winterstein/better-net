@@ -82,11 +82,11 @@ const CHUNK = {
 };
 const MODULE = { target: 'module' as const, moduleId: 'clickUnbait', ...CHUNK };
 
-const build = (payload: Partial<FeedbackPayload>, userId = 'user-1') =>
-	buildFeedbackSubmission({ target: 'summary', ...payload } as FeedbackPayload, userId);
+const build = (payload: Partial<FeedbackPayload>, ownerKey = 'owner-1') =>
+	buildFeedbackSubmission({ target: 'summary', ...payload } as FeedbackPayload, { ownerKey });
 
-async function ok(payload: Partial<FeedbackPayload>, userId = 'user-1'): Promise<FeedbackSubmission> {
-	const built = await build(payload, userId);
+async function ok(payload: Partial<FeedbackPayload>, ownerKey = 'owner-1'): Promise<FeedbackSubmission> {
+	const built = await build(payload, ownerKey);
 	assert.ok(!('error' in built), `expected a submission, got ${JSON.stringify(built)}`);
 	return built as FeedbackSubmission;
 }
@@ -260,7 +260,7 @@ for (const s of [summary, chunkTag, removed]) {
 
 const idOf = (extra: Record<string, unknown>) =>
 	feedbackLocalId({
-		userId: 'user-1',
+		ownerKey: 'owner-1',
 		target: 'module',
 		moduleId: 'clickUnbait',
 		chunkFingerprint: 'abc',
@@ -273,7 +273,7 @@ assert.equal(removed.localId, added.localId, 're-adding a removed tag updates th
 
 for (const differs of [
 	{ tag: 'urgency' },
-	{ userId: 'user-2' },
+	{ ownerKey: 'owner-2' },
 	{ target: 'chunk' as const },
 	{ moduleId: 'factChecker' },
 	{ chunkFingerprint: 'def' },
@@ -328,6 +328,35 @@ assert.match(
 
 	const none = await ok({ ...CHUNK, thumbsUp: true });
 	assert.equal(none.problemScore, undefined, 'absent stays absent rather than becoming low');
+}
+
+// The email is a label. Setting one must not change the upsert key, or the same person
+// re-rating a chunk would insert a second row (specs/accounts/user-identity).
+{
+	const anon = await ok({ ...MODULE, tag: 'clickbait', tagOn: false });
+	const withEmail = await buildFeedbackSubmission(
+		{ target: 'module', moduleId: 'clickUnbait', tag: 'clickbait', tagOn: false, ...CHUNK } as FeedbackPayload,
+		{ ownerKey: 'owner-1', email: 'someone@example.com' }
+	);
+	assert.ok(!('error' in withEmail));
+	const labelled = withEmail as FeedbackSubmission;
+	assert.equal(labelled.localId, anon.localId, 'setting an email does not move the localId');
+	assert.equal(labelled.ownerKey, 'owner-1', 'the local id owns it');
+	assert.equal(labelled.userId, 'someone@example.com', 'the email rides along as a label');
+	assert.equal(anon.userId, undefined, 'and is absent when not set');
+
+	// A different local id is a different person, even with the same email typed in.
+	const other = await buildFeedbackSubmission(
+		{ target: 'module', moduleId: 'clickUnbait', tag: 'clickbait', tagOn: false, ...CHUNK } as FeedbackPayload,
+		{ ownerKey: 'owner-2', email: 'someone@example.com' }
+	);
+	assert.notEqual((other as FeedbackSubmission).localId, anon.localId, 'the key follows the local id');
+
+	const noOwner = await buildFeedbackSubmission(
+		{ target: 'summary', thumbsUp: true, ...CHUNK } as FeedbackPayload,
+		{ ownerKey: '' }
+	);
+	assert.ok('error' in noOwner, 'no owner key is a caller bug, not a submission');
 }
 
 console.log('✅ feedback tests passed');
