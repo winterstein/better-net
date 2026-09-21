@@ -1,0 +1,70 @@
+# Static host for bn-webapp (the feedback viewer). See specs/feedback/feedback-viewer.
+# Copy or symlink into nginx sites-available; enable site; reload nginx.
+# DNS: point app.better-net.com at the server IP.
+#
+# The browser calls server.better-net.com directly with an Auth0 Bearer token, so nothing
+# here proxies the API and the API needs no credentialed CORS.
+
+map "$scheme://$host" $bn_app_force_https {
+	default "";
+	"http://app.better-net.com" "1";
+}
+
+map "$scheme://$host" $bn_app_hsts {
+	default "";
+	"https://app.better-net.com" "max-age=31536000";
+}
+
+server {
+	server_name app.better-net.com localapp.better-net.com;
+
+	listen 80;
+	listen [::]:80;
+	listen 443 ssl http2;
+	listen [::]:443 ssl http2;
+
+	# PREREQUISITE: issue this cert before enabling the site.
+	#   sudo certbot certonly --nginx -d app.better-net.com
+	# nginx config load is atomic across the whole host, so a missing cert file is [emerg]
+	# and takes every other vhost down with it. Run `sudo nginx -t` before reloading.
+	#
+	# nginx on this host is 1.24.0, so `listen ... http2` is correct. Do not switch to the
+	# newer `http2 on;` directive - that needs nginx >= 1.25.1.
+	ssl_certificate /etc/letsencrypt/live/app.better-net.com/fullchain.pem;
+	ssl_certificate_key /etc/letsencrypt/live/app.better-net.com/privkey.pem;
+	ssl_protocols TLSv1.2 TLSv1.3;
+	ssl_prefer_server_ciphers off;
+
+	root /opt/betternet/webapp;
+	index index.html;
+
+	location / {
+		if ($bn_app_force_https) {
+			return 301 https://$host$request_uri;
+		}
+
+		# Client-side routing: /feedback and /staff/feedback are React routes, not files, so
+		# unknown paths fall back to the app rather than 404ing.
+		try_files $uri $uri/ /index.html;
+
+		# Vite emits content-hashed asset names, so those are immutable; index.html must not
+		# be cached or a deploy would keep serving the old bundle.
+		add_header Strict-Transport-Security $bn_app_hsts always;
+		add_header X-Frame-Options DENY always;
+		add_header X-Content-Type-Options nosniff always;
+	}
+
+	location = /index.html {
+		add_header Cache-Control "no-cache" always;
+		add_header Strict-Transport-Security $bn_app_hsts always;
+		add_header X-Frame-Options DENY always;
+	}
+
+	location /assets/ {
+		add_header Cache-Control "public, max-age=31536000, immutable" always;
+		add_header Strict-Transport-Security $bn_app_hsts always;
+	}
+
+	error_log /var/log/nginx/bn-webapp.error.log warn;
+	access_log /var/log/nginx/bn-webapp.access.log;
+}
