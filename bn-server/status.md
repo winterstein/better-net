@@ -25,6 +25,19 @@
   rejected every webapp token. `BN_PSEUDONYM_SECRET` is now set there too — it is set once
   and left alone, since changing it re-pseudonymises everyone.
 
+- **`src/server.ts` loads `dotenv`**, which it did not before: `npm run dev` ignored `.env`
+  entirely, so `AUTH0_DOMAIN` was unset and every guarded route 401'd a perfectly valid
+  token. Production is unaffected either way (systemd `EnvironmentFile`), but `dotenv` moved
+  from devDependencies to dependencies — prod installs with `--omit=dev`, so a runtime
+  import of a dev-only package would crash-loop the service.
+- **`db_init` serialises table creation on a Postgres advisory lock.** `CREATE TABLE IF NOT
+  EXISTS` is not race-safe, and tap runs test files in parallel against one database, so CI
+  on a fresh Postgres failed with `duplicate key value violates unique constraint
+  "pg_class_relname_nsp_index"`. Reproducible with 4 concurrent `db_init()` processes
+  against an empty database.
+- The post-login Action is bound to the flow — the tenant log shows an `Update trigger
+  bindings` event, and a login issues a token for `https://server.better-net.com/api`.
+
 ## AI layer
 
 - `src/ai/server-analysis.ts` — merge env keys into `AnalysisOptions`
@@ -34,14 +47,11 @@
 ## Blocked
 
 - `npm test` needs Postgres on `localhost:5432` (`.env.test`); it is not started by the suite.
-- The post-login Action is deployed but nothing here proves it is **bound to the post-login
-  flow** — the Management API keeps deploy and trigger binding separate, and the Auth0 MCP
-  has no bindings tool. Verified only by signing in and seeing whether `/api/account/me`
-  carries an email.
 
 ## Next
 
 - Deploy, then check `/api/account/me` with a real webapp token (the prod env vars changed,
   so the running service is still on the old values until the next deploy)
+- Re-test sign-in at localhost now that `.env` is actually read
 - Wire OpenAI/Anthropic keys in production env for server-side LLM analysis
 - Optional: Node local inference backend (transformers.js or sidecar)

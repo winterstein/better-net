@@ -126,6 +126,16 @@ async function db_init(): Promise<boolean> {
 	// Chunk, Page, ChunkAnalysis
 	// using a field `props` : JSONB = json of the item
 	try {
+		/*
+		 * CREATE TABLE IF NOT EXISTS is not race-safe: two connections running it at once
+		 * both see the table missing, both insert into pg_class, and the loser gets
+		 * `duplicate key value violates unique constraint "pg_class_relname_nsp_index"`.
+		 * tap runs test files in parallel against one database, so this is exactly what CI
+		 * hit on a fresh Postgres. An advisory lock makes the whole block one-at-a-time;
+		 * it costs nothing after the first caller, since the rest then find every table
+		 * already there. The number is arbitrary but must be shared by all callers.
+		 */
+		await client.query('SELECT pg_advisory_lock(198401)');
 		// Create chunk table
 		console.log('Creating chunk table...');
 		const sql_chunk = `CREATE TABLE IF NOT EXISTS chunk (${chunk_columns.map(c => `${c.name} ${c.type}`).join(', ')})`;
@@ -224,6 +234,9 @@ async function db_init(): Promise<boolean> {
 		console.error('Error initializing tables:', error);
 		throw error;
 	} finally {
+		// Released explicitly: an advisory lock is held for the whole session, and this
+		// client goes back to the pool rather than being closed.
+		await client.query('SELECT pg_advisory_unlock(198401)').catch(() => {});
 		client.release();
 	}
 	console.log('Database initialized successfully');

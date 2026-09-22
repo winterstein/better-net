@@ -1,3 +1,15 @@
+/*
+ * Load .env before anything reads process.env. In production systemd supplies the same
+ * values via EnvironmentFile (bn-server.service), and dotenv does not overwrite what is
+ * already set, so this is a no-op there — it exists for `npm run dev`, which otherwise
+ * ignores .env entirely. That silence was expensive: with AUTH0_DOMAIN unread, auth.ts
+ * refuses every token and each guarded route 401s while looking perfectly configured.
+ *
+ * Side-effect import rather than a dotenv.config() call: ESM hoists every import above
+ * plain statements, so a call here would run after the modules below had already loaded.
+ */
+import 'dotenv/config';
+
 import Fastify, { FastifyInstance } from 'fastify';
 import accountRoutes from './routes/account.js';
 import chunkRoutes from './routes/chunk.js';

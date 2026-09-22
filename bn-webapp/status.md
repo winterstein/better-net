@@ -22,8 +22,13 @@ unlike the extension, the whole app requires sign-in.
 
 ## Blocked
 
-- **End-to-end sign-in is still unproven.** Config is in place on both sides, but nobody has
-  signed in since, so "JWT accepted by bn-server" is inference, not a result.
+- **Sign-in half-proven.** A real localhost login works and Auth0 issues an access token for
+  the right audience (`https://server.better-net.com/api`, confirmed in the tenant log), but
+  bn-server 401'd every guarded call — it never read its `.env`, so `AUTH0_DOMAIN` was unset
+  and `auth.ts` refused the token. Fixed in bn-server; not yet re-tested in the browser.
+- The production build needs `VITE_API_BASE=https://server.better-net.com/api`.
+  `app.better-net.com` serves static files and proxies nothing, so the `/api` default only
+  works in dev, where Vite proxies it.
 - **There is no webapp deploy workflow** (`.github/workflows/` has `server-deploy.yml` only),
   so `app.better-net.com` is a manual `npm run build` + copy — and the build bakes in
   `VITE_AUTH0_*`, which must therefore be present on whichever machine builds it.
