@@ -4,6 +4,7 @@ import { findAnalysisByModule } from '../types/ModuleAnalysis.js';
 import { chunkProblemScore } from '../types/ChunkAnalysis.js';
 import { fractionFromProblemScore } from '../types/Score.js';
 import { createPopupLog, runStep } from './popup-diagnostics.js';
+import { setupAccountLink } from '../accounts/account-link-ui.js';
 
 const log = createPopupLog();
 
@@ -219,6 +220,17 @@ class PopupController {
 
     document.getElementById('chunks-toggle')?.addEventListener('click', () => {
       this.toggleChunksList();
+    });
+
+    // Optional account link. Not awaited: its status arrives from the server, and the popup
+    // must never wait on the network to become clickable.
+    void setupAccountLink({
+      sendMessage: (message) => runtimeSendMessage(message),
+      openUrl: (url) => {
+        chrome.tabs.create({ url });
+        window.close();
+      },
+      ids: { button: 'popup-account-link', status: 'popup-account-link-status' },
     });
   }
 

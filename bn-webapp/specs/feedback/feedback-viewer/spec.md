@@ -19,7 +19,15 @@ origin with credentials deliberately off).
 ## Status
 
 MVP. Both views built and their logic tested (bn-webapp/test/feedback-viewer.test.ts).
-Remaining: the cert and a deploy for app.better-net.com, and an Auth0 SPA application.
+
+Auth0: tenant `better-net.eu.auth0.com`, SPA application `BetterNet Webapp`
+(`WBF8SVYqzsxI37AbH733VNHyQgvPs5ou`), callback/logout/origin URLs registered for both
+`http://localhost:3000` and `https://app.better-net.com`. Config lives in `.env.local`,
+documented in `.env.example`.
+
+Remaining: the `BetterNet Server API` resource server in Auth0 — without it there is no
+audience to ask for, so the access token is opaque and every API call 401s — and the cert
+and deploy for app.better-net.com.
 
 ## Relevant links
 
@@ -43,6 +51,16 @@ Remaining: the cert and a deploy for app.better-net.com, and an Auth0 SPA applic
 
 The code is in the URL **fragment**, not the query string: a fragment is never sent to the
 server, so it stays out of nginx access logs and `Referer` headers.
+
+The catch, and the reason step 4 above is not simply "read the fragment": signing in is a
+full-page redirect to Auth0 and back, and **the fragment does not survive it**. Arriving from
+the extension is exactly the case that also has to sign in, so the code is stashed in
+`sessionStorage` at startup (`main.tsx`, before React renders) and taken from there after
+sign-in. Read it off the URL at redeem time instead and a first visit always ends on "no
+browsers linked" — for a user who has just linked one.
+
+Sign-in also carries `appState.returnTo`, because Auth0 only ever returns to the origin: one
+callback URL per environment, so `/feedback` has to be navigated back to afterwards.
 
 **Later visits** are just sign-in — no code, because the device is already linked.
 
@@ -78,6 +96,7 @@ server, so it stays out of nginx access logs and `Referer` headers.
 
 1. `app.better-net.com`: nginx vhost written and validated; cert and deploy still to do. status: planning
 2. Auth0 SPA sign-in, and `api.ts` sending the JWT as a Bearer header. status: MVP
+   (application created; blocked on the API/audience before a usable JWT is issued)
 3. Link step: read `#link=` from the fragment, post it after sign-in, strip the URL. status: MVP
 4. `/feedback` page and the three empty/expired states above. status: MVP
 5. **View my feedback** button in the extension options page (Account section): request a link
@@ -99,6 +118,8 @@ Step 5 is the only change outside bn-webapp.
 
 - Not signed in → the sign-in prompt, on both routes; no view renders without a JWT
 - The link code is taken from the fragment, posted once, and gone from the URL afterwards
+- It survives the sign-in redirect, which drops the fragment, and is used only once
+- Storage being unavailable (private mode) does not throw or break the signed-in path
 - An expired or reused code shows the re-open message while the user stays signed in
 - The three states are distinguishable: nothing linked, linked-but-empty, and has feedback
 - "My feedback" shows only this account's linked rows — fixture with two local ids

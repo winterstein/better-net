@@ -604,3 +604,37 @@ body {
   background: #ffebee;
   color: #c62828;
 }
+
+/* Optional account link, at the foot of the popup. Deliberately quiet: the extension never
+   requires an account, so this must not compete with the analysis (specs/accounts/user-identity). */
+.account-row {
+  border-top: 1px solid #eee;
+  margin-top: 12px;
+  padding: 8px 0 4px;
+}
+
+.account-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #1565c0;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.account-link-btn:hover {
+  text-decoration: underline;
+}
+
+.account-link-btn:disabled {
+  color: #9e9e9e;
+  cursor: default;
+  text-decoration: none;
+}
+
+.account-link-status {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: #666;
+}

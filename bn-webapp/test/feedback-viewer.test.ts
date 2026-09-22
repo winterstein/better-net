@@ -7,10 +7,93 @@
  */
 
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { readLinkCode, stripLinkCode } from '../src/auth/link-code';
+import { readLinkCode, stashLinkCode, stripLinkCode, takeLinkCode } from '../src/auth/link-code';
 import { describeFeedback, feedbackView } from '../src/feedback/feedback-state';
 import { ApiError, feedbackApi } from '../src/services/api';
 import { requireToken } from '../src/auth/token';
+
+/**
+ * Signing in is a redirect to Auth0 and back, and the fragment does not survive it — so the
+ * arrival-from-the-extension case, which is exactly the case that also has to sign in, would
+ * otherwise lose its code and show "no browsers linked" to someone who just linked one.
+ */
+describe('link code across the sign-in redirect', () => {
+	/** Enough of sessionStorage to drive stash/take. */
+	function fakeStore(initial: Record<string, string> = {}) {
+		const data = { ...initial };
+		return {
+			getItem: (k: string) => (k in data ? data[k] : null),
+			setItem: (k: string, v: string) => {
+				data[k] = v;
+			},
+			removeItem: (k: string) => {
+				delete data[k];
+			},
+			data,
+		} as unknown as Storage & { data: Record<string, string> };
+	}
+
+	function fakeWin(hash: string) {
+		const replaceState = vi.fn();
+		return {
+			win: {
+				location: { hash, pathname: '/feedback', search: '' },
+				history: { replaceState },
+			},
+			replaceState,
+		};
+	}
+
+	it('stashes the code and clears it from the URL', () => {
+		const store = fakeStore();
+		const { win, replaceState } = fakeWin('#link=ABCD-2345');
+		stashLinkCode(win, store);
+		expect(takeLinkCode(store)).toBe('ABCD-2345');
+		// Still stripped, so the code is not left in history.
+		expect(replaceState).toHaveBeenCalledWith(null, '', '/feedback');
+	});
+
+	it('is single-use, so a failed redeem is not retried forever', () => {
+		const store = fakeStore();
+		stashLinkCode(fakeWin('#link=ABCD-2345').win, store);
+		expect(takeLinkCode(store)).toBe('ABCD-2345');
+		expect(takeLinkCode(store)).toBeNull();
+	});
+
+	it('does nothing on an ordinary visit', () => {
+		const store = fakeStore();
+		const { win, replaceState } = fakeWin('');
+		stashLinkCode(win, store);
+		expect(takeLinkCode(store)).toBeNull();
+		expect(replaceState).not.toHaveBeenCalled();
+	});
+
+	it('does not overwrite a stashed code on a later render with no fragment', () => {
+		const store = fakeStore();
+		stashLinkCode(fakeWin('#link=ABCD-2345').win, store);
+		// A re-render after the URL was stripped must leave the stash intact.
+		stashLinkCode(fakeWin('').win, store);
+		expect(takeLinkCode(store)).toBe('ABCD-2345');
+	});
+
+	it('survives storage being unavailable, as in private mode', () => {
+		const throwing = {
+			getItem: () => {
+				throw new Error('denied');
+			},
+			setItem: () => {
+				throw new Error('denied');
+			},
+			removeItem: () => {
+				throw new Error('denied');
+			},
+		} as unknown as Storage;
+		const { win, replaceState } = fakeWin('#link=ABCD-2345');
+		expect(() => stashLinkCode(win, throwing)).not.toThrow();
+		expect(replaceState).toHaveBeenCalled();
+		expect(takeLinkCode(throwing)).toBeNull();
+	});
+});
 
 describe('link code', () => {
 	it('reads the code the extension put in the fragment', () => {

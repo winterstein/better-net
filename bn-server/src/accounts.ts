@@ -101,6 +101,31 @@ export async function ownerKeysForAccount(sub: string): Promise<string[]> {
 	}
 }
 
+/**
+ * Which account, if any, this browser belongs to — for the "linked" status the extension
+ * shows in its popup and options page (bn-extension/specs/accounts/user-identity/spec.md).
+ *
+ * Authorised by possession of the local id, exactly like /link-code: the caller already holds
+ * the credential, so telling them which account it points at reveals nothing they could not
+ * learn by redeeming a code. The lookup is one-way — there is no route from an email back to
+ * a local id.
+ *
+ * @returns the linked account's email (which may be undefined), or null if unlinked
+ */
+export async function accountForDevice(ownerKey: string): Promise<{ email?: string } | null> {
+	const client = await db_get_client();
+	try {
+		const result = await client.query(
+			`SELECT u.email FROM accountDevice d JOIN bnuser u ON u.sub = d.sub WHERE d.ownerKey = $1`,
+			[ownerKey]
+		);
+		if (result.rows.length === 0) return null;
+		return { email: result.rows[0].email ?? undefined };
+	} finally {
+		client.release();
+	}
+}
+
 async function countDevices(sub: string, client: any): Promise<number> {
 	const result = await client.query(
 		`SELECT COUNT(*)::int AS n FROM accountDevice WHERE sub = $1`,

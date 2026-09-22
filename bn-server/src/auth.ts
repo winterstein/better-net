@@ -18,6 +18,14 @@ declare module 'fastify' {
 	}
 }
 
+/**
+ * Auth0 access tokens carry no `email` — that claim lives on the ID token, which only the
+ * webapp sees. A post-login Action copies it here, under a namespace because Auth0 silently
+ * drops custom claims that are not namespaced. Without the Action the email is simply
+ * absent, which is survivable: `sub` is the identity, and the email is only ever a label.
+ */
+const EMAIL_CLAIM = 'https://better-net.com/email';
+
 function authConfig() {
 	const domain = process.env.AUTH0_DOMAIN || '';
 	const audience = process.env.AUTH0_AUDIENCE || '';
@@ -53,6 +61,13 @@ export interface VerifiedToken {
 	email?: string;
 }
 
+/** `email` if the tenant ever sends one, else the namespaced claim the Action adds. */
+function emailFrom(payload: Record<string, unknown>): string | undefined {
+	if (typeof payload.email === 'string') return payload.email;
+	const claim = payload[EMAIL_CLAIM];
+	return typeof claim === 'string' ? claim : undefined;
+}
+
 /** @returns the token's subject, or null if it is missing, malformed, expired or not ours. */
 export async function verifyBearer(authorization?: string): Promise<VerifiedToken | null> {
 	const { domain, audience, issuer } = authConfig();
@@ -66,7 +81,7 @@ export async function verifyBearer(authorization?: string): Promise<VerifiedToke
 			audience: audience || undefined,
 		});
 		if (!payload.sub) return null;
-		return { sub: payload.sub, email: typeof payload.email === 'string' ? payload.email : undefined };
+		return { sub: payload.sub, email: emailFrom(payload) };
 	} catch {
 		return null;
 	}

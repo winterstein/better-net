@@ -28,6 +28,7 @@ import { setupUpdateManager } from './update-manager.js';
 import {
   setupFeedbackManager,
   handleSubmitFeedback,
+  handleAccountStatus,
   handleFeedbackCount,
   handleFeedbackDelete,
   handleFeedbackLink,
@@ -166,6 +167,7 @@ class AnalysisManager {
           'BN_FEEDBACK_LINK',
           'BN_FEEDBACK_COUNT',
           'BN_FEEDBACK_DELETE',
+          'BN_ACCOUNT_STATUS',
           'POPUP_OPENED',
           'POPUP_ERROR',
         ]);
@@ -313,6 +315,12 @@ class AnalysisManager {
 
       case 'BN_FEEDBACK_DELETE': {
         sendResponse(await handleFeedbackDelete());
+        break;
+      }
+
+      // Popup and options page: show a Link button, or who this browser is linked to.
+      case 'BN_ACCOUNT_STATUS': {
+        sendResponse(await handleAccountStatus());
         break;
       }
 

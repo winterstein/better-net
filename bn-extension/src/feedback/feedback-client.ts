@@ -56,6 +56,18 @@ export async function getOrCreateDeviceId(): Promise<string> {
 	return newId;
 }
 
+/**
+ * The local id if this browser already has one, without creating it.
+ *
+ * Asking "is this browser linked?" must not be what brings an identity into existence — a
+ * fresh install that has never given feedback has no local id, and is unlinked by definition
+ * (specs/accounts/user-identity).
+ */
+export async function peekDeviceId(): Promise<string | null> {
+	const { [DEVICE_ID_KEY]: id } = await chrome.storage.local.get(DEVICE_ID_KEY);
+	return typeof id === 'string' && id ? id : null;
+}
+
 async function readQueue(): Promise<FeedbackSubmission[]> {
 	const { [FEEDBACK_QUEUE_KEY]: queue = [] } = await chrome.storage.local.get(FEEDBACK_QUEUE_KEY);
 	return Array.isArray(queue) ? queue : [];
@@ -234,6 +246,24 @@ export async function requestLinkCode(
 	fetchImpl: typeof fetch = fetch
 ): Promise<{ code: string; expires: string }> {
 	return await postJson(serverEndpoint, '/api/account/link-code', { localId: ownerKey }, fetchImpl);
+}
+
+/**
+ * Whether this browser is linked to an account, and to which — the popup and options page
+ * show either a Link button or the linked email (specs/accounts/user-identity).
+ */
+export async function fetchDeviceStatus(
+	serverEndpoint: string,
+	ownerKey: string,
+	fetchImpl: typeof fetch = fetch
+): Promise<{ linked: boolean; email?: string }> {
+	const res = await postJson(
+		serverEndpoint,
+		'/api/account/device-status',
+		{ localId: ownerKey },
+		fetchImpl
+	);
+	return { linked: Boolean(res?.linked), email: res?.email || undefined };
 }
 
 /** What the modal sends in BN_SUBMIT_FEEDBACK: either a thumb or one tag edit. */

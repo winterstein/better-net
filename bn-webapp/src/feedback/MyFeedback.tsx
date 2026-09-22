@@ -10,9 +10,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, Container, Spinner } from 'reactstrap';
 import { useAuth0 } from '@auth0/auth0-react';
 import { ApiError, feedbackApi, type FeedbackPage } from '../services/api';
-import { readLinkCode, stripLinkCode } from '../auth/link-code';
+import { takeLinkCode } from '../auth/link-code';
 import { feedbackView } from './feedback-state';
 import { requireToken } from '../auth/token';
+import { returnHere } from '../auth/AuthProvider';
 import { FeedbackList } from './FeedbackList';
 
 export default function MyFeedback() {
@@ -26,9 +27,10 @@ export default function MyFeedback() {
 	const load = useCallback(async () => {
 		try {
 			const token = await requireToken(getAccessTokenSilently);
-			// The code arrives from the extension; redeem it before loading, so a first visit
-			// shows the newly linked device's feedback rather than an empty list.
-			const code = readLinkCode(window.location.hash);
+			// The code arrives from the extension and was stashed at startup (main.tsx); redeem
+			// it before loading, so a first visit shows the newly linked device's feedback
+			// rather than an empty list.
+			const code = takeLinkCode(window.sessionStorage);
 			if (code) {
 				setLinking(true);
 				try {
@@ -38,7 +40,6 @@ export default function MyFeedback() {
 					if (err instanceof ApiError && err.status === 410) setLinkExpired(true);
 					else throw err;
 				} finally {
-					stripLinkCode(window);
 					setLinking(false);
 				}
 			}
@@ -73,7 +74,7 @@ export default function MyFeedback() {
 			{view.kind === 'signin' && (
 				<>
 					<p>Sign in to see the feedback you have sent us.</p>
-					<Button color="primary" onClick={() => void loginWithRedirect()}>
+					<Button color="primary" onClick={() => void loginWithRedirect(returnHere())}>
 						Sign in
 					</Button>
 				</>

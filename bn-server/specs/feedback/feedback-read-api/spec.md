@@ -23,7 +23,7 @@ for by a local keypair — so the verification path is exercised but the real te
 - [user-identity](../../../../bn-extension/specs/accounts/user-identity/spec.md) — the local id, and linking it to an account
 - [extension-server-feedback.md](../../../../bn-extension/specs/extension-server-feedback.md) — the write side and the `FeedbackSubmission` shape
 - `bn-server/src/routes/feedback.ts` — where POST lives
-- Auth0 tenant `winterstein.eu.auth0.com` (already used by AIQA on the same host); `AUTH0_DOMAIN` / `AUTH0_AUDIENCE` exist in the GitHub `prod` environment
+- Auth0 tenant `better-net.eu.auth0.com` — its own tenant, not the shared `winterstein.eu.auth0.com` AIQA uses. SPA application "BetterNet Webapp" (`WBF8SVYqzsxI37AbH733VNHyQgvPs5ou`); `AUTH0_DOMAIN` / `AUTH0_AUDIENCE` in `bn-server/env.example`
 
 ## Auth
 
@@ -32,6 +32,13 @@ for by a local keypair — so the verification path is exercised but the real te
   cookie, which is why the API's CORS config needs no change — credentials stay off.
 - Identity is the **`sub` claim**, not the email: Auth0 emails can change, `sub` cannot. The
   `users` row is keyed on `sub` and carries `email` and `isStaff`.
+- The audience must name the `BetterNet Server API` resource server. Get this wrong and Auth0
+  issues an *opaque* access token rather than a JWT, so sign-in looks fine and every API call
+  is a 401 — the most confusing way this can be misconfigured.
+- An access token carries **no `email` claim** (that is on the ID token, which the server never
+  sees), so a post-login Action copies it to `https://better-net.com/email` — namespaced,
+  because Auth0 drops custom claims that are not. Absent claim is survivable: `sub` is the
+  identity and the email is only a label.
 - A first sign-in creates the `users` row with `isStaff` false. Staff is set in the database,
   deliberately not self-serve.
 

@@ -80,6 +80,16 @@
         <button id="retry-btn" class="retry-btn">Retry Analysis</button>
       </div>
     </div>
+
+    <!-- Optional account link. Outside analysis-container so it shows even on a page that
+         cannot be analyzed, and never a condition of using better:net
+         (specs/accounts/user-identity). -->
+    <div class="account-row">
+      <button type="button" id="popup-account-link" class="account-link-btn">
+        Link this browser to an account
+      </button>
+      <p id="popup-account-link-status" class="account-link-status" role="status" aria-live="polite"></p>
+    </div>
   </div>
 
   <script src="popup.js"></script>

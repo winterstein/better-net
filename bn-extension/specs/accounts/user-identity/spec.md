@@ -21,11 +21,18 @@ feedback stays anonymous; only going back to *look* at it needs an account.
 ## Status
 
 MVP. Feedback is keyed on the local id, the email is a label only, and linking works via a
-one-time code. Not yet exercised against a real Auth0 tenant.
+one-time code. The link control and the linked-account status are in both the popup and the
+options page (`src/accounts/`), tested in `test/account-link.test.ts`.
+
+Auth0 tenant `better-net.eu.auth0.com`, with the webapp's SPA application created. Still not
+exercised end to end against it: the `BetterNet Server API` resource server does not exist
+yet, so no JWT can be issued that bn-server will accept — see the build plan.
 
 ## Relevant links
 
-- `bn-extension/src/feedback/feedback-client.ts` — `getOrCreateDeviceId`, `feedbackLocalId`
+- `bn-extension/src/feedback/feedback-client.ts` — `getOrCreateDeviceId`, `peekDeviceId`, `feedbackLocalId`
+- `bn-extension/src/accounts/account-link-view.ts` — the wording for each link state
+- `bn-extension/src/accounts/account-link-ui.ts` — the control, shared by the popup and options
 - `bn-extension/src/options/options.ts` — the Account section where the email is entered
 - [feedback-read-api](../../../../bn-server/specs/feedback/feedback-read-api/spec.md) — the
   first consumer: JWT auth, and the link-code endpoints
@@ -50,9 +57,22 @@ one-time code. Not yet exercised against a real Auth0 tenant.
 2. A local id is created on first submission and sent as the owner of that feedback
 3. "View my feedback" in the options page works — it is authorised by the local id, not a login
 
+**Where linking is offered.** Two places, both optional and neither a nag: the foot of the
+page popup, and Options → Account. Each shows one of:
+
+- not linked → a *Link this browser to an account* button, and a line saying it is not needed
+- linked → *This browser is linked to sam@example.com*, plus *Link to a different account*,
+  because re-linking is how a device moves and there is no separate unlink
+- the server unreachable → the button, and **no** status line. Silence beats guessing "not
+  linked", which would be wrong for a linked browser that happens to be offline.
+
+The status comes from `POST /api/account/device-status`, authorised by possession of the local
+id like `/link-code`. A browser with no local id yet is unlinked by definition, and is answered
+without a server call — asking about your status must not be what creates an identity.
+
 **Optionally signing in, to see or link feedback**
 
-1. Options → Account → **View my feedback**
+1. Popup → *Link this browser*, or Options → Account → **View my feedback**
 2. The extension asks bn-server for a short-lived, single-use link code
 3. The webapp opens, the user signs in with Auth0 (Auth0 supplies the verified email, so the
    extension never has to verify one itself)
@@ -101,10 +121,18 @@ here. See Out of scope.
    the owner on every submission. status: MVP
 2. Keep `accountEmail` as an unverified label only — make sure nothing authorises on it. status: MVP
 3. Request a link code and open the webapp, from the options page Account section. status: MVP
-4. Options page: show whether this device is linked, and to which account. status: planning (the button and delete are in; the linked-state display is not)
+4. Show whether this device is linked, and to which account, in both the options page and the
+   popup, with a Link button when it is not. status: MVP
+5. Auth0 tenant `better-net.eu.auth0.com`: SPA application created. **Blocked**: the
+   `BetterNet Server API` resource server (audience `https://server.better-net.com/api`) and
+   the post-login Action that adds the email claim are not created — the Auth0 MCP token
+   holds no `create:resource_servers` or `create:actions` scope. Until then Auth0 issues no
+   JWT bn-server will accept, so linking cannot be completed against the real tenant.
+   status: blocked
 
 Step 1 is the prerequisite for the feedback read API. Steps 3-4 are what the user actually
-touches; the account itself lives in Auth0, so there is nothing to build for that here.
+touches; the account itself lives in Auth0, so there is nothing to *build* for that here —
+only the tenant configuration in step 5.
 
 ## Test plan
 
@@ -119,3 +147,6 @@ touches; the account itself lives in Auth0, so there is nothing to build for tha
   appears under B and no longer under A, and no rows are lost either way
 - The extension works end to end with no account: analysis, feedback submission, and queue
   flush all succeed signed out
+- A status check on a browser with no local id returns "not linked" without creating one
+- An unreachable server shows no status at all, rather than "not linked"
+- The linked status names the account, and follows a re-link to the new one

@@ -10,12 +10,19 @@
  */
 
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { createLinkCode, deviceCount, redeemLinkCode } from '../accounts.js';
+import { accountForDevice, createLinkCode, deviceCount, redeemLinkCode } from '../accounts.js';
 import { requireAuth } from '../auth.js';
 
 /** An email is guessable; a local id is not. Refusing one is a cheap guard against misuse. */
 function looksLikeEmail(value: string): boolean {
 	return value.includes('@');
+}
+
+/** @returns the local id from the body, or null if it is missing or obviously not one. */
+function readLocalId(body?: { localId?: string }): string | null {
+	const localId = body?.localId?.trim();
+	if (!localId || localId.length < 16 || looksLikeEmail(localId)) return null;
+	return localId;
 }
 
 async function accountRoutes(fastify: FastifyInstance) {
@@ -24,10 +31,8 @@ async function accountRoutes(fastify: FastifyInstance) {
 		request: FastifyRequest<{ Body: { localId?: string } }>,
 		reply: FastifyReply
 	) => {
-		const localId = request.body?.localId?.trim();
-		if (!localId || localId.length < 16 || looksLikeEmail(localId)) {
-			return reply.code(400).send({ error: 'A local id is required' });
-		}
+		const localId = readLocalId(request.body);
+		if (!localId) return reply.code(400).send({ error: 'A local id is required' });
 		const { code, expires } = await createLinkCode(localId);
 		return reply.code(201).send({ code, expires: expires.toISOString() });
 	});
@@ -47,6 +52,25 @@ async function accountRoutes(fastify: FastifyInstance) {
 			return reply.code(410).send({ error: 'That link has expired' });
 		}
 		return reply.send({ linkedDevices });
+	});
+
+	/**
+	 * Is this browser linked, and to which account? Drives the extension's popup and options
+	 * page, which show either a Link button or the linked status
+	 * (bn-extension/specs/accounts/user-identity/spec.md).
+	 *
+	 * POST, not GET, so the local id stays in a request body rather than a query string —
+	 * it is a credential, and query strings land in access logs.
+	 */
+	fastify.post<{ Body: { localId?: string } }>('/device-status', async (
+		request: FastifyRequest<{ Body: { localId?: string } }>,
+		reply: FastifyReply
+	) => {
+		const localId = readLocalId(request.body);
+		if (!localId) return reply.code(400).send({ error: 'A local id is required' });
+		const account = await accountForDevice(localId);
+		// An account with no email on file is still linked, so report the two separately.
+		return reply.send({ linked: account !== null, email: account?.email });
 	});
 
 	/** What the webapp needs to decide which empty state to show. */

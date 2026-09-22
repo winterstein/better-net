@@ -216,6 +216,74 @@ tap.test('Relinking_moves_a_device_between_accounts', async (t) => {
 	t.equal((await get('/api/feedback/mine', jwtA)).json().total, 0, 'and A no longer does');
 });
 
+// --- is this browser linked? ---------------------------------------------------------
+/*
+ * What the extension's popup and options page ask on open. Authorised by the local id, like
+ * /link-code, so there is no JWT — see the note on the route.
+ */
+tap.test('Device_status_reports_unlinked_then_the_linked_account', async (t) => {
+	const ownerKey = uniq('owner-status');
+
+	const before = await post('/api/account/device-status', { localId: ownerKey });
+	t.equal(before.statusCode, 200, 'the extension needs no JWT for this');
+	t.same(before.json(), { linked: false }, 'an unknown device is simply unlinked');
+
+	const sub = uniq('auth0|status');
+	const jwt = await token({ sub, email: 'sam@example.com' });
+	const code = (await post('/api/account/link-code', { localId: ownerKey })).json() as any;
+	await post('/api/account/link', { code: code.code }, jwt);
+
+	const after = await post('/api/account/device-status', { localId: ownerKey });
+	t.equal(after.statusCode, 200);
+	t.equal((after.json() as any).linked, true);
+	// Naming the account is the point: on a shared computer "linked" alone is not enough.
+	t.equal((after.json() as any).email, 'sam@example.com');
+});
+
+tap.test('Device_status_rejects_an_email_as_the_local_id', async (t) => {
+	const res = await post('/api/account/device-status', { localId: 'someone@example.com' });
+	t.equal(res.statusCode, 400, 'an email is guessable and is not a local id');
+	const short = await post('/api/account/device-status', { localId: 'abc' });
+	t.equal(short.statusCode, 400, 'and neither is a short string');
+});
+
+tap.test('Device_status_follows_a_relink_to_the_new_account', async (t) => {
+	const ownerKey = uniq('owner-status-move');
+	const jwtA = await token({ sub: uniq('auth0|sa'), email: 'a@example.com' });
+	const jwtB = await token({ sub: uniq('auth0|sb'), email: 'b@example.com' });
+
+	const first = (await post('/api/account/link-code', { localId: ownerKey })).json() as any;
+	await post('/api/account/link', { code: first.code }, jwtA);
+	t.equal((await post('/api/account/device-status', { localId: ownerKey })).json().email, 'a@example.com');
+
+	const second = (await post('/api/account/link-code', { localId: ownerKey })).json() as any;
+	await post('/api/account/link', { code: second.code }, jwtB);
+	// A device belongs to at most one account, so the status must name the current one.
+	t.equal((await post('/api/account/device-status', { localId: ownerKey })).json().email, 'b@example.com');
+});
+
+/*
+ * Auth0 access tokens carry no `email` claim — it is on the ID token, which the server never
+ * sees — so a post-login Action copies it under a namespace. Without this the linked-account
+ * status would have no name to show.
+ */
+tap.test('Email_can_arrive_as_a_namespaced_claim', async (t) => {
+	await initTest();
+	const sub = uniq('auth0|ns');
+	const jwt = await new SignJWT({ 'https://better-net.com/email': 'ns@example.com' })
+		.setProtectedHeader({ alg: 'RS256' })
+		.setSubject(sub)
+		.setIssuer(ISSUER)
+		.setAudience('https://api.better-net.test')
+		.setIssuedAt()
+		.setExpirationTime('5m')
+		.sign(privateKey);
+
+	const me = await get('/api/account/me', jwt);
+	t.equal(me.statusCode, 200);
+	t.equal((me.json() as any).email, 'ns@example.com', 'the namespaced claim is used');
+});
+
 // --- my feedback ----------------------------------------------------------------------
 tap.test('Mine_is_scoped_to_linked_devices', async (t) => {
 	const mineKey = uniq('owner-mine');

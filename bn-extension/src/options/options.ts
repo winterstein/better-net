@@ -2,6 +2,7 @@
 
 import { LOCAL_MODELS, formatBytes } from '../ai/model-catalog.js';
 import { setupAccountFeedback } from './account-feedback.js';
+import { setupAccountLink } from '../accounts/account-link-ui.js';
 import { MODEL_STATUS, isBusyStatus, isInstalled } from '../ai/model-status.js';
 import { DEFAULT_NUTRIENT_LABEL_MIN_RISK, RISK_LEVELS } from '../types/RiskLevel.js';
 import { logit, setDeveloperMode, developerModeFromSettings } from '../utils/logger.js';
@@ -84,6 +85,12 @@ class SettingsController {
     setupAccountFeedback({
       sendMessage: (message) => sendExtensionMessage(message),
       openUrl: (url) => chrome.tabs.create({ url }),
+    });
+    // Account -> link this browser, or show which account holds it.
+    void setupAccountLink({
+      sendMessage: (message) => sendExtensionMessage(message),
+      openUrl: (url) => chrome.tabs.create({ url }),
+      ids: { button: 'account-link', status: 'account-link-status' },
     });
     document.getElementById('save-btn')?.addEventListener('click', () => this.saveSettings());
     document.getElementById('reset-btn')?.addEventListener('click', () => this.resetSettings());

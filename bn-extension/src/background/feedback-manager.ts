@@ -12,9 +12,11 @@ import {
 	countMyFeedback,
 	deleteMyFeedback,
 	enqueueFeedback,
+	fetchDeviceStatus,
 	flushFeedbackQueue,
 	getOrCreateDeviceId,
 	isFeedbackEnabled,
+	peekDeviceId,
 	requestLinkCode,
 	submitFeedback,
 	FeedbackSubmitError,
@@ -174,6 +176,30 @@ export async function handleFeedbackLink(): Promise<{ ok: boolean; url?: string;
 		return { ok: true, url: `${base}/feedback#link=${encodeURIComponent(code)}` };
 	} catch (err: any) {
 		logit('warn', '[BetterNet] [FEEDBACK] link code failed:', err?.message);
+		return { ok: false, error: err?.message || 'Could not reach the server' };
+	}
+}
+
+/**
+ * Is this browser linked, and to which account? Drives the popup and options page controls.
+ *
+ * An unlinked browser has no local id yet, so this answers without a server round trip and
+ * without creating one — checking your status should not be what gives you an identity.
+ */
+export async function handleAccountStatus(): Promise<{
+	ok: boolean;
+	linked?: boolean;
+	email?: string;
+	error?: string;
+}> {
+	try {
+		const ownerKey = await peekDeviceId();
+		if (!ownerKey) return { ok: true, linked: false };
+		const endpoint = await serverEndpointOrFail();
+		return { ok: true, ...(await fetchDeviceStatus(endpoint, ownerKey)) };
+	} catch (err: any) {
+		// Not logged: the popup asks this on every open, so a server that is down would
+		// otherwise fill the log with one line per glance at the toolbar.
 		return { ok: false, error: err?.message || 'Could not reach the server' };
 	}
 }

@@ -107,6 +107,16 @@
   call for a module, the chunk span otherwise), and is mirrored onto that trace as a
   `feedback` span — best-effort, bn-server stays the store of record. In Developer Mode the
   confirmation shows the trace id and a link to it; otherwise it just says "Thanks!".
+- **Optional account link** (`specs/accounts/user-identity/spec.md`, `src/accounts/`): the
+  extension still never requires an account. Linking is offered at the foot of the popup and
+  in Options → Account, and each place shows either a *Link this browser* button or
+  *This browser is linked to <email>*. Linking is the one-time code flow — no Auth0 SDK in
+  the extension, so the local id never leaves it: request a code from bn-server, open
+  `app.better-net.com/feedback#link=CODE`, and the webapp redeems it with its JWT. Status
+  comes from `POST /api/account/device-status`; a browser with no local id answers "not
+  linked" without a server call, and an unreachable server shows no status rather than
+  guessing. `account-link-view.ts` holds the wording and is tested
+  (`test/account-link.test.ts`).
 - **AIQA tracing** (opt-in, Settings -> Data Sharing): page analysis, chunking and AI
   calls traced to AIQA (`aiqa.winterwell.com`). Off unless the toggle *and* an API key
   (Advanced) are set. Span tree: `betternet.analyze_page` -> `betternet.chunk_page` /
@@ -405,6 +415,12 @@ exactly what they lack. Keep them, but add new coverage as pages.
 
 ## Next
 
+- **Account linking cannot be finished end to end yet**, and this is a tenant-config gap, not
+  a code one: the `BetterNet Server API` resource server does not exist in Auth0
+  (`better-net.eu.auth0.com`), so the webapp gets no JWT bn-server accepts and the redeem step
+  fails. Also wanted there: a post-login Action adding `https://better-net.com/email`, without
+  which the linked status has no email to name. See
+  `specs/accounts/user-identity/spec.md` build plan step 5.
 - **Content classification — the classifiers** (routing and page type are done, above):
   `specs/content-classification.md`. Routing is in place but barely bites yet, because the
   chunker only ever assigns `article` / `post` / `search_result` / `other`: measured on

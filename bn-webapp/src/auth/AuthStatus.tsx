@@ -6,13 +6,14 @@ import { Button, NavItem } from 'reactstrap';
 import { useAuth0 } from '@auth0/auth0-react';
 import { feedbackApi } from '../services/api';
 import { requireToken } from './token';
+import { returnHere } from './AuthProvider';
 
 export function AuthStatus() {
 	const { isAuthenticated, isLoading, user, loginWithRedirect, logout } = useAuth0();
 	if (isLoading) return null;
 	if (!isAuthenticated) {
 		return (
-			<Button size="sm" color="primary" onClick={() => void loginWithRedirect()}>
+			<Button size="sm" color="primary" onClick={() => void loginWithRedirect(returnHere())}>
 				Sign in
 			</Button>
 		);

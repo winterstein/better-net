@@ -142,9 +142,25 @@
         <section id="page-account" class="page hidden" data-page="account">
           <h2>Account</h2>
           <p class="page-lead">Your better:net account (optional).</p>
+          <!-- Linking this browser to an account. Optional, and never required to use
+               better:net. See specs/accounts/user-identity. -->
+          <div class="setting-item">
+            <label><strong>Link this browser</strong></label>
+            <span class="setting-description">
+              Linking lets you see your feedback from any of your browsers, on better:net for
+              the web. The extension works exactly the same either way — you never have to
+              sign in here.
+            </span>
+            <button type="button" id="account-link">Link this browser to an account</button>
+            <p id="account-link-status" class="setting-description" role="status" aria-live="polite"></p>
+          </div>
+
           <div class="setting-item">
             <label for="account-email"><strong>Email</strong></label>
-            <span class="setting-description">Sign-in and sync coming soon. Stored locally for now.</span>
+            <span class="setting-description">
+              A label for your own reference, stored only in this browser. It is not a sign-in
+              and grants no access to anything — linking above is what connects an account.
+            </span>
             <input type="email" id="account-email" placeholder="you@example.com" autocomplete="email">
           </div>
 
@@ -176,7 +192,7 @@
             <p id="feedback-delete-status" class="setting-description" role="status" aria-live="polite"></p>
           </div>
 
-          <p class="placeholder-note">Account sync and subscription management are not yet available.</p>
+          <p class="placeholder-note">Settings sync and subscription management are not yet available.</p>
         </section>
 
         <!-- Data Sharing -->
