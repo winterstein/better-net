@@ -15,7 +15,15 @@
   `/device-status` (no JWT — possession of the local id is the credential), `/link` and `/me`
   (JWT). `test/test_accounts.ts` covers all of it with a local keypair standing in for Auth0.
 - Access tokens carry no `email`, so `auth.ts` also reads `https://better-net.com/email` —
-  the namespaced claim an Auth0 post-login Action is meant to add.
+  the namespaced claim the Auth0 post-login Action adds.
+- **Auth0 tenant is now provisioned**: the API (resource server) `BetterNet Server API` /
+  `https://server.better-net.com/api` exists (RS256, 24h token), and the post-login Action
+  `Add email to access token` is created and deployed. Local dev env (`.env`) has
+  `AUTH0_DOMAIN`, `AUTH0_AUDIENCE` and `BN_PSEUDONYM_SECRET` set.
+- Prod config fixed in the GitHub `prod` environment: it had pointed at a different tenant
+  (`winterstein.eu.auth0.com`) with the Management API as the audience, which would have
+  rejected every webapp token. `BN_PSEUDONYM_SECRET` is now set there too — it is set once
+  and left alone, since changing it re-pseudonymises everyone.
 
 ## AI layer
 
@@ -25,16 +33,15 @@
 
 ## Blocked
 
-- **No Auth0 API (resource server) exists**, so no JWT bn-server will accept can be issued.
-  Needs `BetterNet Server API` / `https://server.better-net.com/api` created in tenant
-  `better-net.eu.auth0.com`, plus the post-login Action for the email claim. The Auth0 MCP
-  token has application scopes only — no `create:resource_servers` / `create:actions`.
 - `npm test` needs Postgres on `localhost:5432` (`.env.test`); it is not started by the suite.
+- The post-login Action is deployed but nothing here proves it is **bound to the post-login
+  flow** — the Management API keeps deploy and trigger binding separate, and the Auth0 MCP
+  has no bindings tool. Verified only by signing in and seeing whether `/api/account/me`
+  carries an email.
 
 ## Next
 
-- Set `AUTH0_DOMAIN`, `AUTH0_AUDIENCE` and `BN_PSEUDONYM_SECRET` in the production env
-  (`env.example` documents all three; an empty pseudonym secret makes staff-view pseudonyms
-  reversible)
+- Deploy, then check `/api/account/me` with a real webapp token (the prod env vars changed,
+  so the running service is still on the old values until the next deploy)
 - Wire OpenAI/Anthropic keys in production env for server-side LLM analysis
 - Optional: Node local inference backend (transformers.js or sidecar)

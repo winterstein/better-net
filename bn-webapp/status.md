@@ -10,7 +10,10 @@ unlike the extension, the whole app requires sign-in.
   header by `services/api.ts`. Tenant `better-net.eu.auth0.com`, application
   `BetterNet Webapp` (`WBF8SVYqzsxI37AbH733VNHyQgvPs5ou`), URLs registered for
   `http://localhost:3000` and `https://app.better-net.com`.
-- Config in `.env.local` (gitignored), documented in `.env.example`
+- Config in `.env.local` (gitignored), documented in `.env.example`. The API (resource
+  server) `https://server.better-net.com/api` now exists in the tenant, so
+  `VITE_AUTH0_AUDIENCE` is live rather than commented out — that is the setting that makes
+  Auth0 issue a JWT instead of an opaque token.
 - Device linking: the extension's one-time code is stashed in `sessionStorage` at startup
   (`main.tsx`) because the Auth0 redirect drops the URL fragment, then redeemed after
   sign-in. Sign-in carries `appState.returnTo`, since Auth0 only returns to the origin.
@@ -19,17 +22,17 @@ unlike the extension, the whole app requires sign-in.
 
 ## Blocked
 
-- **The Auth0 API (resource server) does not exist**, so `VITE_AUTH0_AUDIENCE` is commented
-  out in `.env.local`. Without it Auth0 issues an opaque access token instead of a JWT:
-  sign-in appears to work and every API call returns 401. Setting it before the API exists is
-  worse — the login fails outright with "Service not found". Needs
-  `https://server.better-net.com/api` created in the tenant; the Auth0 MCP token has no
-  `create:resource_servers` scope.
+- **End-to-end sign-in is still unproven.** Config is in place on both sides, but nobody has
+  signed in since, so "JWT accepted by bn-server" is inference, not a result.
+- **There is no webapp deploy workflow** (`.github/workflows/` has `server-deploy.yml` only),
+  so `app.better-net.com` is a manual `npm run build` + copy — and the build bakes in
+  `VITE_AUTH0_*`, which must therefore be present on whichever machine builds it.
 
 ## Next
 
-- Create the API above, uncomment `VITE_AUTH0_AUDIENCE`, and test sign-in end to end with
-  bn-server (`AUTH0_DOMAIN` / `AUTH0_AUDIENCE` must match)
+- Test sign-in end to end against bn-server: `npm run dev` here (port 3000, the registered
+  callback) plus bn-server on 3001, then check `/api/account/me` returns the account — and
+  whether it carries an email, which tells you if the post-login Action is bound to the flow
 - Cert and deploy for `app.better-net.com` — the vhost (`app.better-net.com.nginx`) is
   written but the cert must exist before it is enabled, or nginx takes every site on the
   host down with it
