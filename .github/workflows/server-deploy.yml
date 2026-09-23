@@ -193,20 +193,32 @@ jobs:
 
             sudo systemctl daemon-reload
             sudo systemctl restart bn-server
-            sleep 3
 
-            # No sudo here: the deploy user's sudo is a narrow allowlist. These are
-            # read-only queries, and the journal is best-effort - it only prints if the
-            # user can read it. `systemctl status` alone just says "status=1/FAILURE".
+            # Poll, rather than sleep 3 and check once. db_init's first connection wakes
+            # Neon's compute from autosuspend, which can take longer than a few seconds,
+            # and a single early check failed a deploy whose server was in fact fine.
+            CHECK_PORT=${SERVER_PORT:-3001}
+            for attempt in $(seq 1 30); do
+              # A dead unit will never serve, so stop waiting for one. "activating
+              # (auto-restart)" is not active either, which is what catches a crash loop.
+              if ! systemctl is-active --quiet bn-server; then
+                echo "ERROR: bn-server not active after restart (attempt ${attempt})"
+                # No sudo here: the deploy user's sudo is a narrow allowlist. These are
+                # read-only queries, and the journal is best-effort - it only prints if the
+                # user can read it. `systemctl status` alone just says "status=1/FAILURE".
+                systemctl status bn-server --no-pager -l || true
+                journalctl -u bn-server -n 30 --no-pager || true
+                exit 1
+              fi
+              # Confirms it serves, not just that systemd started it
+              if curl -fsS --max-time 5 "http://127.0.0.1:${CHECK_PORT}/health" > /dev/null; then
+                echo "Health check passed on port ${CHECK_PORT} after ${attempt} attempt(s)"
+                exit 0
+              fi
+              sleep 2
+            done
+
+            echo "ERROR: health check failed on port ${CHECK_PORT} after 30 attempts"
             systemctl status bn-server --no-pager -l || true
             journalctl -u bn-server -n 30 --no-pager || true
-
-            # "activating (auto-restart)" is not active, so this catches a crash loop
-            if ! systemctl is-active --quiet bn-server; then
-              echo "ERROR: bn-server not active after restart"
-              exit 1
-            fi
-
-            # Confirm it serves, not just that systemd started it
-            curl -fsS --max-time 10 "http://127.0.0.1:${SERVER_PORT:-3001}/health" \
-              || { echo "ERROR: health check failed on port ${SERVER_PORT:-3001}"; exit 1; }
+            exit 1
