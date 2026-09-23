@@ -1,0 +1,170 @@
+# Deploy bn-webapp to production via SSH.
+# Same shape as server-deploy.yml: build in CI, SCP artefacts, swap on host. No systemd —
+# this is a static bundle that nginx serves from /opt/betternet/webapp.
+#
+# ONE-OFF HOST SETUP, not done by this workflow (see bn-webapp/app.better-net.com.nginx):
+#   1. Point DNS for app.better-net.com at the host.
+#   2. sudo certbot certonly --nginx -d app.better-net.com
+#   3. Enable the vhost, sudo nginx -t, reload.
+# Order matters: nginx loads config for the whole host atomically, so enabling the site
+# before the cert exists is an [emerg] that takes every other vhost down with it. This
+# workflow is safe to run before any of that — it just puts files in place, and says so.
+#
+# The deploy user's sudo is a narrow allowlist (mv, mkdir, rmdir, rm, chown, chmod, and
+# systemctl for bn-server only), so nothing here shells out to nginx or certbot.
+name: Deploy Webapp
+
+on:
+  push:
+    paths:
+      # Monorepo: only deploy when the webapp (or this workflow) changes
+      - 'bn-webapp/**'
+      - 'bn-extension/src/**'   # bn-webapp/src/bn-extension-src symlinks here
+      - '.github/workflows/webapp-deploy.yml'
+  workflow_dispatch:            # manual re-deploy from GitHub Actions UI
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: prod           # GitHub Environment — holds prod secrets/vars
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || 22 }}
+      # Vite inlines these at build time, so they are baked into the bundle and cannot be
+      # changed on the host. All four are public values, hence variables rather than secrets
+      # (a SPA client id is not a credential). No defaults: a wrong or missing audience
+      # yields a build where sign-in appears to work and every API call 401s, which is a
+      # far worse outcome than a failed deploy — so the next step refuses to build without
+      # them.
+      VITE_AUTH0_DOMAIN: ${{ vars.VITE_AUTH0_DOMAIN }}
+      VITE_AUTH0_CLIENT_ID: ${{ vars.VITE_AUTH0_CLIENT_ID }}
+      VITE_AUTH0_AUDIENCE: ${{ vars.VITE_AUTH0_AUDIENCE }}
+      VITE_API_BASE: ${{ vars.VITE_API_BASE }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        # bn-webapp reuses extension types via src/bn-extension-src symlink
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: bn-webapp/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./bn-webapp
+        run: npm ci
+
+      - name: Run tests
+        working-directory: ./bn-webapp
+        run: npm test
+
+      - name: Check build config
+        run: |
+          missing=
+          for name in VITE_AUTH0_DOMAIN VITE_AUTH0_CLIENT_ID VITE_AUTH0_AUDIENCE VITE_API_BASE; do
+            eval "value=\${$name}"
+            [ -n "$value" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "ERROR: prod environment is missing:$missing"
+            echo "Set them under Settings -> Environments -> prod -> variables."
+            echo "Expected values are documented in bn-webapp/.env.example."
+            exit 1
+          fi
+          echo "Building for $VITE_AUTH0_DOMAIN, API $VITE_API_BASE"
+
+      # npx tsc --noEmit is deliberately not a gate here: the symlinked bn-extension-src has
+      # pre-existing implicit-any errors, so the vite build is the real check.
+      - name: Build webapp
+        working-directory: ./bn-webapp
+        run: npm run build
+
+      - name: Verify the bundle
+        working-directory: ./bn-webapp
+        run: |
+          if [ ! -f dist/index.html ]; then
+            echo "ERROR: build produced no dist/index.html"
+            exit 1
+          fi
+          # Vite silently drops an env var it cannot see, and the result looks like a healthy
+          # build right up to the first 401. Confirm the values actually reached the bundle.
+          for value in "$VITE_AUTH0_AUDIENCE" "$VITE_API_BASE" "$VITE_AUTH0_CLIENT_ID"; do
+            if ! grep -rqF "$value" dist/assets; then
+              echo "ERROR: '$value' is not in the built bundle — it was not inlined."
+              exit 1
+            fi
+          done
+          echo "Bundle carries the Auth0 and API config."
+
+      - name: Clear staging directory
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ env.DEPLOY_HOST }}
+          username: ${{ env.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ env.DEPLOY_PORT }}
+          # A part-uploaded staging dir left by a failed run would otherwise be promoted as
+          # if it were this build.
+          script: sudo rm -rf /opt/betternet/webapp.new
+
+      - name: Deploy to temporary location
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ env.DEPLOY_HOST }}
+          username: ${{ env.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ env.DEPLOY_PORT }}
+          # Static bundle only; there is nothing to install on the host
+          source: "bn-webapp/dist"
+          target: "/opt/betternet/webapp.new"
+          strip_components: 1
+
+      - name: Verify deployment and swap files
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ env.DEPLOY_HOST }}
+          username: ${{ env.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ env.DEPLOY_PORT }}
+          script: |
+            set -e
+            NEW=/opt/betternet/webapp.new/dist
+            LIVE=/opt/betternet/webapp
+
+            if [ ! -f "$NEW/index.html" ]; then
+              echo "ERROR: uploaded bundle has no index.html!"
+              sudo rm -rf /opt/betternet/webapp.new
+              exit 1
+            fi
+
+            # Directory swap rather than a symlink flip: the vhost root is this path
+            # literally, and the deploy user cannot run ln. The gap between the two moves is
+            # milliseconds of 404s on a static site, which is cheaper than the alternatives.
+            sudo rm -rf "${LIVE}.old"
+            if [ -d "$LIVE" ]; then
+              sudo mv "$LIVE" "${LIVE}.old"        # one generation, for quick rollback
+            fi
+            sudo mv "$NEW" "$LIVE"
+            sudo rmdir /opt/betternet/webapp.new || sudo rm -rf /opt/betternet/webapp.new
+
+            # nginx reads these as www-data, so world-readable; +X so it can traverse
+            # assets/ without making the files themselves executable.
+            sudo chown -R $USER:$USER "$LIVE"
+            sudo chmod -R a+rX "$LIVE"
+
+            if [ -n "$(ls -A /etc/nginx/sites-enabled 2>/dev/null | grep -i '^app\.better-net\.com')" ]; then
+              # Checks the real thing — vhost, cert and files — without depending on DNS
+              # having propagated to this host.
+              curl -fsS --max-time 10 --resolve app.better-net.com:443:127.0.0.1 \
+                https://app.better-net.com/ -o /dev/null \
+                || { echo "ERROR: app.better-net.com is not serving after the swap"; exit 1; }
+              echo "app.better-net.com serves the new bundle."
+            else
+              echo "NOTE: files are live in $LIVE, but no app.better-net.com vhost is enabled,"
+              echo "      so nothing serves them yet. Do the one-off host setup at the top of"
+              echo "      .github/workflows/webapp-deploy.yml — cert first, then enable."
+            fi

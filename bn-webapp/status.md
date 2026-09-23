@@ -5,6 +5,12 @@ unlike the extension, the whole app requires sign-in.
 
 ## Works
 
+- **Deploy workflow**: `.github/workflows/webapp-deploy.yml` — tests, builds, SCPs the
+  bundle and swaps `/opt/betternet/webapp` on the host, triggered by pushes touching
+  `bn-webapp/**`. Vite inlines `VITE_*` at build time, so the workflow checks the values are
+  present *and* that they reached the bundle: a dropped env var otherwise produces a healthy
+  looking build that 401s on every call. No nginx or certbot commands — the deploy user's
+  sudo is a narrow allowlist.
 - Pages, Chunks, Analyze URL, My feedback, and staff All feedback views
 - **Auth0 sign-in** (`src/auth/`): `@auth0/auth0-react`, SPA + PKCE, JWT sent as a Bearer
   header by `services/api.ts`. Tenant `better-net.eu.auth0.com`, application
@@ -29,9 +35,15 @@ unlike the extension, the whole app requires sign-in.
 - The production build needs `VITE_API_BASE=https://server.better-net.com/api`.
   `app.better-net.com` serves static files and proxies nothing, so the `/api` default only
   works in dev, where Vite proxies it.
-- **There is no webapp deploy workflow** (`.github/workflows/` has `server-deploy.yml` only),
-  so `app.better-net.com` is a manual `npm run build` + copy — and the build bakes in
-  `VITE_AUTH0_*`, which must therefore be present on whichever machine builds it.
+- **The deploy workflow needs four prod variables that are not set yet**:
+  `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, `VITE_AUTH0_AUDIENCE` and `VITE_API_BASE`
+  (GitHub -> Settings -> Environments -> prod -> variables; values in `.env.example`, all
+  public). The workflow refuses to build without them rather than shipping a bundle whose
+  API calls all 401.
+- **`app.better-net.com` has no cert or vhost yet**, so a deploy puts files in place and
+  nothing serves them (the workflow says so instead of passing quietly). Cert first, then
+  enable the vhost: nginx loads the whole host's config atomically, so enabling a site whose
+  cert is missing is an `[emerg]` that takes every other vhost down with it.
 
 ## Next
 
