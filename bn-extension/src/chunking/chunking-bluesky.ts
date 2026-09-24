@@ -3,7 +3,7 @@
  * Bluesky uses a similar structure to Twitter/Threads
  */
 
-import { isElementHidden, generateXPath } from './chunking-utils.js';
+import {isElementHidden, generateXPath, parseHTML} from './chunking-utils.js';
 import { inferAdvert, TAG } from './chunk-tags.js';
 
 /**
@@ -135,15 +135,3 @@ function extractBlueskyChunk(element: Element, pageUrl, options: any = {}) {
     isPrimary: false,
   };
 }
-
-/**
- * Parse HTML string to DOM
- */
-function parseHTML(html) {
-  if (typeof DOMParser !== 'undefined') {
-    const parser = new DOMParser();
-    return parser.parseFromString(html, 'text/html');
-  }
-  return null;
-}
-

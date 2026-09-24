@@ -152,6 +152,18 @@ tap.test('Auth_rejects_bad_tokens', async (t) => {
 		'wrong issuer'
 	);
 	t.equal((await get('/api/feedback/mine', await token())).statusCode, 200, 'a good token works');
+
+	const savedAudience = process.env.AUTH0_AUDIENCE;
+	try {
+		process.env.AUTH0_AUDIENCE = '';
+		t.equal(
+			(await get('/api/feedback/mine', await token({ audience: savedAudience }))).statusCode,
+			401,
+			'no audience configured means no token is accepted'
+		);
+	} finally {
+		process.env.AUTH0_AUDIENCE = savedAudience;
+	}
 });
 
 // --- first sign-in creates the user, without staff ------------------------------------

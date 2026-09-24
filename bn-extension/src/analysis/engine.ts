@@ -3,6 +3,7 @@
  */
 
 import { ANALYSIS_MODULES, ANALYSIS_MODULE_IDS } from '../features/registry.js';
+import { hostListed, normalizeHost } from '../utils/host.js';
 import { hardSkipPageReason, routeChunk } from '../features/module-routing.js';
 import { traceStep, setAttributes, traceIds } from '../tracing/tracer-hook.js';
 import { logit } from '../utils/logger.js';
@@ -21,9 +22,11 @@ import type { AnalysisOptions } from '../types/AnalysisOptions.js';
  * @returns {string[]}
  */
 export function enabledFeaturesFromSettings(settings, domain) {
-  const host = domain?.replace(/^www\./, '');
-  if (host && settings.excludedSites?.includes(host)) return [];
-  const overrides = settings.domainOverrides?.[host];
+  const host = normalizeHost(domain || '');
+  if (host && hostListed(host, settings.excludedSites)) return [];
+  const overrides =
+    settings.domainOverrides?.[host] ||
+    settings.domainOverrides?.[`www.${host}`];
   return ANALYSIS_MODULE_IDS.filter((id) => {
     const mod = settings.modules?.[id];
     if (mod && mod.enabled === false) return false;

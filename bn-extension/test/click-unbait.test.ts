@@ -16,6 +16,7 @@ import {
 	extractTextFromHtml,
 	beginDestinationBudget,
 	resetDestinationCache,
+	isPublicHttpUrl,
 } from '../src/features/click-unbait/fetch-destination.js';
 import {
 	allSignalIds,
@@ -25,7 +26,7 @@ import {
 } from '../src/features/click-unbait/clickbait-signals.js';
 import { isRemoteProvider } from '../src/ai/llm-client.js';
 import { canClassify, canGenerate, getLocalModel } from '../src/ai/model-catalog.js';
-import { findHeadlineLink, pickBestLink } from '../src/chunking/headline-link.js';
+import { findHeadlineLink, isFurnitureUrl, pickBestLink } from '../src/chunking/headline-link.js';
 import { readFileSync } from 'node:fs';
 import { applyClickUnbaitRewrite } from '../src/content/apply-click-unbait.js';
 import { completeModuleAnalysis } from '../src/types/ModuleAnalysis.js';
@@ -599,5 +600,48 @@ assert.equal(injectedWasUsed, true, 'an injected llmClient must not be silently 
 assert.equal(canGenerate(getLocalModel('flan-t5-small')), true);
 assert.equal(canGenerate(getLocalModel('mobilebert-mnli')), false);
 assert.equal(canClassify(getLocalModel('mobilebert-mnli')), true);
+
+assert.equal(
+	extractTextFromHtml(
+		'<meta property="og:description" content="It\'s the fastest way to change your life">'
+	).description,
+	"It's the fastest way to change your life"
+);
+
+assert.equal(isFurnitureUrl('https://www.bbc.co.uk/sport', 'https://www.bbc.co.uk/'), true);
+assert.equal(isFurnitureUrl('https://www.bbc.co.uk/news', 'https://www.bbc.co.uk/'), true);
+assert.equal(
+	isFurnitureUrl('https://www.bbc.co.uk/news/uk-12345678', 'https://www.bbc.co.uk/'),
+	false
+);
+
+assert.equal(isPublicHttpUrl('https://example.com/story'), true);
+assert.equal(isPublicHttpUrl('http://localhost/admin'), false);
+assert.equal(isPublicHttpUrl('http://127.0.0.1/'), false);
+assert.equal(isPublicHttpUrl('http://192.168.1.1/'), false);
+assert.equal(isPublicHttpUrl('http://169.254.169.254/latest/meta-data/'), false);
+
+resetDestinationCache();
+beginDestinationBudget('https://feed.example/', 12);
+let failedCalls = 0;
+const failingFetch = (async () => {
+	failedCalls += 1;
+	throw new Error('network down');
+}) as unknown as typeof fetch;
+assert.equal(
+	await fetchDestinationText('https://example.com/fail', {
+		fetchImpl: failingFetch,
+		pageUrl: 'https://feed.example/',
+	}),
+	null
+);
+assert.equal(
+	await fetchDestinationText('https://example.com/fail', {
+		fetchImpl: failingFetch,
+		pageUrl: 'https://feed.example/',
+	}),
+	null
+);
+assert.equal(failedCalls, 2, 'a failed fetch is not cached');
 
 console.log('click-unbait tests OK');

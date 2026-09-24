@@ -175,7 +175,7 @@ export async function factCheckContent(chunk, pageMetadata: any = {}, options: a
 
   if (!apiKey) {
     return {
-      problemScore: problemScoreFromFraction(0.5),
+      problemScore: problemScoreFromFraction(0),
       confidence: 0.0,
       tags: [],
       explanation: 'Google Fact Check API key not configured',
@@ -186,7 +186,7 @@ export async function factCheckContent(chunk, pageMetadata: any = {}, options: a
   const text = chunk.text || '';
   if (text.length < MIN_CLAIM_LENGTH) {
     return {
-      problemScore: problemScoreFromFraction(0.5),
+      problemScore: problemScoreFromFraction(0),
       confidence: 0.0,
       tags: [],
       explanation: 'Content too short to fact-check',
@@ -255,7 +255,7 @@ export async function factCheckContent(chunk, pageMetadata: any = {}, options: a
   // Calculate overall score
   // Lower score = more false/misleading (inverted for fake news detection)
   // If rating is low (false), fake news score should be high
-  const avgRating = checkedClaims > 0 ? totalRatingScore / checkedClaims : 0.5;
+  const avgRating = checkedClaims > 0 ? totalRatingScore / checkedClaims : 1;
   const fakeNewsScore = 1.0 - avgRating; // Invert: false claims = high fake news score
 
   const tags: string[] = [];
@@ -266,7 +266,6 @@ export async function factCheckContent(chunk, pageMetadata: any = {}, options: a
     averageRating: avgRating,
   };
   if (factCheckResults.length === 0) {
-    tags.push('suspect-claim');
     metadata.diagnostic = 'no_fact_checks_found';
   } else if (avgRating < 0.3) {
     tags.push('false-claim');

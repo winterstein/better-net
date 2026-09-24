@@ -266,10 +266,28 @@ function select_columns(columns: DBTableColumn[]): string {
 	return columns.map(c => `${c.name} AS "${c.name}"`).join(', ');
 }
 
-async function db_query_items(table: string, gmailStyleQuery?: string | null, sort?: string | null): Promise<TopLevelItem[]> {
-	if (!sort) {
-		sort = 'updated DESC';
+const SORT_COLUMNS = new Set(['id', 'created', 'updated', 'fingerprint', 'url']);
+
+export class InvalidSortError extends Error {
+	constructor(sort: string) {
+		super(`Invalid sort: ${sort}`);
+		this.name = 'InvalidSortError';
 	}
+}
+
+/** ORDER BY must be a known column, never a query-string paste. */
+function parseSort(sort?: string | null): string {
+	if (!sort) return 'updated DESC';
+	const match = String(sort).trim().match(/^([A-Za-z_][A-Za-z0-9_]*)(?:\s+(ASC|DESC))?$/i);
+	if (!match || !SORT_COLUMNS.has(match[1].toLowerCase())) {
+		throw new InvalidSortError(String(sort));
+	}
+	const direction = match[2] ? match[2].toUpperCase() : 'ASC';
+	return `${match[1].toLowerCase()} ${direction}`;
+}
+
+async function db_query_items(table: string, gmailStyleQuery?: string | null, sort?: string | null): Promise<TopLevelItem[]> {
+	const orderBy = parseSort(sort);
 	let query: string;
 	if (gmailStyleQuery) {
 		// parse
@@ -285,7 +303,7 @@ async function db_query_items(table: string, gmailStyleQuery?: string | null, so
 			throw new Error(`Unknown table: ${table}`);
 		}
 		const scolumns = select_columns(columns);
-		const sql = `SELECT ${scolumns} FROM ${table} WHERE ${query} ORDER BY ${sort}`;
+		const sql = `SELECT ${scolumns} FROM ${table} WHERE ${query} ORDER BY ${orderBy}`;
 		const result = await client.query(sql);
 		// convert rows
 		return result.rows.map(convert_row_to_item);
@@ -385,7 +403,6 @@ function fingerprint_item(table: string, item: TopLevelItem): void {
 	// Only fingerprint Chunk items, as they're the only ones with fingerprint column
 	if (table === 'chunk' && !item.fingerprint) {
 		item.fingerprint = fingerprint(item as Chunk);
-		console.log('Fingerprinted item '+table+" "+JSON.stringify(item));
 	}
 }
 
@@ -397,13 +414,12 @@ function fingerprint_item(table: string, item: TopLevelItem): void {
  * @returns id or item
  */
 async function create_item(table: string, item: TopLevelItem, {returnItem = false}: CreateItemOptions = {}): Promise<number | TopLevelItem> {
-	console.log('Creating item... '+table+" "+JSON.stringify(item));
+	console.log('Creating item', table);
 	const client = await db_get_client();
 	const dbItem = prepItemForDB(table, item);	
 	try {
 		const sqlValues = Object.values(dbItem).map(sqlEncodeValue);
 		const sql = `INSERT INTO ${table} (${Object.keys(dbItem).join(', ')}) VALUES (${sqlValues.join(', ')}) RETURNING id`;
-		console.log('SQL: '+sql);
 		const result: QueryResult = await client.query(sql);
 		if (returnItem) {
 			return await get_item(table, result.rows[0].id) as TopLevelItem;
@@ -472,7 +488,6 @@ async function update_item(table: string, id: number, item: TopLevelItem): Promi
 	try {
 		const setColumns = Object.entries(dbItem).map(([key, value]) => `${key} = ${sqlEncodeValue(value)}`).join(', ');
 		const sql = `UPDATE ${table} SET ${setColumns} WHERE id = ${sqlEncodeValue(id)}`;
-		console.log('SQL: '+sql);
 		await client.query(sql);
 	} finally {
 		client.release();

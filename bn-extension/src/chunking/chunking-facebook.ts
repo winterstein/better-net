@@ -3,7 +3,7 @@
  * Based on stopaganda-fb.js selectors
  */
 
-import { isElementHidden, generateXPath } from './chunking-utils.js';
+import {isElementHidden, generateXPath, parseHTML} from './chunking-utils.js';
 import { isFacebookSponsoredPost } from '../ad-blocker/facebook-sponsored.js';
 import { inferAdvert, TAG } from './chunk-tags.js';
 
@@ -131,15 +131,3 @@ function extractFacebookChunk(container, linkElement, linkRegex, pageUrl, option
     isPrimary: false,
   };
 }
-
-/**
- * Parse HTML string to DOM
- */
-function parseHTML(html) {
-  if (typeof DOMParser !== 'undefined') {
-    const parser = new DOMParser();
-    return parser.parseFromString(html, 'text/html');
-  }
-  return null;
-}
-

@@ -3,7 +3,7 @@
  * Based on stopaganda-t.js selectors
  */
 
-import { isElementHidden, generateXPath } from './chunking-utils.js';
+import {isElementHidden, generateXPath, parseHTML} from './chunking-utils.js';
 import { inferAdvert, TAG } from './chunk-tags.js';
 
 /**
@@ -124,15 +124,3 @@ function extractThreadsChunk(container, linkElement, linkRegex, pageUrl, options
     isPrimary: false,
   };
 }
-
-/**
- * Parse HTML string to DOM
- */
-function parseHTML(html) {
-  if (typeof DOMParser !== 'undefined') {
-    const parser = new DOMParser();
-    return parser.parseFromString(html, 'text/html');
-  }
-  return null;
-}
-

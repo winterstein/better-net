@@ -6,7 +6,7 @@
  * exposes for its own tests, and are what every X scraper keys on.
  */
 
-import { isElementHidden, generateXPath, NON_CONTENT_SELECTOR } from './chunking-utils.js';
+import {isElementHidden, generateXPath, NON_CONTENT_SELECTOR, parseHTML} from './chunking-utils.js';
 import { TAG } from './chunk-tags.js';
 
 /** Post container, most specific first. */
@@ -95,11 +95,4 @@ function extractXChunk(element: Element, pageUrl) {
 function textOf(root: Element, selector: string): string {
   const el = root.querySelector(selector);
   return el ? el.textContent.trim() : '';
-}
-
-function parseHTML(html) {
-  if (typeof DOMParser !== 'undefined') {
-    return new DOMParser().parseFromString(html, 'text/html');
-  }
-  return null;
 }

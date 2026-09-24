@@ -17,6 +17,7 @@ import {
   isAdsPreviewActive,
 } from '../ad-blocker/run.js';
 import { mergeSettings } from '../settings/modules-esm.js';
+import { hostListed } from '../utils/host.js';
 import { isFeedbackEnabled } from '../feedback/feedback-client.js';
 import {
   calculateNutritionData,
@@ -329,6 +330,7 @@ class PageAnalyzer {
     // What the last analysis was for, so a repeated pushState to the same route is a no-op.
     this.analysedUrl = url;
 
+    try {
     // Extract page content for metadata
     logit('log','[BetterNet] [CONTENT] Extracting page content...');
     const content = this.extractContent();
@@ -345,7 +347,6 @@ class PageAnalyzer {
 
     // Extract chunks in content script (has DOM access)
     logit('log','[BetterNet] [CONTENT] Extracting chunks from page...');
-    try {
       const hostname = new URL(url).hostname;
       const settings = mergeSettings((await chrome.storage.sync.get(null)) as unknown as Record<string, unknown>);
       setDeveloperMode(developerModeFromSettings(settings));
@@ -422,6 +423,7 @@ class PageAnalyzer {
       }, (response) => {
         if (chrome.runtime.lastError) {
           logit('error','[BetterNet] [CONTENT] Error sending message:', chrome.runtime.lastError.message);
+          this.isAnalyzing = false;
         } else if ((response as any)?.releaseAll) {
           // The background queued the whole page regardless, so gating would only make the
           // Popup report chunks as waiting when they are already being analysed.
@@ -475,13 +477,9 @@ class PageAnalyzer {
 
   async isSiteExcluded(url) {
     try {
-      const urlObj = new URL(url);
-      const hostname = urlObj.hostname;
-
+      const hostname = new URL(url).hostname;
       const settings = await chrome.storage.sync.get({ excludedSites: [] });
-      const excludedSites = settings.excludedSites || [];
-
-      return excludedSites.includes(hostname);
+      return hostListed(hostname, settings.excludedSites || []);
     } catch {
       return false;
     }
@@ -583,6 +581,9 @@ class PageAnalyzer {
         return false;
 
       case 'ANALYSIS_UPDATE':
+        if (['error', 'no_chunks', 'excluded'].includes(message.data?.status)) {
+          this.isAnalyzing = false;
+        }
         if (message.data.type === 'analysisUpdate') {
           // No xpath means the verdict belongs to no element on this page — a canned demo
           // chunk standing in for a page we could not chunk. Nothing to label, but say so:
@@ -754,13 +755,10 @@ class PageAnalyzer {
 
     const badge = this.createNutritionBadge(analysisResults, xpath);
 
-    // Position badge relative to the chunk element
-    // Try to find a good position (top-right corner)
-    const position = this.calculateBadgePosition(element);
-
+    // Position badge in the top-right of the chunk
     badge.style.position = 'absolute';
-    badge.style.top = `${position.top}px`;
-    badge.style.right = `${position.right}px`;
+    badge.style.top = '5px';
+    badge.style.right = '5px';
     badge.style.zIndex = '999998';
 
     // Make sure parent element has relative positioning
@@ -770,19 +768,6 @@ class PageAnalyzer {
     }
 
     element.appendChild(badge);
-  }
-
-  calculateBadgePosition(element) {
-    // Try to position badge in top-right corner of visible area
-    const rect = element.getBoundingClientRect();
-    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-
-    // Position relative to element's top-right
-    return {
-      top: 5,
-      right: 5
-    };
   }
 
   createNutritionBadge(analysisResults, xpath) {

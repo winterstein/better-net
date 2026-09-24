@@ -3,6 +3,8 @@
 import { findAnalysisByModule } from '../types/ModuleAnalysis.js';
 import { chunkProblemScore } from '../types/ChunkAnalysis.js';
 import { fractionFromProblemScore } from '../types/Score.js';
+import { hostListed, normalizeHost } from '../utils/host.js';
+import { escapeHtml } from '../utils/escape-html.js';
 import { createPopupLog, runStep } from './popup-diagnostics.js';
 import { setupAccountLink } from '../accounts/account-link-ui.js';
 
@@ -563,7 +565,7 @@ class PopupController {
         <div class="result-item-details">
           ${meta.description}<br>
           <small>Confidence: ${(confidence * 100).toFixed(0)}%</small>
-          ${explanation ? `<p class="result-item-explanation">${this.escapeHtml(explanation)}</p>` : ''}
+          ${explanation ? `<p class="result-item-explanation">${escapeHtml(explanation)}</p>` : ''}
         </div>
       `;
       resultsList.appendChild(item);
@@ -614,7 +616,7 @@ class PopupController {
       item.dataset.xpath = chunk.xpath || '';
       const preview = chunk.textPreview || `Chunk ${index + 1}`;
       item.innerHTML = `
-        <span class="chunk-item-preview">${this.escapeHtml(preview)}</span>
+        <span class="chunk-item-preview">${escapeHtml(preview)}</span>
         <span class="chunk-item-score ${scoreClass}">${(score * 100).toFixed(0)}%</span>
       `;
       item.addEventListener('click', () => this.highlightChunkOnPage(chunk.xpath, item));
@@ -641,12 +643,13 @@ class PopupController {
     if (mod.enabled === false || mod.blockPageAds === false) return false;
 
     const excluded: string[] = stored.excludedSites || [];
-    if (excluded.includes(hostname) || excluded.includes(`www.${hostname}`)) {
+    if (hostListed(hostname, excluded)) {
       return false;
     }
 
+    const host = normalizeHost(hostname);
     const overrides =
-      stored.domainOverrides?.[hostname] || stored.domainOverrides?.[`www.${hostname}`];
+      stored.domainOverrides?.[host] || stored.domainOverrides?.[`www.${host}`];
     if (overrides?.adBlocker === false) return false;
 
     return true;
@@ -713,7 +716,7 @@ class PopupController {
       </div>
       <div class="result-item-details">
         Blocks ads on web pages while you browse.<br>
-        <small>${this.escapeHtml(hintText)}</small><br>
+        <small>${escapeHtml(hintText)}</small><br>
         <button type="button" class="show-ads-btn show-ads-btn--inline" ${status.blockedCount === 0 && !status.adsPreviewActive ? 'disabled' : ''}>
           ${status.adsPreviewActive ? 'Hide again' : 'Show blocked'}
         </button>
@@ -754,11 +757,6 @@ class PopupController {
     }
   }
 
-  escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
 
   displayFactCheckResults(result) {
     const factCheckSection = document.getElementById('factcheck-results');
@@ -806,14 +804,21 @@ class PopupController {
           // Rating badge
           const rating = factCheck.claimReview?.[0]?.textualRating || 'Unknown';
           const ratingClass = this.getRatingClass(rating);
+          const publisherRaw = factCheck.claimReview?.[0]?.publisher;
+          const publisher =
+            typeof publisherRaw === 'string'
+              ? publisherRaw
+              : publisherRaw?.name || 'Unknown Publisher';
+          const title = factCheck.claimReview?.[0]?.title || '';
+          const url = factCheck.claimReview?.[0]?.url || '';
           
           reviewItem.innerHTML = `
             <div class="factcheck-review-header">
-              <span class="factcheck-rating ${ratingClass}">${rating}</span>
-              <span class="factcheck-publisher">${factCheck.claimReview?.[0]?.publisher || 'Unknown Publisher'}</span>
+              <span class="factcheck-rating ${ratingClass}">${escapeHtml(rating)}</span>
+              <span class="factcheck-publisher">${escapeHtml(publisher)}</span>
             </div>
-            ${factCheck.claimReview?.[0]?.title ? `<div class="factcheck-title">${factCheck.claimReview[0].title}</div>` : ''}
-            ${factCheck.claimReview?.[0]?.url ? `<a href="${factCheck.claimReview[0].url}" target="_blank" class="factcheck-link">View fact-check →</a>` : ''}
+            ${title ? `<div class="factcheck-title">${escapeHtml(title)}</div>` : ''}
+            ${url ? `<a href="${escapeHtml(url)}" target="_blank" class="factcheck-link">View fact-check →</a>` : ''}
           `;
 
           factChecksContainer.appendChild(reviewItem);
@@ -966,7 +971,7 @@ class PopupController {
       log
     );
     const excludedSites = settings.value?.excludedSites || [];
-    return excludedSites.includes(hostname);
+    return hostListed(hostname, excludedSites);
   }
 
   async toggleSiteExclusion() {
@@ -974,15 +979,15 @@ class PopupController {
 
     try {
       const urlObj = new URL(this.currentUrl);
-      const hostname = urlObj.hostname;
+      const hostname = normalizeHost(urlObj.hostname);
       
       const settings = await chrome.storage.sync.get({ excludedSites: [] });
       let excludedSites = settings.excludedSites || [];
       
-      const isExcluded = excludedSites.includes(hostname);
+      const isExcluded = hostListed(hostname, excludedSites);
       
       if (isExcluded) {
-        excludedSites = excludedSites.filter(site => site !== hostname);
+        excludedSites = excludedSites.filter(site => !hostListed(hostname, [site]));
         this.showStatusMessage('Site removed from excluded list', 'success');
       } else {
         excludedSites.push(hostname);

@@ -2,8 +2,8 @@
 OS: Linux, Ubuntu flavour
 
 Databases:
- - PostgreSQL for accounts
- - ElasticSearch for chunks (cached analysis, feedback)
+ - PostgreSQL (Neon in prod) for accounts, chunks, feedback
+ - No ElasticSearch — chunks live in Postgres
 
 Server:
  - Typescript, Fastify

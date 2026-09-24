@@ -1,11 +1,12 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { get_item, create_item, update_item, delete_item, db_query_items } from '../db.js';
+import { get_item, create_item, update_item, delete_item, db_query_items, InvalidSortError } from '../db.js';
 import type { Chunk } from '../bn-extension-src/types/Chunk.js';
 import type { AnalysisOptions } from '../bn-extension-src/types/AnalysisOptions.js';
 import type { PageMetadata } from '../bn-extension-src/types/Page.js';
 import { fingerprint } from '../bn-extension-src/types/Chunk.js';
 import { getDefaultAnalysisEngine } from '../bn-extension-src/analyzers/AnalysisEngine.js';
 import { buildServerAnalysisOptions } from '../ai/server-analysis.js';
+import { requireAuth } from '../auth.js';
 
 interface ChunkParams {
 	id: string;
@@ -28,7 +29,14 @@ async function chunkRoutes(fastify: FastifyInstance, options: any) {
   fastify.get<{ Querystring: ChunkQuerystring }>('/', async (request: FastifyRequest<{ Querystring: ChunkQuerystring }>, reply: FastifyReply) => {
     const q = request.query.q || null;
 	const sort = request.query.sort || null;
-    return await db_query_items('chunk', q, sort);
+	try {
+		return await db_query_items('chunk', q, sort);
+	} catch (err) {
+		if (err instanceof InvalidSortError) {
+			return reply.code(400).send({ error: err.message });
+		}
+		throw err;
+	}
   });
 
   // GET /api/chunk/:id - Get a specific chunk
@@ -45,8 +53,10 @@ async function chunkRoutes(fastify: FastifyInstance, options: any) {
 
   // POST /api/chunk - Create a new chunk
   fastify.post<{ Body: Partial<Chunk> }>('/', async (request: FastifyRequest<{ Body: Partial<Chunk> }>, reply: FastifyReply) => {
+    if (!(await requireAuth(request, reply))) return;
 
       const chunkData = { ...request.body };
+	delete (chunkData as { id?: unknown }).id;
 	chunkData.fingerprint = fingerprint(chunkData as Chunk);
       const createdChunk = await create_item('chunk', chunkData as any, {returnItem: true});
       
@@ -56,16 +66,21 @@ async function chunkRoutes(fastify: FastifyInstance, options: any) {
 
   // PUT /api/chunk/:id - Update a chunk
   fastify.put<{ Params: ChunkParams; Body: Partial<Chunk> }>('/:id', async (request: FastifyRequest<{ Params: ChunkParams; Body: Partial<Chunk> }>, reply: FastifyReply) => {
+    if (!(await requireAuth(request, reply))) return;
     const { id } = request.params;
     const existingChunk = await get_item('chunk', Number(id));
     
     if (!existingChunk) {
       return reply.code(404).send({ error: 'Chunk not found' });
     }
+
+    const body = { ...request.body };
+    delete (body as { id?: unknown }).id;
     
     const updatedChunkData = {
       ...existingChunk,
-      ...request.body,
+      ...body,
+      id: Number(id),
       updated: new Date().toISOString()
     };
     
@@ -75,6 +90,7 @@ async function chunkRoutes(fastify: FastifyInstance, options: any) {
 
   // DELETE /api/chunk/:id - Delete a chunk
   fastify.delete<{ Params: ChunkParams }>('/:id', async (request: FastifyRequest<{ Params: ChunkParams }>, reply: FastifyReply) => {
+    if (!(await requireAuth(request, reply))) return;
     const { id } = request.params;
     
     const existingChunk = await get_item('chunk', Number(id));
@@ -105,8 +121,9 @@ async function chunkRoutes(fastify: FastifyInstance, options: any) {
 
   // POST /api/chunk/:id/analyze - Perform chunk analysis and store results
   fastify.post<{ Params: ChunkParams; Body: AnalyzeBody }>('/:id/analyze', async (request: FastifyRequest<{ Params: ChunkParams; Body: AnalyzeBody }>, reply: FastifyReply) => {
+    if (!(await requireAuth(request, reply))) return;
     const { id } = request.params;
-    const { options = {}, pageMetadata = {} } = request.body;
+    const { options = {}, pageMetadata = {} } = request.body || {};
     
     const chunk = await get_item('chunk', Number(id)) as Chunk;
     if (!chunk) {
@@ -145,4 +162,3 @@ async function chunkRoutes(fastify: FastifyInstance, options: any) {
 }
 
 export default chunkRoutes;
-

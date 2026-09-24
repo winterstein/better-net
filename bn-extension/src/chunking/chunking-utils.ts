@@ -144,3 +144,19 @@ export function visibleText(element: Element): string {
   clone.querySelectorAll(NON_CONTENT_SELECTOR).forEach((el) => el.remove());
   return clean(clone.textContent);
 }
+
+/** Shared by every chunker so browser / Node / test DOMParser behaviour stays in one place. */
+export function parseHTML(html: string | Document): Document | null {
+  if (html && typeof html === 'object' && (html as Document).nodeType === 9) {
+    return html as Document;
+  }
+  if (typeof DOMParser !== 'undefined') {
+    try {
+      const doc = new DOMParser().parseFromString(String(html), 'text/html');
+      if (!doc.querySelector('parsererror')) return doc;
+    } catch {
+      // Fall through.
+    }
+  }
+  return null;
+}

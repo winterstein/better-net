@@ -68,6 +68,8 @@ assert.ok(
 );
 assert.equal(none.metadata?.claimsChecked, 2);
 assert.equal(none.metadata?.factChecksFound, 0);
+assert.equal(none.problemScore, 'low', 'finding nothing is not evidence of a false claim');
+assert.ok(!none.tags?.some((t: any) => t.tag === 'suspect-claim' || t === 'suspect-claim'));
 // The old wording never said a search had happened, let alone how much of one.
 assert.match(String(none.explanation), /Checked 2 claims/);
 
@@ -93,6 +95,10 @@ assert.deepEqual(
 assert.match(String(broken.explanation), /Could not reach fact-check sources/);
 
 globalThis.fetch = originalFetch;
+
+const noKey = await factCheckContent({ text: TEXT }, {}, { apiKey: '' });
+assert.equal(noKey.metadata?.diagnostic, 'no_api_key');
+assert.equal(noKey.problemScore, 'low', 'a missing key must not label the chunk Caution');
 
 // --- the modal renders them ------------------------------------------------------------
 

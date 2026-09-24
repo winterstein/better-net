@@ -16,8 +16,10 @@ import {
 	findAnalysisByModule,
 } from '../types/ModuleAnalysis.js';
 import type { ModuleAnalysis } from '../types/ModuleAnalysis.js';
-import { fractionFromProblemScore, issueTagIds, worstProblemScore } from '../types/Score.js';
+import { issueTagIds, worstProblemScore } from '../types/Score.js';
 import { chunkProblemScore } from '../types/ChunkAnalysis.js';
+import { riskLevelForScore } from '../types/RiskLevel.js';
+import { hostListed } from '../utils/host.js';
 import { hardSkipPageReason } from '../features/module-routing.js';
 import { chunkKey } from '../types/Chunk.js';
 import { mergeSettings } from '../settings/modules-esm.js';
@@ -124,15 +126,14 @@ try {
   console.error('[BetterNet] Error stack:', error.stack);
 }
 
-/** Demo mode is a recording aid: on for now, so the URLs in analysis/demo-analysis.ts
- *  serve canned results. Turn it off with `chrome.storage.sync.set({ demoMode: false })`,
- *  and change the default before production. */
+/** Demo mode serves canned results for recording URLs in analysis/demo-analysis.ts.
+ *  Off by default; enable with `chrome.storage.sync.set({ demoMode: true })`. */
 async function isDemoModeEnabled(): Promise<boolean> {
   try {
-    const { demoMode } = await chrome.storage.sync.get({ demoMode: true }); // TODO: set to false for production
+    const { demoMode } = await chrome.storage.sync.get({ demoMode: false });
     return !!demoMode;
   } catch {
-    return true;
+    return false;
   }
 }
 
@@ -455,7 +456,7 @@ class AnalysisManager {
       knownKeys: new Set(chunks.map(chunkKey).filter(Boolean)),
       /** Queued or analysed, so a chunk released twice is still analysed once. */
       queuedKeys: new Set(),
-      /** Every analysis so far, across passes — what the popup's results aggregate from. */
+      pendingChunks: [],
       chunkResults: [],
       /** Chunks the page is holding back until they scroll into view. */
       chunksWaiting: chunks.length - first.length,
@@ -528,8 +529,13 @@ class AnalysisManager {
     }
 
     state.status = 'analyzing';
-    if (state.running && state.queue) {
+    if (state.queue) {
       state.queue.add(fresh);
+      this.broadcastProgress(state);
+    } else if (state.running) {
+      // The pass is warming the model; queue is not created yet. Hold the chunks so they
+      // join that pass instead of starting a second one.
+      (state.pendingChunks ||= []).push(...fresh);
       this.broadcastProgress(state);
     } else {
       void this.runPass(state, fresh);
@@ -560,13 +566,9 @@ class AnalysisManager {
 
   async isSiteExcluded(url) {
     try {
-      const urlObj = new URL(url);
-      const hostname = urlObj.hostname;
-      
+      const hostname = new URL(url).hostname;
       const settings = await chrome.storage.sync.get({ excludedSites: [] });
-      const excludedSites = settings.excludedSites || [];
-      
-      return excludedSites.includes(hostname);
+      return hostListed(hostname, settings.excludedSites || []);
     } catch {
       return false;
     }
@@ -727,7 +729,8 @@ class AnalysisManager {
       // flagged chunk.
       beginDestinationBudget(state.url);
 
-      queue.add(this.demoServedChunks(state, ctx, chunks));
+      const held = (state.pendingChunks || []).splice(0);
+      queue.add([...this.demoServedChunks(state, ctx, chunks), ...held]);
       // A scroll can release a chunk between the queue draining and this check; waiting
       // again is cheaper than publishing a pass that leaves it out.
       do {
@@ -891,7 +894,7 @@ class AnalysisManager {
     state.progress = 100;
 
     // Generate summary
-    const summary = this.generateSummary(state.results);
+    const summary = this.generateSummary(chunkResults);
     if (state.diagnostics?.length) {
       summary.warnings = [...(summary.warnings || []), ...state.diagnostics];
     }
@@ -925,19 +928,7 @@ class AnalysisManager {
     });
   } // ./publishPass
 
-  getStageName(stage) {
-    const names = {
-      contentExtraction: 'Extracting content',
-      factChecker: 'Fact checking',
-      biasDetector: 'Detecting bias',
-      antiManipulation: 'Anti-manipulation scan',
-      defuseRagebait: 'Defusing ragebait',
-      clickUnbait: 'Unravelling clickbait',
-    };
-    return names[stage] || stage;
-  }
-
-  generateSummary(results: ModuleAnalysis[]) {
+  generateSummary(chunkResults) {
     const summary = {
       overall: 'safe',
       score: 0,
@@ -945,20 +936,9 @@ class AnalysisManager {
       recommendations: []
     };
 
-    const scores = (results || []).map((r) =>
-      typeof r.problemScore === 'number'
-        ? r.problemScore
-        : fractionFromProblemScore(r.problemScore || 'low')
-    );
-    summary.score = scores.length
-      ? scores.reduce((a, b) => a + b, 0) / scores.length
-      : 0;
-
-    if (summary.score > 0.7) {
-      summary.overall = 'high-risk';
-    } else if (summary.score > 0.4) {
-      summary.overall = 'caution';
-    }
+    const scores = (chunkResults || []).map((cr) => chunkProblemScore(cr));
+    summary.score = scores.length ? Math.max(...scores) : 0;
+    summary.overall = riskLevelForScore(summary.score).id;
 
     return summary;
   }

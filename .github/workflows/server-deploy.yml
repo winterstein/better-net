@@ -4,12 +4,22 @@ name: Deploy Server
 
 on:
   push:
+    branches: [main]
     paths:
-      # Monorepo: only deploy when server package (or this workflow) changes
+      # Monorepo: only deploy when server package (or this workflow) changes.
+      # The `!` lines exclude docs, which cannot change what runs — a status.md edit used to
+      # redeploy the whole server. Order matters: a later pattern overrides an earlier one.
+      # GitHub forbids paths-ignore alongside paths, hence negations not a second list.
       - 'bn-server/**'
+      - '!bn-server/**.md'
       - 'bn-extension/src/**'   # bn-server/src/bn-extension-src symlinks here
+      - '!bn-extension/src/**.md'
       - '.github/workflows/server-deploy.yml'
   workflow_dispatch:            # manual re-deploy from GitHub Actions UI
+
+concurrency:
+  group: deploy-server-prod
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -76,95 +86,48 @@ jobs:
           target: "/opt/betternet/server.new"
           strip_components: 1
 
-      - name: Verify deployment and swap files
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ env.DEPLOY_HOST }}
-          username: ${{ env.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ env.DEPLOY_PORT }}
-          script: |
-            # Abort if the build artefact is missing
-            if [ ! -f /opt/betternet/server.new/dist/server.js ]; then
-              echo "ERROR: New deployment missing dist/server.js!"
-              sudo rm -rf /opt/betternet/server.new
-              exit 1
-            fi
-
-            # Stop service before swapping files (minimal downtime)
-            sudo systemctl stop bn-server || true
-
-            # Backup current deployment (one generation, for quick rollback)
-            if [ -d /opt/betternet/server/dist ]; then
-              sudo mv /opt/betternet/server/dist /opt/betternet/server/dist.old || true
-            fi
-            if [ -f /opt/betternet/server/package.json ]; then
-              sudo mv /opt/betternet/server/package.json /opt/betternet/server/package.json.old || true
-            fi
-            if [ -f /opt/betternet/server/package-lock.json ]; then
-              sudo mv /opt/betternet/server/package-lock.json /opt/betternet/server/package-lock.json.old || true
-            fi
-
-            # Move new files into place
-            sudo mv /opt/betternet/server.new/dist /opt/betternet/server/dist
-            sudo mv /opt/betternet/server.new/package.json /opt/betternet/server/package.json
-            sudo mv /opt/betternet/server.new/package-lock.json /opt/betternet/server/package-lock.json
-
-            sudo rmdir /opt/betternet/server.new || sudo rm -rf /opt/betternet/server.new
-
-            # Drop older backup generation
-            sudo rm -rf /opt/betternet/server/dist.old.old || true
-            if [ -d /opt/betternet/server/dist.old ]; then
-              sudo mv /opt/betternet/server/dist.old /opt/betternet/server/dist.old.old || true
-            fi
-            sudo rm -f /opt/betternet/server/package.json.old /opt/betternet/server/package-lock.json.old || true
-
-      - name: Install dependencies and configure server
+      - name: Install dependencies in staging
         uses: appleboy/ssh-action@v1.0.3
         env:
           SERVER_PORT: ${{ vars.SERVER_PORT || '3001' }}
           SERVER_HOST: ${{ vars.SERVER_HOST || '0.0.0.0' }}
-          # DB_HOST is stored as a SECRET, not a variable - vars.DB_HOST resolves to
-          # empty, which writes DB_HOST= into .env and crash-loops the service.
           DB_HOST: ${{ secrets.DB_HOST }}
           DB_PORT: ${{ vars.DB_PORT || '5432' }}
           DB_NAME: ${{ vars.DB_NAME || 'betternet' }}
           DB_USERNAME: ${{ vars.DB_USERNAME }}
-          # Auth0 verifies the webapp's JWT (bn-server/src/auth.ts). Without these the read
-          # endpoints reject every request, since an unconfigured server must not accept
-          # unverified tokens.
           AUTH0_DOMAIN: ${{ vars.AUTH0_DOMAIN }}
           AUTH0_AUDIENCE: ${{ vars.AUTH0_AUDIENCE }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          # Keys the staff view's submitter pseudonyms. Changing it re-pseudonymises everyone,
-          # so it is set once and left alone.
           BN_PSEUDONYM_SECRET: ${{ secrets.BN_PSEUDONYM_SECRET }}
           BN_AIQA_ENDPOINT: ${{ vars.BN_AIQA_ENDPOINT }}
           BN_OPENAI_API_KEY: ${{ secrets.BN_OPENAI_API_KEY }}
           BN_ANTHROPIC_API_KEY: ${{ secrets.BN_ANTHROPIC_API_KEY }}
           BN_GOOGLE_API_KEY: ${{ secrets.BN_GOOGLE_API_KEY }}
-          RUN_AS_USER: ${{ vars.RUN_AS_USER || vars.DEPLOY_USER }}
         with:
           host: ${{ env.DEPLOY_HOST }}
           username: ${{ env.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ env.DEPLOY_PORT }}
-          envs: SERVER_PORT,SERVER_HOST,DB_HOST,DB_PORT,DB_NAME,DB_USERNAME,DB_PASSWORD,AUTH0_DOMAIN,AUTH0_AUDIENCE,BN_PSEUDONYM_SECRET,BN_AIQA_ENDPOINT,BN_OPENAI_API_KEY,BN_ANTHROPIC_API_KEY,BN_GOOGLE_API_KEY,RUN_AS_USER
+          envs: SERVER_PORT,SERVER_HOST,DB_HOST,DB_PORT,DB_NAME,DB_USERNAME,DB_PASSWORD,AUTH0_DOMAIN,AUTH0_AUDIENCE,BN_PSEUDONYM_SECRET,BN_AIQA_ENDPOINT,BN_OPENAI_API_KEY,BN_ANTHROPIC_API_KEY,BN_GOOGLE_API_KEY
           script: |
-            cd /opt/betternet/server
+            set -e
+            NEW=/opt/betternet/server.new
+            if [ ! -f "$NEW/dist/server.js" ]; then
+              echo "ERROR: New deployment missing dist/server.js!"
+              sudo rm -rf "$NEW"
+              exit 1
+            fi
 
-            # Deployment user needs write access for npm ci; service runs as RUN_AS_USER
-            sudo chown -R $USER:$USER /opt/betternet/server || true
-
-            echo "Installing production dependencies..."
+            # npm ci here, while the live service is still running. A failed install used
+            # to leave the unit stopped because it ran after systemctl stop.
+            cd "$NEW"
+            echo "Installing production dependencies in staging..."
             npm ci --omit=dev
-
             if [ ! -d node_modules/fastify ]; then
               echo "ERROR: fastify module not found after installation!"
               exit 1
             fi
 
-            # Write .env (see bn-server/env.example and src/db.ts)
             {
               echo "ENVIRONMENT=production"
               echo "PORT=${SERVER_PORT:-3001}"
@@ -182,43 +145,73 @@ jobs:
               [ -n "${BN_ANTHROPIC_API_KEY}" ] && echo "BN_ANTHROPIC_API_KEY=${BN_ANTHROPIC_API_KEY}"
               [ -n "${BN_GOOGLE_API_KEY}" ] && echo "BN_GOOGLE_API_KEY=${BN_GOOGLE_API_KEY}"
             } > .env
+            chmod 600 .env
 
-            sudo chown -R ${RUN_AS_USER}:${RUN_AS_USER} /opt/betternet/server
-            sudo chmod 600 .env
+      - name: Swap live directory and restart
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          SERVER_PORT: ${{ vars.SERVER_PORT || '3001' }}
+          RUN_AS_USER: ${{ vars.RUN_AS_USER || vars.DEPLOY_USER }}
+        with:
+          host: ${{ env.DEPLOY_HOST }}
+          username: ${{ env.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ env.DEPLOY_PORT }}
+          envs: SERVER_PORT,RUN_AS_USER
+          script: |
+            set -e
+            NEW=/opt/betternet/server.new
+            LIVE=/opt/betternet/server
+            PREV=/opt/betternet/server.prev
+            CHECK_PORT=${SERVER_PORT:-3001}
 
-            if [ ! -f dist/server.js ]; then
-              echo "ERROR: dist/server.js not found!"
+            if [ ! -f "$NEW/dist/server.js" ] || [ ! -d "$NEW/node_modules/fastify" ]; then
+              echo "ERROR: staging dir is incomplete — leaving the live service running"
+              sudo rm -rf "$NEW"
               exit 1
             fi
 
-            sudo systemctl daemon-reload
-            sudo systemctl restart bn-server
+            sudo systemctl stop bn-server || true
+            sudo rm -rf "$PREV"
+            if [ -d "$LIVE" ]; then
+              sudo mv "$LIVE" "$PREV"
+            fi
+            sudo mv "$NEW" "$LIVE"
 
-            # Poll, rather than sleep 3 and check once. db_init's first connection wakes
-            # Neon's compute from autosuspend, which can take longer than a few seconds,
-            # and a single early check failed a deploy whose server was in fact fine.
-            CHECK_PORT=${SERVER_PORT:-3001}
+            sudo chown -R ${RUN_AS_USER}:${RUN_AS_USER} "$LIVE"
+            sudo chmod 600 "$LIVE/.env"
+
+            sudo systemctl daemon-reload
+            sudo systemctl start bn-server
+
+            health_ok=
             for attempt in $(seq 1 30); do
-              # A dead unit will never serve, so stop waiting for one. "activating
-              # (auto-restart)" is not active either, which is what catches a crash loop.
               if ! systemctl is-active --quiet bn-server; then
                 echo "ERROR: bn-server not active after restart (attempt ${attempt})"
-                # No sudo here: the deploy user's sudo is a narrow allowlist. These are
-                # read-only queries, and the journal is best-effort - it only prints if the
-                # user can read it. `systemctl status` alone just says "status=1/FAILURE".
                 systemctl status bn-server --no-pager -l || true
                 journalctl -u bn-server -n 30 --no-pager || true
-                exit 1
+                break
               fi
-              # Confirms it serves, not just that systemd started it
               if curl -fsS --max-time 5 "http://127.0.0.1:${CHECK_PORT}/health" > /dev/null; then
                 echo "Health check passed on port ${CHECK_PORT} after ${attempt} attempt(s)"
-                exit 0
+                health_ok=1
+                break
               fi
               sleep 2
             done
 
-            echo "ERROR: health check failed on port ${CHECK_PORT} after 30 attempts"
+            if [ -n "$health_ok" ]; then
+              sudo rm -rf "$PREV"
+              exit 0
+            fi
+
+            echo "ERROR: health check failed — rolling back to the previous deployment"
             systemctl status bn-server --no-pager -l || true
             journalctl -u bn-server -n 30 --no-pager || true
+            if [ -d "$PREV" ]; then
+              sudo systemctl stop bn-server || true
+              sudo rm -rf "$LIVE"
+              sudo mv "$PREV" "$LIVE"
+              sudo systemctl start bn-server
+            fi
             exit 1

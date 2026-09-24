@@ -1,8 +1,13 @@
 /**
- * ESM settings helpers (options page uses settings/defaults.js IIFE).
+ * ESM settings helpers.
+ *
+ * Keep in step with settings/defaults.ts (IIFE for the options page bundle). Shared bits
+ * that must not drift: DEFAULTS keys, isModuleEnabled / normalizeDomain behaviour, module
+ * id list. Prefer editing both when changing behaviour.
  */
 
 import { DEFAULT_NUTRIENT_LABEL_MIN_RISK } from '../types/RiskLevel.js';
+import { hostListed, normalizeHost } from '../utils/host.js';
 
 export const MODULES = [
   { id: 'adBlocker', name: 'Ad Blocker' },
@@ -69,7 +74,7 @@ export function mergeSettings(stored: any = {}) {
     // Analyse on-screen chunks first, deferring the rest until they scroll into view
     // (content/chunk-scheduler.ts). Keep in step with settings/defaults.ts.
     analyzeOnScreenFirst: true,
-    demoMode: true, // TODO: set to false for production
+    demoMode: false,
     excludedSites: [],
     domainOverrides: {},
     serverEndpoint: DEFAULT_SERVER_ENDPOINT,
@@ -92,9 +97,11 @@ export function mergeSettings(stored: any = {}) {
 export function isModuleEnabled(settings, moduleId, hostname) {
   const mod = settings.modules?.[moduleId];
   if (mod?.enabled === false) return false;
-  const host = hostname?.replace(/^www\./, '');
-  if (host && settings.excludedSites?.includes(host)) return false;
-  const overrides = settings.domainOverrides?.[host];
+  const host = normalizeHost(hostname || '');
+  if (host && hostListed(host, settings.excludedSites)) return false;
+  const overrides =
+    settings.domainOverrides?.[host] ||
+    settings.domainOverrides?.[`www.${host}`];
   if (overrides && overrides[moduleId] === false) return false;
   return true;
 }

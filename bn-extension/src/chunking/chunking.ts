@@ -14,6 +14,7 @@ import { extractChunksReddit } from './chunking-reddit.js';
 import { extractChunksThreads } from './chunking-threads.js';
 import { extractChunksBluesky } from './chunking-bluesky.js';
 import { extractChunksX } from './chunking-x.js';
+import { hostnameOf, hostIsDomain } from '../utils/host.js';
 import { extractHeadlineChunks } from './chunking-headlines.js';
 import { findElementByXPath } from '../utils/utils.js';
 import { logit } from '../utils/logger.js';
@@ -199,21 +200,25 @@ export function looksUnrendered(chunks, url: string): boolean {
 }
 
 /**
- * Detect which platform we're on based on URL and DOM structure
+ * Detect which platform we're on based on hostname, not a substring of the URL.
+ * `includes('x.com')` also matched netflix.com, dropbox.com, fedex.com.
  */
-function detectPlatform(url: string): string | null {
+export function detectPlatform(url: string): string | null {
   if (!url) return null;
 
-  const urlLower = url.toLowerCase();
+  const host = hostnameOf(url);
+  const path = (() => {
+    try { return new URL(url).pathname.toLowerCase(); }
+    catch { return ''; }
+  })();
 
-  // Google
-  if (urlLower.includes('google.com/search') || urlLower.includes('google.com/webhp')) return 'google';
-  if (urlLower.includes('duckduckgo.com')) return 'duckduckgo';
-  if (urlLower.includes('facebook.com') || urlLower.includes('fb.com')) return 'facebook';
-  if (urlLower.includes('reddit.com')) return 'reddit';
-  if (urlLower.includes('threads.net')) return 'threads';
-  if (urlLower.includes('x.com') || urlLower.includes('twitter.com')) return 'x';
-  if (urlLower.includes('bsky.app') || urlLower.includes('bluesky.social')) return 'bluesky';
+  if (hostIsDomain(host, 'google.com') && (path.startsWith('/search') || path.startsWith('/webhp'))) return 'google';
+  if (hostIsDomain(host, 'duckduckgo.com')) return 'duckduckgo';
+  if (hostIsDomain(host, 'facebook.com') || hostIsDomain(host, 'fb.com')) return 'facebook';
+  if (hostIsDomain(host, 'reddit.com')) return 'reddit';
+  if (hostIsDomain(host, 'threads.net')) return 'threads';
+  if (hostIsDomain(host, 'x.com') || hostIsDomain(host, 'twitter.com')) return 'x';
+  if (hostIsDomain(host, 'bsky.app') || hostIsDomain(host, 'bluesky.social')) return 'bluesky';
 
   return null;
 }
@@ -240,16 +245,5 @@ async function extractChunksFromPlatform(source: Document | Element | string, ur
     default:
       return null;
   }
-}
-
-/**
- * Parse HTML string to DOM
- */
-function parseHTML(html) {
-  if (typeof DOMParser !== 'undefined') {
-    const parser = new DOMParser();
-    return parser.parseFromString(html, 'text/html');
-  }
-  return null;
 }
 

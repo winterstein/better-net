@@ -1,33 +1,21 @@
 # bn-server DevOps
 
-## DNS
+## Host
 
-Cloudflare: point `api.betternet.org` (or your API hostname) at the Hetzner server IP.
+- App: `/opt/betternet/server`, systemd unit `bn-server`
+- Public API: `https://server.better-net.com` (nginx + cert on the host)
+- Database: Neon Postgres (not installed on the Hetzner box). Set `DB_*` from the Neon console
 
-## Server
-
-Hetzner: Ubuntu. App lives at `/opt/betternet/server`, managed by systemd as `bn-server`.
-
-### One-time host setup
+## One-time host setup
 
 ```bash
 sudo mkdir -p /opt/betternet/server
-# This line attempts to create a system user named 'bn' (with home directory /opt/betternet/server and no login shell)
-# It will not error if the user already exists, due to '|| true'.
-
 sudo useradd --system --home /opt/betternet/server --shell /usr/sbin/nologin bn || true
-
-# The deploy SCPs to /opt/betternet/server.new, and scp-action cannot use sudo, so
-# DEPLOY_USER must own /opt/betternet itself - otherwise the deploy fails with
-# "create folder /opt/betternet/server.new / drone-scp error: Process exited with status 1".
+# DEPLOY_USER must own /opt/betternet so SCP can create server.new
 sudo chown $DEPLOY_USER:$DEPLOY_USER /opt/betternet
 ```
 
-Also copy a couple of these files to the server
-
-scp bn-server.service aberdeen:~
-
-Then:
+Install the unit and enable it:
 
 ```bash
 sudo cp bn-server.service /etc/systemd/system/bn-server.service
@@ -35,7 +23,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable bn-server
 ```
 
-Allow the GitHub deploy user to restart the service without a password (adjust user name):
+Allow the deploy user to restart without a password (adjust the username):
 
 ```text
 # /etc/sudoers.d/bn-deploy
@@ -43,83 +31,48 @@ deployuser ALL=(ALL) NOPASSWD: /bin/systemctl stop bn-server, /bin/systemctl sta
 deployuser ALL=(ALL) NOPASSWD: /bin/mv, /bin/mkdir, /bin/rmdir, /bin/rm, /bin/chown, /bin/chmod
 ```
 
-Install Node 20 and PostgreSQL on the host. 
+Install Node 20 on the host. Postgres stays on Neon.
 
-Create the `betternet` database and a DB user matching GitHub secrets.
-This should be in Neon 
+## Deploy
 
-### How to Deploy
+Automatic: push to `main` when `bn-server/**` or `bn-extension/src/**` changes.
+Workflow: [`.github/workflows/server-deploy.yml`](../.github/workflows/server-deploy.yml).
 
-Automatic: push to `main` when `bn-server/**` or `bn-extension/src/**` changes. Workflow: [`.github/workflows/server-deploy.yml`](../.github/workflows/server-deploy.yml).
+Manual: GitHub → Actions → Deploy Server → Run workflow.
 
-Manual: GitHub → Actions → **Deploy Server** → **Run workflow**.
+### GitHub Environment `prod`
 
-#### GitHub Environment `prod`
+Variables: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PORT`, `SERVER_PORT`, `SERVER_HOST`,
+`DB_PORT`, `DB_NAME`, `DB_USERNAME`, `AUTH0_DOMAIN`, `AUTH0_AUDIENCE`,
+`BN_AIQA_ENDPOINT`, `RUN_AS_USER`.
 
-| Kind | Name | Notes |
-|------|------|-------|
-| var | `DEPLOY_HOST` | Hetzner server IP or hostname |
-| var | `DEPLOY_USER` | SSH user for deploy |
-| var | `DEPLOY_PORT` | SSH port (default 22) |
-| var | `SERVER_PORT` | Listen port (default 3001) |
-| var | `SERVER_HOST` | Bind address (default 0.0.0.0) |
-| var | `DB_HOST` | Postgres host |
-| var | `DB_PORT` | Postgres port (default 5432) |
-| var | `DB_NAME` | Database name (default betternet) |
-| var | `DB_USERNAME` | Postgres user |
-| var | `AUTH0_DOMAIN` | Auth0 tenant, e.g. `winterstein.eu.auth0.com`. Read endpoints 401 without it |
-| var | `AUTH0_AUDIENCE` | Auth0 API identifier the webapp's token must carry |
-| var | `BN_AIQA_ENDPOINT` | Optional AIQA traces URL |
-| var | `RUN_AS_USER` | Service owner (default: `DEPLOY_USER`; prefer `bn`) |
-| secret | `DEPLOY_SSH_KEY` | Private key for `DEPLOY_USER` |
-| secret | `DB_PASSWORD` | Postgres password |
-| secret | `BN_PSEUDONYM_SECRET` | Keys staff-view submitter pseudonyms. Set once; changing it re-pseudonymises everyone |
-| secret | `BN_OPENAI_API_KEY` | Optional LLM key |
-| secret | `BN_ANTHROPIC_API_KEY` | Optional LLM key |
-| secret | `BN_GOOGLE_API_KEY` | Optional fact-check key |
+Secrets: `DEPLOY_SSH_KEY`, `DB_HOST`, `DB_PASSWORD`, `BN_PSEUDONYM_SECRET`,
+optional `BN_OPENAI_API_KEY` / `BN_ANTHROPIC_API_KEY` / `BN_GOOGLE_API_KEY`.
 
-Deploy flow: CI builds and tests → SCP `dist/` + lockfile to `server.new` → swap into `/opt/betternet/server` → `npm ci --omit=dev` on host → write `.env` → `systemctl restart bn-server`.
+Auth0 tenant is `better-net.eu.auth0.com`. Audience must match the webapp's
+`VITE_AUTH0_AUDIENCE` (`https://server.better-net.com/api`).
 
-Rollback: previous `dist` is kept briefly as `dist.old.old` on the host; restore manually if needed.
+Flow: CI tests + build → SCP to `server.new` → `npm ci` in staging while live stays up →
+directory swap → restart → health poll. Failed health rolls back to `server.prev`.
 
-### How to Setup and Run Local
+## Local
 
 ```bash
 cd bn-server
 npm install
-cp env.example .env   # add DB_* and optional BN_* keys
-npm run dev           # tsx watch, port 3001
-# or
-npm run build && npm start
+cp .env.example .env   # Neon or local Postgres
+npm run dev            # port from .env / 3001
 ```
 
-Health check: `curl http://localhost:3001/health`
-
-Tests: `npm test` (requires local Postgres; copy `.env.test` is committed — override there if your local user/password differ).
+Tests need local Postgres. `.env.test` is committed and overrides `.env` for `npm test`.
 
 ## bn-webapp
 
-Static React app, served by nginx from `/opt/betternet/webapp`
-(`bn-webapp/app.better-net.com.nginx`). Needs its own cert before the vhost is enabled:
+Static bundle at `/opt/betternet/webapp`, nginx vhost `app.better-net.com`.
+Deploy: [`.github/workflows/webapp-deploy.yml`](../.github/workflows/webapp-deploy.yml)
+(push to `main` touching `bn-webapp/**`).
 
-```bash
-sudo certbot certonly --nginx -d app.better-net.com
-sudo cp bn-webapp/app.better-net.com.nginx /etc/nginx/sites-available/app.better-net.com
-sudo ln -s /etc/nginx/sites-available/app.better-net.com /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-```
+One-off: cert first, then enable the vhost (see the workflow header comments).
 
-Build-time config (Vite bakes these in, so they are not secrets):
-
-| var | Notes |
-|-----|-------|
-| `VITE_API_BASE` | `https://server.better-net.com/api` in production; defaults to `/api` for the dev proxy |
-| `VITE_AUTH0_DOMAIN` | Same tenant as the server's `AUTH0_DOMAIN` |
-| `VITE_AUTH0_CLIENT_ID` | Auth0 **SPA** application client id |
-| `VITE_AUTH0_AUDIENCE` | Must match the server's `AUTH0_AUDIENCE`, or tokens are rejected |
-
-Auth0 SPA application settings need `https://app.better-net.com` as an allowed callback URL,
-logout URL, and web origin.
-
-There is no deploy workflow for bn-webapp yet — `npm run build` and copy `dist/` to
-`/opt/betternet/webapp`.
+Vite build vars (prod environment): `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`,
+`VITE_AUTH0_AUDIENCE`, `VITE_API_BASE`.

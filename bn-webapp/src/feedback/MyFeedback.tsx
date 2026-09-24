@@ -89,6 +89,12 @@ export default function MyFeedback() {
 				</Alert>
 			)}
 
+			{linkExpired && view.kind === 'rows' && (
+				<Alert color="warning">
+					That link has expired. Showing feedback from browsers already linked to this account.
+				</Alert>
+			)}
+
 			{view.kind === 'error' && <Alert color="danger">{view.message}</Alert>}
 
 			{/* Not the same as "you have given no feedback" — say what to actually do. */}

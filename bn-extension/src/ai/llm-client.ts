@@ -89,6 +89,15 @@ function promptChars(messages: LLMMessage[]): number {
 	return messages.reduce((total, m) => total + (m.content?.length ?? 0), 0);
 }
 
+/** Remote LLM calls that never return should not hang analysis forever. */
+const LLM_TIMEOUT_MS = 30_000;
+
+function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), timeoutMs);
+	return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
 export class OpenAILLMClient implements LLMClient {
 	constructor(private apiKey: string, private defaultModel = 'gpt-4') {}
 
@@ -98,19 +107,23 @@ export class OpenAILLMClient implements LLMClient {
 			{ parent: options.trace, attributes: genAiAttributes('openai', this.defaultModel, options) },
 			async (span) => {
 				setAttributes(span, { 'betternet.input.chars': promptChars(messages) });
-				const response = await fetch('https://api.openai.com/v1/chat/completions', {
-					method: 'POST',
-					headers: {
-						Authorization: `Bearer ${this.apiKey}`,
-						'Content-Type': 'application/json',
+				const response = await fetchWithTimeout(
+					'https://api.openai.com/v1/chat/completions',
+					{
+						method: 'POST',
+						headers: {
+							Authorization: `Bearer ${this.apiKey}`,
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({
+							model: options.model || this.defaultModel,
+							messages,
+							temperature: options.temperature ?? 0.3,
+							max_tokens: options.maxTokens ?? 1024,
+						}),
 					},
-					body: JSON.stringify({
-						model: options.model || this.defaultModel,
-						messages,
-						temperature: options.temperature ?? 0.3,
-						max_tokens: options.maxTokens ?? 1024,
-					}),
-				});
+					LLM_TIMEOUT_MS
+				);
 
 				if (!response.ok) {
 					throw failedResponse(span, 'OpenAI', response);
@@ -132,7 +145,7 @@ export class OpenAILLMClient implements LLMClient {
 }
 
 export class AnthropicLLMClient implements LLMClient {
-	constructor(private apiKey: string, private defaultModel = 'claude-3-opus-20240229') {}
+	constructor(private apiKey: string, private defaultModel = 'claude-sonnet-4-5') {}
 
 	async complete(messages: LLMMessage[], options: LLMCompleteOptions = {}): Promise<string> {
 		return traceStep(
@@ -144,20 +157,24 @@ export class AnthropicLLMClient implements LLMClient {
 				const userParts = messages.filter((m) => m.role !== 'system').map((m) => m.content);
 				const userContent = userParts.join('\n\n');
 
-				const response = await fetch('https://api.anthropic.com/v1/messages', {
-					method: 'POST',
-					headers: {
-						'x-api-key': this.apiKey,
-						'anthropic-version': '2023-06-01',
-						'Content-Type': 'application/json',
+				const response = await fetchWithTimeout(
+					'https://api.anthropic.com/v1/messages',
+					{
+						method: 'POST',
+						headers: {
+							'x-api-key': this.apiKey,
+							'anthropic-version': '2023-06-01',
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({
+							model: options.model || this.defaultModel,
+							max_tokens: options.maxTokens ?? 1024,
+							system: system || undefined,
+							messages: [{ role: 'user', content: userContent }],
+						}),
 					},
-					body: JSON.stringify({
-						model: options.model || this.defaultModel,
-						max_tokens: options.maxTokens ?? 1024,
-						system: system || undefined,
-						messages: [{ role: 'user', content: userContent }],
-					}),
-				});
+					LLM_TIMEOUT_MS
+				);
 
 				if (!response.ok) {
 					throw failedResponse(span, 'Anthropic', response);

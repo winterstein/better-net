@@ -23,7 +23,7 @@ for by a local keypair — so the verification path is exercised but the real te
 - [user-identity](../../../../bn-extension/specs/accounts/user-identity/spec.md) — the local id, and linking it to an account
 - [extension-server-feedback.md](../../../../bn-extension/specs/extension-server-feedback.md) — the write side and the `FeedbackSubmission` shape
 - `bn-server/src/routes/feedback.ts` — where POST lives
-- Auth0 tenant `better-net.eu.auth0.com` — its own tenant, not the shared `winterstein.eu.auth0.com` AIQA uses. SPA application "BetterNet Webapp" (`WBF8SVYqzsxI37AbH733VNHyQgvPs5ou`); `AUTH0_DOMAIN` / `AUTH0_AUDIENCE` in `bn-server/env.example`
+- Auth0 tenant `better-net.eu.auth0.com` — its own tenant, not the shared `winterstein.eu.auth0.com` AIQA uses. SPA application "BetterNet Webapp" (`WBF8SVYqzsxI37AbH733VNHyQgvPs5ou`); `AUTH0_DOMAIN` / `AUTH0_AUDIENCE` in `bn-server/.env.example`
 
 ## Auth
 

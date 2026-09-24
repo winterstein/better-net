@@ -5,7 +5,7 @@ User-first browser AI: label misleading/toxic content, reduce manipulative UX, a
 | Package | Role |
 |---------|------|
 | `bn-extension` | MV3 browser extension (chunking, analysis, popup) — main product |
-| `bn-server` | Fastify + Postgres + ElasticSearch backend (cache, APIs) |
+| `bn-server` | Fastify + Postgres backend (cache, APIs) |
 | `bn-webapp` | Vite + React companion UI |
 
 Each package has it's own AGENTS.md file. Check it when working on that package.
@@ -42,7 +42,7 @@ This should be used for code reuse of e.g. types, analyzers.
 
 ### bn-extension 
 
-The main user-level features (settings, ad-blocker, click-unbait, cookie-cutter, privacy-shield, fact-checker, etc) have separate folders in src and test.
+The main user-level features (settings, ad-blocker, click-unbait, fact-checker, etc) have separate folders in `src/features/` (ad blocker lives in `src/ad-blocker/`).
 
 Several features share a common pipeline:
 1. Chunk page (which can use domain-specific or generic chunking)

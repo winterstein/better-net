@@ -18,7 +18,8 @@ This project is early stage. It can change data-types and tags without having to
 
 ## Layout
 
-- `src/features/<feature>/` — user-level features (ad-blocker, click-unbait, cookie-cutter, privacy-shield, fact-checker, ...); ids match settings modules
+- `src/features/<feature>/` — user modules (fact-checker, click-unbait, …); ids match settings
+- Ad blocker lives in `src/ad-blocker/` (not under features/)
 - `src/chunking/`, `src/analysis/engine.ts`, `src/ai/` — the shared pipeline: chunk page, analyze chunks, adjust page content
 - `src/background/`, `src/content/`, `src/options/`, `src/popup/` — MV3 entry points
 - `test/` mirrors `src/`; `test_integration/`, `e2e/` for slower suites

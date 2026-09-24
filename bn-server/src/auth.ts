@@ -74,11 +74,14 @@ export async function verifyBearer(authorization?: string): Promise<VerifiedToke
 	const token = authorization?.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
 	if (!token) return null;
 	if (!keyStoreOverride && !domain) return null;
+	// Fail closed: jose treats a missing audience as "do not check", which would accept
+	// any token from the tenant. status.md says aud is always checked.
+	if (!audience) return null;
 	try {
 		const { payload } = await jwtVerify(token, keyStoreOverride ?? keyStore(domain), {
 			// Both checked: a valid token for a *different* Auth0 API must not work here.
 			issuer: issuer || undefined,
-			audience: audience || undefined,
+			audience,
 		});
 		if (!payload.sub) return null;
 		return { sub: payload.sub, email: emailFrom(payload) };

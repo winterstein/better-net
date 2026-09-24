@@ -70,4 +70,12 @@ export function getAnthropicKey() {
 
 if (typeof chrome !== 'undefined' && chrome.storage) {
   initializeChromeStorage().catch(() => {});
+  chrome.storage.onChanged?.addListener((changes, area) => {
+    if (area !== 'sync' || !chromeStorageCache) return;
+    for (const key of SUPPORTED_KEYS) {
+      if (Object.prototype.hasOwnProperty.call(changes, key)) {
+        chromeStorageCache[key] = changes[key].newValue ?? '';
+      }
+    }
+  });
 }

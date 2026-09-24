@@ -3,12 +3,10 @@
  * Uses CSS selectors and semantic patterns to identify content chunks
  */
 
-import {
-  isElementHidden,
+import {isElementHidden,
   generateXPath,
   isScreenReaderOnly,
-  NON_CONTENT_SELECTOR,
-} from './chunking-utils.js';
+  NON_CONTENT_SELECTOR, parseHTML} from './chunking-utils.js';
 import { accessibleLinkName, findHeadlineLink } from './headline-link.js';
 import { inferAdvert, TAG } from './chunk-tags.js';
 
@@ -114,7 +112,7 @@ function extractChunkFromElement(element: Element, options: any = {}) {
   
   // Remove unwanted elements
   const unwanted = clone.querySelectorAll(
-    `${NON_CONTENT_SELECTOR}, iframe, nav, header, footer, aside, .ad, .advertisement, [class*="ad-"], [id*="ad-"]`
+    `${NON_CONTENT_SELECTOR}, iframe, nav, header, footer, aside, .ad, .advertisement, [class^="ad-"], [class*=" ad-"], [class*="-ad-"], [id^="ad-"], [id*=" ad-"], [id*="-ad-"]`
   );
   unwanted.forEach(el => el.remove());
 
@@ -560,32 +558,3 @@ function simpleHash(str) {
   }
   return hash.toString();
 }
-
-/**
- * Parse HTML string to DOM (for Node.js environments)
- */
-function parseHTML(html) {
-  // Try DOMParser first (available in browsers and Chrome extension service workers)
-  if (typeof DOMParser !== 'undefined') {
-    try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-      // Check for parsing errors
-      const parserError = doc.querySelector('parsererror');
-      if (!parserError) {
-        return doc;
-      }
-    } catch (error) {
-      console.warn('DOMParser failed, trying alternative:', error);
-    }
-  }
-  
-  // Fallback: try document if available (for direct DOM passing)
-  if (typeof document !== 'undefined' && html === document) {
-    return html;
-  }
-  
-  // Node.js environment - would need jsdom or similar
-  throw new Error('HTML parsing requires DOMParser (browser) or jsdom (Node.js). For Node.js: const { JSDOM } = require("jsdom"); new JSDOM(html).window.document');
-}
-

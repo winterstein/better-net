@@ -1,17 +1,25 @@
+# bn-webapp
 
-A web-app frontend for the bn-server API
+Vite + React companion UI at `https://app.better-net.com`. Sign-in required (Auth0).
+Talks to bn-server for feedback and chunk/page views.
 
-Uses 
-React
-Bootstrap (usually via Reactstrap)
+## Local
 
-Provides:
+```bash
+cd bn-webapp
+cp .env.example .env.local   # Auth0 + API base
+npm install
+npm run dev                  # proxies /api to local bn-server
+```
 
-Pages: 
-List/search pages
-View the chunks in a page
-Enter a url to analyse
+## Deploy
 
-Chunks:
-List/search chunks
-View the analysis of a chunk
+GitHub Actions: [`.github/workflows/webapp-deploy.yml`](../.github/workflows/webapp-deploy.yml)
+on push to `main`. Host setup and cert notes are in that file and `bn-server/DEVOPS.md`.
+
+## Auth
+
+Tenant `better-net.eu.auth0.com`, SPA client in `.env.example`. Audience must match the
+server's `AUTH0_AUDIENCE` (`https://server.better-net.com/api`).
+
+See `status.md` and `specs/feedback/feedback-viewer/spec.md`.

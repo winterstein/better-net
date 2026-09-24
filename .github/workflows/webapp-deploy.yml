@@ -16,12 +16,21 @@ name: Deploy Webapp
 
 on:
   push:
+    branches: [main]
     paths:
-      # Monorepo: only deploy when the webapp (or this workflow) changes
+      # Monorepo: only deploy when the webapp (or this workflow) changes.
+      # The `!` lines exclude docs, which cannot change the built bundle. Order matters: a
+      # later pattern overrides an earlier one. GitHub forbids paths-ignore alongside paths.
       - 'bn-webapp/**'
+      - '!bn-webapp/**.md'
       - 'bn-extension/src/**'   # bn-webapp/src/bn-extension-src symlinks here
+      - '!bn-extension/src/**.md'
       - '.github/workflows/webapp-deploy.yml'
   workflow_dispatch:            # manual re-deploy from GitHub Actions UI
+
+concurrency:
+  group: deploy-webapp-prod
+  cancel-in-progress: false
 
 jobs:
   deploy:

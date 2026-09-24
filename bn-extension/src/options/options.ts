@@ -6,6 +6,7 @@ import { setupAccountLink } from '../accounts/account-link-ui.js';
 import { MODEL_STATUS, isBusyStatus, isInstalled } from '../ai/model-status.js';
 import { DEFAULT_NUTRIENT_LABEL_MIN_RISK, RISK_LEVELS } from '../types/RiskLevel.js';
 import { logit, setDeveloperMode, developerModeFromSettings } from '../utils/logger.js';
+import { escapeHtml } from '../utils/escape-html.js';
 
 const LOG = '[BN:local-model]';
 const STORAGE_TIMEOUT_MS = 8_000;
@@ -422,13 +423,13 @@ class SettingsController {
       card.innerHTML = `
         <div class="local-model-header">
           <div class="local-model-title-row">
-            <strong>${this.escapeHtml(model.name)}</strong>
+            <strong>${escapeHtml(model.name)}</strong>
             ${badge}
           </div>
           <span class="local-model-size">~${formatBytes(model.sizeBytes)}</span>
         </div>
-        <p class="local-model-desc">${this.escapeHtml(model.description)}</p>
-        <p class="${statusClass}">${this.escapeHtml(statusText)}</p>
+        <p class="local-model-desc">${escapeHtml(model.description)}</p>
+        <p class="${statusClass}">${escapeHtml(statusText)}</p>
         ${
           isBusy
             ? `<div class="local-model-progress" role="progressbar" aria-valuenow="${progressPct}" aria-valuemin="0" aria-valuemax="100" aria-label="Download progress">
@@ -617,9 +618,9 @@ class SettingsController {
           <div class="module-title">
             <label class="checkbox-label module-enable">
               <input type="checkbox" data-module-enable ${state.enabled ? 'checked' : ''}>
-              <strong>${this.escapeHtml(mod.name)}</strong>
+              <strong>${escapeHtml(mod.name)}</strong>
             </label>
-            <p class="module-desc">${this.escapeHtml(mod.description)}</p>
+            <p class="module-desc">${escapeHtml(mod.description)}</p>
           </div>
         </div>
         ${extra}
@@ -750,10 +751,10 @@ class SettingsController {
       card.className = 'offlist-card';
       card.innerHTML = `
         <div class="offlist-card-header">
-          <strong>${this.escapeHtml(domain)}</strong>
-          <button type="button" class="btn-remove" data-domain="${this.escapeHtml(domain)}" title="Remove">×</button>
+          <strong>${escapeHtml(domain)}</strong>
+          <button type="button" class="btn-remove" data-domain="${escapeHtml(domain)}" title="Remove">×</button>
         </div>
-        <p class="offlist-summary">${offModules.length ? `Off: ${this.escapeHtml(offModules.join(', '))}` : 'No modules marked off'}</p>
+        <p class="offlist-summary">${offModules.length ? `Off: ${escapeHtml(offModules.join(', '))}` : 'No modules marked off'}</p>
         <div class="offlist-toggles"></div>
       `;
 
@@ -763,8 +764,8 @@ class SettingsController {
         label.className = 'checkbox-label offlist-module';
         const checked = overrides[mod.id] !== false;
         label.innerHTML = `
-          <input type="checkbox" data-domain="${this.escapeHtml(domain)}" data-module="${mod.id}" ${checked ? 'checked' : ''}>
-          <span>${this.escapeHtml(mod.name)}</span>
+          <input type="checkbox" data-domain="${escapeHtml(domain)}" data-module="${mod.id}" ${checked ? 'checked' : ''}>
+          <span>${escapeHtml(mod.name)}</span>
         `;
         label.querySelector('input').addEventListener('change', (e) =>
           this.setDomainModuleOverride(domain, mod.id, e.target.checked)
@@ -833,7 +834,7 @@ class SettingsController {
       const li = document.createElement('li');
       li.className = 'excluded-site-item';
       li.innerHTML = `
-        <span class="site-url">${this.escapeHtml(site)}</span>
+        <span class="site-url">${escapeHtml(site)}</span>
         <button type="button" class="btn-remove" data-index="${index}" title="Remove">×</button>
       `;
       li.querySelector('.btn-remove').addEventListener('click', () =>
@@ -906,11 +907,6 @@ class SettingsController {
     }, 3000);
   }
 
-  escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
 }
 
 // Exposed for e2e tests (and console debugging): the storage-read re-render is

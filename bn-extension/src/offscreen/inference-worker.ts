@@ -256,7 +256,17 @@ async function removeModel(modelId) {
   });
   try {
     const keys = await caches.keys();
-    await Promise.all(keys.map((k) => caches.delete(k)));
+    const needle = getLocalModel(modelId)?.huggingFaceId;
+    if (!needle) return;
+    await Promise.all(
+      keys.map(async (key) => {
+        const cache = await caches.open(key);
+        const requests = await cache.keys();
+        await Promise.all(
+          requests.filter((req) => req.url.includes(needle)).map((req) => cache.delete(req))
+        );
+      })
+    );
   } catch {
     // Cache API may be limited here; model files may remain in IndexedDB until cleared
   }

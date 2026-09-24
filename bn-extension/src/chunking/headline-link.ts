@@ -54,6 +54,14 @@ const FURNITURE_PATH = new RegExp(
 	'i'
 );
 
+/** One-word homepages that are section hubs, not stories. `/sport` is the example; `/breakfast` is not. */
+const SECTION_HUB = new Set([
+	'sport', 'sports', 'news', 'world', 'politics', 'business', 'opinion', 'culture',
+	'tech', 'technology', 'health', 'science', 'entertainment', 'lifestyle', 'travel',
+	'video', 'videos', 'live', 'home', 'weather', 'uk', 'us', 'europe', 'africa', 'asia',
+	'americas', 'money', 'markets', 'market', 'football', 'soccer',
+]);
+
 /** Share / social endpoints, which carry the story URL as a parameter rather than being it. */
 const SOCIAL_HOST =
 	/(^|\.)(facebook|twitter|x|linkedin|pinterest|reddit|whatsapp|telegram|t|threads|instagram|tiktok|bsky|mastodon)\.[a-z.]+$/i;
@@ -111,6 +119,8 @@ export function isFurnitureUrl(url: string, pageUrl?: string): boolean {
 	// The site root and one-word landing pages are sections, not stories.
 	if (parsed.pathname === '/' || parsed.pathname === '') return true;
 	if (FURNITURE_PATH.test(parsed.pathname)) return true;
+	const segments = parsed.pathname.replace(/\/+$/, '').split('/').filter(Boolean);
+	if (segments.length === 1 && SECTION_HUB.has(segments[0].toLowerCase())) return true;
 
 	if (pageUrl) {
 		try {

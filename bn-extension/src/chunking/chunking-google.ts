@@ -3,7 +3,7 @@
  * Based on stopaganda-g.js selectors
  */
 
-import { isElementHidden, generateXPath } from './chunking-utils.js';
+import {isElementHidden, generateXPath, parseHTML} from './chunking-utils.js';
 import { inferAdvert, TAG } from './chunk-tags.js';
 
 /**
@@ -219,16 +219,3 @@ function extractGoogleChunk(element: Element, linkRegex, pageUrl, options: any =
     isPrimary: false,
   };
 }
-
-/**
- * Parse HTML string to DOM
- */
-function parseHTML(html) {
-  if (typeof DOMParser !== 'undefined') {
-    const parser = new DOMParser();
-    return parser.parseFromString(html, 'text/html');
-  }
-  // Fallback for environments without DOMParser
-  return null;
-}
-

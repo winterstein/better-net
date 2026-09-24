@@ -30,11 +30,10 @@ export function feedbackView(input: FeedbackStateInput): FeedbackView {
 	if (input.isLoading) return { kind: 'loading' };
 	if (!input.isAuthenticated) return { kind: 'signin' };
 	if (input.linking) return { kind: 'linking' };
-	// Reported before the list: the user pressed a stale link and should be told, but they
-	// are signed in, so whatever is already linked still shows on the next load.
-	if (input.linkExpired) return { kind: 'link-expired' };
 	if (input.error) return { kind: 'error', message: input.error };
 	if ((input.rowCount ?? 0) > 0) return { kind: 'rows' };
+	// Stale link with nothing to show: tell them to open the extension again.
+	if (input.linkExpired) return { kind: 'link-expired' };
 	if ((input.linkedDevices ?? 0) === 0) return { kind: 'no-devices' };
 	return { kind: 'empty' };
 }

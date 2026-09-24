@@ -23,6 +23,8 @@ export default function StaffFeedback() {
 
 	const load = useCallback(async () => {
 		setLoaded(false);
+		setError(null);
+		setForbidden(false);
 		try {
 			const token = await requireToken(getAccessTokenSilently);
 			setPage(await feedbackApi.allFeedback(token, { target: target || undefined, limit: 100 }));

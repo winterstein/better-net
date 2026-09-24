@@ -158,6 +158,12 @@ describe('which state to show', () => {
 		expect(feedbackView({ ...base, linkExpired: true, linkedDevices: 0 }).kind).toBe('link-expired');
 	});
 
+	it('still shows existing rows when a link code has expired', () => {
+		expect(feedbackView({ ...base, linkExpired: true, linkedDevices: 1, rowCount: 3 }).kind).toBe(
+			'rows'
+		);
+	});
+
 	it('reports errors', () => {
 		const view = feedbackView({ ...base, error: 'boom' });
 		expect(view).toEqual({ kind: 'error', message: 'boom' });

@@ -105,7 +105,7 @@
     useServerCache: false,
     // Product-demo recordings: serve the canned results in analysis/demo-analysis.ts
     // for the demo URLs instead of running the pipeline. Other pages are unaffected.
-    demoMode: true, // TODO: set to false for production
+    demoMode: false,
     excludedSites: [],
     domainOverrides: {},
     modules: defaultModuleState(),
@@ -156,8 +156,8 @@
     if (!mod?.enabled) return false;
     if (!domain) return true;
     const host = normalizeDomain(domain);
-    if (settings.excludedSites?.includes(host)) return false;
-    const overrides = settings.domainOverrides?.[host];
+    if ((settings.excludedSites || []).some((site) => normalizeDomain(site) === host)) return false;
+    const overrides = settings.domainOverrides?.[host] || settings.domainOverrides?.[`www.${host}`];
     if (overrides && overrides[moduleId] === false) return false;
     return true;
   }

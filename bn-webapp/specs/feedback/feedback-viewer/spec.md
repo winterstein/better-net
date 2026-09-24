@@ -18,16 +18,9 @@ origin with credentials deliberately off).
 
 ## Status
 
-MVP. Both views built and their logic tested (bn-webapp/test/feedback-viewer.test.ts).
-
-Auth0: tenant `better-net.eu.auth0.com`, SPA application `BetterNet Webapp`
-(`WBF8SVYqzsxI37AbH733VNHyQgvPs5ou`), callback/logout/origin URLs registered for both
-`http://localhost:3000` and `https://app.better-net.com`. Config lives in `.env.local`,
-documented in `.env.example`.
-
-Remaining: the `BetterNet Server API` resource server in Auth0 — without it there is no
-audience to ask for, so the access token is opaque and every API call 401s — and the cert
-and deploy for app.better-net.com.
+MVP. Both views built and tested (`bn-webapp/test/feedback-viewer.test.ts`). Live at
+`https://app.better-net.com` with Auth0 and deploy workflow in place. Remaining gap: confirm
+a signed-in API call end to end (see `status.md`).
 
 ## Relevant links
 

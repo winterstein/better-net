@@ -1,6 +1,6 @@
 # bn-extension status
 
-**v0.3.x** (manifest, auto-increment on build) / **v0.1.0** (package.json)
+**v0.4.36** (manifest, auto-increment on build) / **v0.1.0** (package.json)
 
 ## Works
 
@@ -66,10 +66,8 @@
   are exempt from gating, so recordings analyse the whole page at once
 - **Nutrient Label headline**: the badge (and the modal's "Overall") reads the worst module
   score, not the mean of all of them, from the same bands as the traffic light
-  (`riskLevelForScore`). Averaging let a mild module cancel a severe one — a chunk with a
-  published fact-check against it (high) plus a medium manipulation score averaged to 0.625
-  and read "Caution" beside a red light. It is also the wrong reading: a false claim is not
-  less false because the page is politely written
+  (`riskLevelForScore`). The page verdict in the toolbar/popup uses the same rule: worst
+  chunk, not the mean of modules. Averaging let a mild module cancel a severe one.
 - **Nutrient Label threshold**: Settings -> AI Model -> *Label content rated* picks the lowest risk band that earns a label (Safe / Caution / High Risk). Default Caution, so safe chunks are unlabelled. Bands live in `src/types/RiskLevel.ts` and drive both the traffic light and the threshold; changes apply to open tabs without a reload
 - **Chunk overlay** (debug aid, Settings -> Advanced -> *Show chunk overlay*): draws a
   transparent coloured box with `#index chunk-id` over every chunk the page produced, so
@@ -189,12 +187,16 @@
   X posts needed their own chunker (`chunking-x.ts`, `data-testid` hooks) — the generic
   chunker found 0 chunks there, so labels had nothing to attach to. Demo entries can carry
   `markers` (distinctive phrases) for pages whose text will not match verbatim.
-  `demoMode` defaults to true while we are recording — TODO set it false for production. No UI
-  toggle; `chrome.storage.sync.set({ demoMode: false })` turns it off
+  `demoMode` defaults to false while we are recording — set `{ demoMode: true }` in sync
+  storage for product demos. No UI toggle.
 - **Update manager** (v1): bundled snapshots for `domain-off-defaults` and `chunking-xpath-patterns`; seeds `chrome.storage.local`, daily alarm + `BN_UPDATE_DATA` messages (`get` / `list` / `check` / `seed`); remote fetch from `updates.betternet.org` when available
 
 ## Recent fixes
 
+- Security and user-facing bugs from a 2026-09 review (auth, sort allowlist, fact-check
+  defaults, host matching, deploy, click-unbait, …).
+- DRY/docs pass: shared `parseHTML` and `escapeHtml`; demoMode off by default; dead
+  analyzer stubs removed; README / QUICKSTART / DEVOPS / webapp README refreshed.
 - **Feedback that cannot be sent is saved, not lost**: a tag edit or thumb queues in
   `chrome.storage.local` when the POST fails, so the background now answers
   `{ ok: false, queued: true }` and the modal keeps the edit with "Saved — will send when
@@ -411,7 +413,7 @@ exactly what they lack. Keep them, but add new coverage as pages.
 - Local models require Chromium with `offscreen` API; first download is large (~25–300 MB per model)
 - Firefox build (`manifest.firefox.json`) not wired for local models yet
 - Most analysis features still fall back to heuristics when local model not downloaded
-- No `icons/` in repo (build warns); load unpacked from `dist/chrome/`
+- `npm run type-check` is noisy (pre-existing implicit-any errors). `npm test` and `npm run build` are the gates.
 
 ## Next
 

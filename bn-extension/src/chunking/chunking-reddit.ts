@@ -3,7 +3,7 @@
  * Based on stopaganda-r.js selectors
  */
 
-import { isElementHidden, generateXPath } from './chunking-utils.js';
+import {isElementHidden, generateXPath, parseHTML} from './chunking-utils.js';
 import { inferAdvert, TAG } from './chunk-tags.js';
 
 /**
@@ -176,15 +176,3 @@ function extractRedditChunk(element: Element, linkRegex, pageUrl, layoutType, op
     isPrimary: false,
   };
 }
-
-/**
- * Parse HTML string to DOM
- */
-function parseHTML(html) {
-  if (typeof DOMParser !== 'undefined') {
-    const parser = new DOMParser();
-    return parser.parseFromString(html, 'text/html');
-  }
-  return null;
-}
-

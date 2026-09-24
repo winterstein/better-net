@@ -92,5 +92,12 @@ assert.equal(looksUnrendered([...furniture, ...realPost], URL_), false, 'a real 
 assert.equal(looksUnrendered(realPost, URL_), false);
 // Off-platform, teasers are the content: a news homepage must not be retried five times.
 assert.equal(looksUnrendered(furniture, 'https://bbc.co.uk/news'), false);
+assert.equal(
+  looksUnrendered(furniture, 'https://www.netflix.com/browse'),
+  false,
+  'netflix.com is not x.com'
+);
+assert.equal(looksUnrendered(furniture, 'https://dropbox.com/home'), false);
+assert.equal(looksUnrendered(furniture, 'https://www.fedex.com/en-us/home.html'), false);
 
 console.log('✅ X chunker tests passed');

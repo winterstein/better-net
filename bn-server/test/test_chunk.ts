@@ -1,7 +1,9 @@
 import tap from 'tap';
 import Fastify, { FastifyInstance } from 'fastify';
+import { SignJWT, exportJWK, generateKeyPair, createLocalJWKSet } from 'jose';
 import chunkRoutes from '../src/routes/chunk.js';
 import { db_init, db_close } from '../src/db.js';
+import { setKeyStoreForTests } from '../src/auth.js';
 import { PROBLEM_SCORES } from '../src/bn-extension-src/types/Score.js';
 
 // load .env
@@ -9,6 +11,11 @@ import dotenv from 'dotenv';
 dotenv.config();
 dotenv.config({ path: '.env.test', override: true });
 
+process.env.AUTH0_DOMAIN = process.env.AUTH0_DOMAIN || 'test.auth0.local';
+process.env.AUTH0_AUDIENCE = process.env.AUTH0_AUDIENCE || 'https://api.better-net.test';
+
+const ISSUER = `https://${process.env.AUTH0_DOMAIN}/`;
+let privateKey: CryptoKey;
 let fastify: FastifyInstance | undefined;
 
 async function initTestNoIntegration(): Promise<FastifyInstance> {
@@ -21,6 +28,12 @@ async function initTestNoIntegration(): Promise<FastifyInstance> {
 	
 	await db_init();
 	if ( ! fastify) {
+		const pair = await generateKeyPair('RS256');
+		privateKey = pair.privateKey as CryptoKey;
+		const jwk = await exportJWK(pair.publicKey);
+		jwk.alg = 'RS256';
+		setKeyStoreForTests(createLocalJWKSet({ keys: [jwk] }));
+
 		fastify = Fastify({ logger: false });
 		// Register chunk routes only
 		fastify.register(chunkRoutes, { prefix: '/api/chunk' });
@@ -30,7 +43,21 @@ async function initTestNoIntegration(): Promise<FastifyInstance> {
 	return fastify;
 }
 
+async function authHeader(): Promise<{ authorization: string }> {
+	await initTestNoIntegration();
+	const jwt = await new SignJWT({ email: 'chunk-test@example.com' })
+		.setProtectedHeader({ alg: 'RS256' })
+		.setSubject('auth0|chunk-test')
+		.setIssuer(ISSUER)
+		.setAudience(process.env.AUTH0_AUDIENCE as string)
+		.setIssuedAt()
+		.setExpirationTime('5m')
+		.sign(privateKey);
+	return { authorization: `Bearer ${jwt}` };
+}
+
 tap.teardown(async () => {
+	setKeyStoreForTests(undefined);
 	if (fastify) await fastify.close();
 	await db_close();
 });
@@ -43,6 +70,14 @@ tap.test('Chunk_POST_and_GET', async (t) => {
 		return;
 	}
 
+	const headers = await authHeader();
+
+	t.equal(
+		(await fastify.inject({ method: 'POST', url: '/api/chunk/', payload: { type: 'text' } })).statusCode,
+		401,
+		'creating a chunk needs a token'
+	);
+
 	// 1. POST a new chunk
 	const newChunkData = {
 		type: 'text',
@@ -52,7 +87,8 @@ tap.test('Chunk_POST_and_GET', async (t) => {
 	const postRes = await fastify.inject({
 		method: 'POST',
 		url: '/api/chunk/',
-		payload: newChunkData
+		payload: newChunkData,
+		headers,
 	});
 
 	t.equal(postRes.statusCode, 201, 'Chunk POST should return 201');
@@ -80,7 +116,23 @@ tap.test('Chunk_POST_and_GET', async (t) => {
 	t.equal(getOneRes.statusCode, 200, 'Chunk GET by id should succeed');
 	const chunkById = getOneRes.json() as any;
 	t.same(chunkById, chunk, 'GET by id should return the created chunk');
-}); // end of Chunk_POST_and_GET
+
+	const putRes = await fastify.inject({
+		method: 'PUT',
+		url: `/api/chunk/${chunk.id}`,
+		payload: { value: 'updated', id: 999999 },
+		headers,
+	});
+	t.equal(putRes.statusCode, 200, 'Chunk PUT should succeed');
+	t.equal(putRes.json().id, chunk.id, 'PUT must not change the row id');
+	t.equal(putRes.json().value, 'updated');
+
+	const badSort = await fastify.inject({
+		method: 'GET',
+		url: '/api/chunk/?sort=updated;drop%20table%20chunk',
+	});
+	t.equal(badSort.statusCode, 400, 'sort is an allowlist, not pasted into ORDER BY');
+});
 
 
 tap.test('Chunk_analyze_POST_and_GET', async (t) => {
@@ -89,6 +141,18 @@ tap.test('Chunk_analyze_POST_and_GET', async (t) => {
 		t.fail('Fastify instance not initialized');
 		return;
 	}
+
+	const headers = await authHeader();
+
+	t.equal(
+		(await fastify.inject({
+			method: 'POST',
+			url: '/api/chunk/1/analyze',
+			payload: {},
+		})).statusCode,
+		401,
+		'analyze needs a token'
+	);
 
 	// 1. Create a chunk with required fields for analysis
 	const newChunkData = {
@@ -100,7 +164,8 @@ tap.test('Chunk_analyze_POST_and_GET', async (t) => {
 	const postRes = await fastify.inject({
 		method: 'POST',
 		url: '/api/chunk/',
-		payload: newChunkData
+		payload: newChunkData,
+		headers,
 	});
 
 	t.equal(postRes.statusCode, 201, 'Chunk POST should return 201');
@@ -116,7 +181,8 @@ tap.test('Chunk_analyze_POST_and_GET', async (t) => {
 				mode: 'heuristic',
 				enabledFeatures: ['factChecker', 'biasDetector', 'antiManipulation', 'defuseRagebait']
 			}
-		}
+		},
+		headers,
 	});
 
 	t.equal(analyzeRes.statusCode, 200, 'Analyze POST should return 200');
@@ -152,7 +218,8 @@ tap.test('Chunk_analyze_POST_and_GET', async (t) => {
 		payload: {
 			url: 'https://example.com/no-analysis',
 			text: 'This chunk has no analysis yet'
-		}
+		},
+		headers,
 	});
 
 	const newChunk = newChunkRes.json() as any;
@@ -167,9 +234,9 @@ tap.test('Chunk_analyze_POST_and_GET', async (t) => {
 	const postNonExistentRes = await fastify.inject({
 		method: 'POST',
 		url: '/api/chunk/99999/analyze',
-		payload: {}
+		payload: {},
+		headers,
 	});
 
 	t.equal(postNonExistentRes.statusCode, 404, 'POST analyze on non-existent chunk should return 404');
 });
-

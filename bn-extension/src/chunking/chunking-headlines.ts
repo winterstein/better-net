@@ -8,7 +8,7 @@
  * rather than being tuned to one theme.
  */
 
-import { generateXPath, isElementHidden, visibleText } from './chunking-utils.js';
+import { generateXPath, isElementHidden, visibleText, parseHTML } from './chunking-utils.js';
 import { accessibleLinkName, findHeadlineLink } from './headline-link.js';
 import { TAG } from './chunk-tags.js';
 
@@ -190,11 +190,4 @@ function inAside(element: Element): boolean {
 /** Letters and digits only, for "is this headline already inside a chunk" comparisons. */
 function compareKey(text: string): string {
   return (text || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-}
-
-function parseHTML(html) {
-  if (typeof DOMParser !== 'undefined') {
-    return new DOMParser().parseFromString(html, 'text/html');
-  }
-  return null;
 }

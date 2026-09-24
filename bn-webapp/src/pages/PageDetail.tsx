@@ -10,39 +10,35 @@ function PageDetail() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (id) {
-      loadPage();
-      loadChunks();
-    }
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        const data = await api.getPage(id);
+        if (cancelled) return;
+        setPage(data);
+        try {
+          const allChunks = await api.getChunks();
+          if (cancelled) return;
+          setChunks(
+            allChunks.filter(
+              (chunk) => chunk.url === data.url || (chunk as any).pageId === id
+            )
+          );
+        } catch (error) {
+          console.error('Failed to load chunks:', error);
+        }
+      } catch (error) {
+        console.error('Failed to load page:', error);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
-
-  const loadPage = async () => {
-    if (!id) return;
-    try {
-      const data = await api.getPage(id);
-      setPage(data);
-    } catch (error) {
-      console.error('Failed to load page:', error);
-    }
-  };
-
-  const loadChunks = async () => {
-    if (!id) return;
-    try {
-      // Search for chunks that belong to this page
-      // Assuming chunks have a pageId or url field
-      const allChunks = await api.getChunks();
-      // Filter chunks by page URL or pageId if available
-      const pageChunks = allChunks.filter(
-        (chunk) => chunk.url === page?.url || (chunk as any).pageId === id
-      );
-      setChunks(pageChunks);
-    } catch (error) {
-      console.error('Failed to load chunks:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   if (loading) {
     return <div>Loading page...</div>;

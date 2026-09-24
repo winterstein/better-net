@@ -92,11 +92,43 @@ export interface FetchDestinationOptions {
 	trace?: TraceHandle | null;
 }
 
+export function isPublicHttpUrl(url: string): boolean {
+	try {
+		const parsed = new URL(url);
+		if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+		const host = parsed.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+		if (
+			host === 'localhost' ||
+			host.endsWith('.localhost') ||
+			host.endsWith('.local') ||
+			host.endsWith('.internal') ||
+			host.endsWith('.arpa')
+		) {
+			return false;
+		}
+		const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+		if (ipv4) {
+			const [a, b] = ipv4.slice(1).map(Number);
+			if (a === 10 || a === 127 || a === 0) return false;
+			if (a === 192 && b === 168) return false;
+			if (a === 172 && b >= 16 && b <= 31) return false;
+			if (a === 169 && b === 254) return false;
+			if (a === 100 && b >= 64 && b <= 127) return false;
+		}
+		if (host === '::1' || host.startsWith('fc') || host.startsWith('fd') || host.startsWith('fe80')) {
+			return false;
+		}
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 export async function fetchDestinationText(
 	url: string,
 	opts: FetchDestinationOptions = {}
 ): Promise<DestinationContent | null> {
-	if (!url) return null;
+	if (!url || !isPublicHttpUrl(url)) return null;
 
 	// Every unravel attempt gets a span, including the ones that never reach the network:
 	// a cache hit or a spent budget is why a feed of clickbait shows few fetches.
@@ -131,6 +163,7 @@ export async function fetchDestinationText(
 
 			const promise = doFetch(url, opts, span).then((value) => {
 				inFlight.delete(url);
+				if (!value) return value;
 				if (cache.size >= MAX_CACHE_ENTRIES) {
 					const oldest = cache.keys().next().value;
 					if (oldest !== undefined) cache.delete(oldest);
@@ -154,44 +187,50 @@ async function doFetch(
 	try {
 		const controller = new AbortController();
 		const timer = setTimeout(() => controller.abort(), timeoutMs);
-		const res = await fetchImpl(url, {
-			signal: controller.signal,
-			redirect: 'follow',
-			credentials: 'omit',
-		});
-		clearTimeout(timer);
-		setAttributes(span, {
-			'http.response.status_code': res.status,
-			'betternet.destination.status_text': res.statusText || '',
-			'betternet.destination.redirected': res.url !== url,
-		});
-		if (!res.ok) {
-			setAttributes(span, { 'betternet.destination.outcome': 'http_error' });
-			return null;
-		}
+		try {
+			const res = await fetchImpl(url, {
+				signal: controller.signal,
+				redirect: 'follow',
+				credentials: 'omit',
+			});
+			if (res.url && res.url !== url && !isPublicHttpUrl(res.url)) {
+				setAttributes(span, { 'betternet.destination.outcome': 'blocked_private' });
+				return null;
+			}
+			setAttributes(span, {
+				'http.response.status_code': res.status,
+				'betternet.destination.status_text': res.statusText || '',
+				'betternet.destination.redirected': res.url !== url,
+			});
+			if (!res.ok) {
+				setAttributes(span, { 'betternet.destination.outcome': 'http_error' });
+				return null;
+			}
 
-		const ct = (res.headers.get('content-type') || '').toLowerCase();
-		setAttributes(span, { 'betternet.destination.content_type': ct });
-		if (ct && !ct.includes('text/html') && !ct.includes('text/plain') && !ct.includes('xhtml')) {
-			setAttributes(span, { 'betternet.destination.outcome': 'unsupported_content_type' });
-			return null;
-		}
+			const ct = (res.headers.get('content-type') || '').toLowerCase();
+			setAttributes(span, { 'betternet.destination.content_type': ct });
+			if (ct && !ct.includes('text/html') && !ct.includes('text/plain') && !ct.includes('xhtml')) {
+				setAttributes(span, { 'betternet.destination.outcome': 'unsupported_content_type' });
+				return null;
+			}
 
-		const html = await res.text();
-		const extracted = extractTextFromHtml(html);
-		// Sizes and which extraction path won, so a bad summary can be traced to its input.
-		setAttributes(span, {
-			'betternet.destination.html_chars': html.length,
-			'betternet.destination.text_chars': extracted.text.length,
-			'betternet.destination.title_chars': extracted.title.length,
-			'betternet.destination.source': extracted.source,
-		});
-		if (!extracted.title && !extracted.text) {
-			setAttributes(span, { 'betternet.destination.outcome': 'empty_extraction' });
-			return null;
+			const html = await res.text();
+			const extracted = extractTextFromHtml(html);
+			setAttributes(span, {
+				'betternet.destination.html_chars': html.length,
+				'betternet.destination.text_chars': extracted.text.length,
+				'betternet.destination.title_chars': extracted.title.length,
+				'betternet.destination.source': extracted.source,
+			});
+			if (!extracted.title && !extracted.text) {
+				setAttributes(span, { 'betternet.destination.outcome': 'empty_extraction' });
+				return null;
+			}
+			setAttributes(span, { 'betternet.destination.outcome': 'ok' });
+			return { ...extracted, url };
+		} finally {
+			clearTimeout(timer);
 		}
-		setAttributes(span, { 'betternet.destination.outcome': 'ok' });
-		return { ...extracted, url };
 	} catch (error) {
 		// Failing quietly is this module's contract — a paywall or bot block is normal — so
 		// the span stays OK and carries the reason rather than reporting an error to AIQA.
@@ -336,12 +375,13 @@ function firstTagText(html: string, tag: string): string {
 function metaContent(html: string, name: string): string {
 	const attr = name.startsWith('og:') ? 'property' : 'name';
 	const patterns = [
-		new RegExp(`<meta[^>]+${attr}=["']${name}["'][^>]*content=["']([^"']*)["']`, 'i'),
-		new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]*${attr}=["']${name}["']`, 'i'),
+		new RegExp(`<meta[^>]+${attr}=(["'])${name}\\1[^>]*content=(["'])([\\s\\S]*?)\\2`, 'i'),
+		new RegExp(`<meta[^>]+content=(["'])([\\s\\S]*?)\\1[^>]*${attr}=(["'])${name}\\3`, 'i'),
 	];
 	for (const re of patterns) {
 		const match = html.match(re);
-		if (match?.[1]?.trim()) return match[1];
+		const value = match?.[3] ?? match?.[2];
+		if (value?.trim()) return value;
 	}
 	return '';
 }
