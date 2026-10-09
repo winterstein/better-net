@@ -28,6 +28,8 @@ export interface LLMClientConfig {
 	apiKey?: string;
 	openaiKey?: string;
 	anthropicKey?: string;
+	customEndpointUrl?: string;
+	customApiKey?: string;
 	model?: string;
 }
 

@@ -6,7 +6,7 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "useDefineForClassFields": false,
-    "downlevelIteration": true,
+    // "downlevelIteration": true,
     
     /* Emit */
     "noEmit": true,

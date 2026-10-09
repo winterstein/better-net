@@ -78,6 +78,9 @@ export function mergeSettings(stored: any = {}) {
     excludedSites: [],
     domainOverrides: {},
     serverEndpoint: DEFAULT_SERVER_ENDPOINT,
+    httpEndpointUrl: '',
+    httpApiKey: '',
+    modelProvider: 'local',
     ...stored,
     modules,
   };

@@ -14,13 +14,11 @@ version: 0.1.0
 Write short specs people will actually read. Talk first; file second. Do not over-document.
 Update existing specs as the project develops.
 
-## Layout
+## Folder and File Layout
 
-```
-bn-<package>/specs/{broad-feature-name}/{specific-feature-name}/
-  spec.md
-  # optional: example-*.md, fixtures, diagrams, sample payloads
-```
+Folder: `bn-<package>/specs/{broad-feature-name}/{specific-feature-name}/`
+Core file: spec.md
+Optional files: build-plan.md, test-plan.md, example-*.md
 
 - Package: `bn-extension`, `bn-server`, `bn-webapp`, etc.
 - `broad-feature-name` — area (e.g. `fact-checker`, `ads`, `cache`)
@@ -35,9 +33,10 @@ Existing flat files under `bn-*/specs/*.md` are legacy. New work uses the folder
 
 1. Confirm package and feature names (broad + specific). Suggest names if unclear; ask before inventing.
 2. Ask the user — do not invent product intent. Prefer a few focused questions over a long questionnaire.
-3. Draft `spec.md` with the template below. Leave unknown sections blank (keep the heading).
+3. Identify the spec file. Create a draft or update the existing spec with the template below. Leave unknown sections blank (keep the heading).
 4. Show the draft (or a short summary) and revise with the user before treating it as done.
-5. Implementation follows the build-plan; tests follow the test-plan. Update `status` as work progresses. Keep `bn-*/status.md` in sync for package-level blockers/next steps (see AGENTS.md).
+5. Create the build-plan.md and test-plan.md files, or update them if they exist. Keep them in sync with the spec. Keep them short and high-level. Check them with the user.
+6. Implementation follows the build-plan; tests follow the test-plan. Update `build-plan.md` and `test-plan.md` as work progresses. Keep `bn-*/status.md` in sync for package-level blockers/next steps (see AGENTS.md).
 
 ### What to ask (as needed)
 

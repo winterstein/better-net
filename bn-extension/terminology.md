@@ -49,6 +49,6 @@ Each module should have a file {module}-tags.ts for defining it's tags.
 
 - Toolbar Badge -> Shows status, opens Popup
 - Popup — this-domain toggle, page chunk list and results
-- Settings — AI model, modules, Off-List, account, data sharing, advanced (Developer Mode)
+- Settings — AI model (local download, or well-known system, or HTTP endpoint), modules, Off-List, account, data sharing, advanced (Developer Mode)
 - Nutrient Label
 - Content Analysis modal — Opens from nutrient label. chunk detail, module results, feedback

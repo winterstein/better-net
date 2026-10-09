@@ -19,6 +19,10 @@ export interface ChunkAnalysisSummary {
 	/** Overall problem score: high | medium | low */
 	problemScore: ProblemScore;	
 	confidence: number;
+	/** Identifier of the model used for analysis */
+	analysisModel: string;
+	/** Identifier of the pipeline used for analysis */
+	pipelineUsed: string;
 	flags: Flag[];
 }
 

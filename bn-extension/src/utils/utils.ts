@@ -173,3 +173,11 @@ export function findElementByXPath(xpath) {
   }
 }
 
+/**
+ * @param array 
+ * @returns Array of unique values. falsy is passed through as-is
+ */
+export function uniq<T>(array: T[]): T[] {
+  if ( ! array) return array;
+  return Array.from(new Set(array));
+}

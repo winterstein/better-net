@@ -1,3 +1,4 @@
+// TODO move to local-model-catalog.ts, and have a model-catalog.ts which merges this and remote models like Anthropic Claude.
 /**
  * Catalog of on-device models users can download for local analysis.
  * Sizes are approximate (quantized ONNX weights from Hugging Face).

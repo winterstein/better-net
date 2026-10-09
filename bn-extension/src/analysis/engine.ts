@@ -35,10 +35,19 @@ export function enabledFeaturesFromSettings(settings, domain) {
   });
 }
 
+/**
+ * 
+ * @param chunk 
+ * @param pageMetadata 
+ * @param options 
+ * @param modelId Optional, to allow for the user to specify a model to redo a chunk 
+ * @returns 
+ */
 async function analyzeChunk(
   chunk: Chunk,
   pageMetadata: Partial<PageMetadata>,
-  options: Partial<AnalysisOptions> & { enabledFeatures?: string[] } = {}
+  options: Partial<AnalysisOptions> & { enabledFeatures?: string[] },
+  modelId?: string,
 ): Promise<ChunkAnalysis> {
   const enabledFeatures =
     options.enabledFeatures ??
@@ -63,6 +72,7 @@ async function analyzeChunk(
     });
   }
 
+  // make a task per feature for parallel execution
   for (const feature of ANALYSIS_MODULES) {
     if (!run.includes(feature.id)) continue;
     tasks.push(
@@ -74,7 +84,7 @@ async function analyzeChunk(
         },
         (span) =>
           feature
-            .analyze(chunk, pageMetadata, { ...analysisOptions, trace: span })
+            .analyze(chunk, pageMetadata, { ...analysisOptions, trace: span, modelId })
             .then((result: Partial<ModuleAnalysis>) => {
               const scoreFraction =
                 typeof result.problemScore === 'number'
@@ -108,7 +118,7 @@ async function analyzeChunk(
           );
         })
     );
-  }
+  } // end for feature of ANALYSIS_MODULES
 
   await Promise.all(tasks);
 
@@ -314,5 +324,6 @@ function featureOutput(result: Partial<ModuleAnalysis>): string {
     confidence: round2(result.confidence ?? 0),
     tags: result.tags ? issueTagIds(result.tags as any) : [],
     explanation: (result.explanation ?? '').slice(0, MAX_EXPLANATION_CHARS),
+    model: result.model ?? '',
   });
 }

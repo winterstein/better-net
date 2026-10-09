@@ -13,4 +13,6 @@
   (`specs/content-classification.md`) and lets the user correct it from a select.
   Developer Mode adds which classifier decided it, and how sure it was.
 - Allows user to submit feedback on accuracy (thumbs up/down, optional note).
+- TODO Shows the specific model and pipeline used for the analysis results.
+- TODO Provides a UI allowing the user to select a different model and rerun the analysis on the current page content.
 - Closes via 'X' button, click outside, or Esc.

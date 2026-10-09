@@ -98,7 +98,7 @@ export function recordSteps(steps: TraceStep[] | undefined, parent: TraceHandle 
 }
 
 /**
- * Trace one async call. With no implementation registered this costs only the
+ * Trace one async call. With no otel implementation registered this costs only the
  * callback, so call sites need no enabled-check of their own.
  */
 export async function traceStep<T>(
