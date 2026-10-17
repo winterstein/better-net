@@ -1,11 +1,13 @@
 import type { LLMClient } from '../ai/llm-client.js';
 import type { LocalModelBackend } from '../ai/local-model-backend.js';
 import type { TraceHandle } from '../tracing/tracer-hook.js';
+import { AISettings } from './AISettings.js';
 
 /**
  * Analysis options for configuring analyzers
  */
 export interface AnalysisOptions {
+	// TODO refactor out into AIOptions (which can be reused for other LLM calls). AIOptions should cover which LLM to use, and per-provider settings of API keys, and per-model settings like token thresholds, etc. AnalysisOptions should be about analysis-specific options (e.g. which analyzers to run, which features to enable, etc.)
 	mode?: 'local' | 'openai' | 'anthropic' | 'heuristic';
 	config?: {
 		apiKey?: string;
@@ -28,5 +30,7 @@ export interface AnalysisOptions {
 	localBackend?: LocalModelBackend | null;
 	/** Parent AIQA span for this analysis; child spans hang off it (tracing/tracer-hook.ts). */
 	trace?: TraceHandle | null;
+	// TODO refactor to use this
+	aiSettings?: AISettings;
 }
 

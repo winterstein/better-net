@@ -1,5 +1,14 @@
 /**
- * BetterNet settings schema and defaults (options page + chrome.storage.sync).
+ * Settings schema and defaults for the options page.
+ *
+ * Loaded as a plain <script> tag in options.html (not an ES module), so it uses an IIFE
+ * and exposes everything via window.BN_SETTINGS. That's why it can't just import
+ * modules-esm.ts: esbuild bundles each entry point separately, and the options page
+ * needs a self-contained script that runs before the options.ts module.
+ *
+ * modules-esm.ts is the ESM twin used by background.ts, content.ts, and the rest of the
+ * extension's module graph. Both files must be kept in step — see the "Keep in step"
+ * comments in modules-esm.ts and AGENTS.md for the duplication rationale.
  */
 (function (global) {
   const MODULES = [
@@ -74,6 +83,10 @@
     BN_OPENAI_API_KEY: '',
     BN_ANTHROPIC_API_KEY: '',
     BN_GOOGLE_API_KEY: '',
+    customModelEndpoint: '',
+    customModelApiSchema: '',
+    customModelAuthToken: '',
+    customModelId: '',
     shareAnonymous: false,
     shareUsageStats: false,
     shareFactCheckCache: false,

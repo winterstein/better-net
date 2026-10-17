@@ -51,7 +51,7 @@ export function initDeveloperMode() {
   });
 }
 
-export function logit(level, ...args) {
+export function logit(level : 'log' | 'error' | 'warn', ...args) {
   if (!_enabled) return;
 
   const logMethod = console[level] || console.log;
@@ -82,6 +82,14 @@ export function logit(level, ...args) {
   } catch (error) {
     if (_enabled) console.error('[BetterNet] Error in logit:', error);
   }
+}
+
+/** assume() is a runtime assert - use for documenting assumptions and asserting checks */
+export function assume(test, ...args) {
+  if (test) return;
+  // console.error("assume failed", args);
+  logit("error", "assume failed", ...args);
+  throw new Error("assume failed: "+JSON.stringify(args));
 }
 
 initDeveloperMode();

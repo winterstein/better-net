@@ -15,6 +15,7 @@ import { buildChunkSummary } from '../types/ChunkAnalysis.js';
 import type { Chunk } from '../types/Chunk.js';
 import type { PageMetadata } from '../types/Page.js';
 import type { AnalysisOptions } from '../types/AnalysisOptions.js';
+import { AISettings } from '../types/AISettings.js';
 
 /**
  * @param {Object} settings - merged BetterNet settings
@@ -48,6 +49,7 @@ async function analyzeChunk(
   pageMetadata: Partial<PageMetadata>,
   options: Partial<AnalysisOptions> & { enabledFeatures?: string[] },
   modelId?: string,
+  aiSettings?: AISettings
 ): Promise<ChunkAnalysis> {
   const enabledFeatures =
     options.enabledFeatures ??

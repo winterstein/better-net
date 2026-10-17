@@ -35,7 +35,6 @@ import {
   handleFeedbackDelete,
   handleFeedbackLink,
 } from './feedback-manager.js';
-import { migrateDeveloperMode } from '../settings/migrate-settings.js';
 import { clearToolbarBadge, forgetToolbarBadge, updateToolbarBadge } from './toolbar-badge.js';
 import { shouldBlockPageAds } from '../ad-blocker/run.js';
 import {
@@ -46,6 +45,8 @@ import {
 import { startSpan, endSpan, setAttributes, recordSteps } from '../tracing/tracer-hook.js';
 import { warmLocalModel } from '../ai/local-inference-client.js';
 import { isInstalled } from '../ai/model-status.js';
+import { AnalysisOptions } from '../types/AnalysisOptions.js';
+import {aiSettingsFromGlobalSettings} from '../types/AISettings.js'
 
 /** Chunks labelled below safe (caution / high-risk). */
 function isNeutralisedScore(score) {
@@ -711,15 +712,17 @@ class AnalysisManager {
 
       this.broadcastProgress(state, { currentStage: 'Analyzing content chunks in parallel...' });
 
-      const queue = createChunkQueue(
-        ctx.pageMetadata,
-        {
+      const analysisOptions : AnalysisOptions = {
           mode: ctx.settings.analysisMode,
           config: ctx.config,
           maxConcurrency: 5,
           enabledFeatures: ctx.enabledFeatures,
           trace: state.trace,
-        },
+          aiSettings: aiSettingsFromGlobalSettings(ctx.settings)
+        };
+      const queue = createChunkQueue(
+        ctx.pageMetadata,
+        analysisOptions,
         (chunk, combinedResults) => this.onChunkAnalysed(state, chunk, combinedResults)
       );
       state.queue = queue;
@@ -1150,7 +1153,6 @@ class AnalysisManager {
   }
 } // .end AnalysisManager
 
-void migrateDeveloperMode();
 setupModelManager();
 setupUpdateManager();
 setupFeedbackManager();

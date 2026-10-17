@@ -14,7 +14,7 @@ export class AnalysisEngine {
 	async analyzeChunk(
 		chunk: Chunk,
 		pageMetadata: Partial<PageMetadata> = {},
-		options: Partial<AnalysisOptions> = {}
+		options: Partial<AnalysisOptions> = {},
 	): Promise<ChunkAnalysis> {
 		const [result] = await analyzeChunksParallel([chunk], pageMetadata, options);
 		return result;

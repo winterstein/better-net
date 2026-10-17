@@ -663,7 +663,7 @@ class SettingsController {
       const el = document.getElementById(id) as HTMLInputElement | HTMLSelectElement | null;
       if (el) el.value = value;
     };
-
+    // TODO refactor: rename the html ids to match the settings keys, then this can be a loop over Object.entries(s).
     setChecked('auto-analyze', s.autoAnalyze);
     setChecked('show-indicators', s.showIndicators);
     this.populateRiskLevels();
@@ -671,6 +671,10 @@ class SettingsController {
     setValue('openai-key', s.BN_OPENAI_API_KEY || '');
     setValue('anthropic-key', s.BN_ANTHROPIC_API_KEY || '');
     setValue('google-factcheck-key', s.BN_GOOGLE_API_KEY || '');
+    setValue('custom-model-endpoint', s.customModelEndpoint || '');
+    setValue('custom-model-api-schema', s.customModelApiSchema || '');
+    setValue('custom-model-auth-token', s.customModelAuthToken || '');
+    setValue('custom-model-id', s.customModelId || '');
     setChecked('share-anonymous', !!s.shareAnonymous);
     setChecked('share-usage-stats', !!s.shareUsageStats);
     setChecked('share-factcheck-cache', !!s.shareFactCheckCache);
@@ -711,6 +715,10 @@ class SettingsController {
       BN_OPENAI_API_KEY: document.getElementById('openai-key').value.trim(),
       BN_ANTHROPIC_API_KEY: document.getElementById('anthropic-key').value.trim(),
       BN_GOOGLE_API_KEY: document.getElementById('google-factcheck-key').value.trim(),
+      customModelEndpoint: document.getElementById('custom-model-endpoint').value.trim(),
+      customModelApiSchema: document.getElementById('custom-model-api-schema').value.trim(),
+      customModelAuthToken: document.getElementById('custom-model-auth-token').value.trim(),
+      customModelId: document.getElementById('custom-model-id').value.trim(),
       shareAnonymous: document.getElementById('share-anonymous').checked,
       shareUsageStats: document.getElementById('share-usage-stats').checked,
       shareFactCheckCache: document.getElementById('share-factcheck-cache').checked,

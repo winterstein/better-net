@@ -91,7 +91,7 @@
   page), and the download → initialising switch needs both a near-complete byte count and
   all known files finished, so an under-estimated catalog size cannot report a running
   download as done
-- **Settings** (`options/`): AI Model (incl. local models), Modules, Off-List, Account, Data Sharing (incl. server cache + AIQA tracing toggles), Advanced (Developer Mode, chunk overlay, server endpoint, AIQA API key / server / sampling). Diagnostic `logit()` output is off unless Advanced → Developer Mode is on; the pre-v0.5 `consoleLogging` value is migrated on start (`settings/migrate-settings.ts`)
+- **Settings** (`options/`): AI Model (incl. local models), Modules, Off-List, Account, Data Sharing (incl. server cache + AIQA tracing toggles), Advanced (Developer Mode, chunk overlay, server endpoint, AIQA API key / server / sampling). Diagnostic `logit()` output is off unless Advanced → Developer Mode is on
 - **Feedback** (`specs/feedback.md`): thumbs up/down in the Content Analysis modal on four
   targets — the summary, each feature card, the chunk, and the chunker (page-level). Thumbs
   up submits and is done; thumbs down submits straight away *then* opens preset issue
@@ -443,3 +443,7 @@ exactly what they lack. Keep them, but add new coverage as pages.
 the publisher's own `og:description` — honest, but the publisher's framing rather than an
 independent reading; a local model that can actually answer "what is the withheld payoff"
 would close that.
+
+## Future TODOs
+
+Accessibility support.

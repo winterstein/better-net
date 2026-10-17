@@ -295,4 +295,3 @@ is no tag to translate `aspectType` into.
   `renderFeedbackWidget()`, and their placements
 - `background/feedback-manager.ts` — POST to bn-server, then the AIQA mirror
 - `tracing/aiqa-tracer.ts` — `mirrorFeedbackToAiqa()`, span ids for linking
-- `settings/migrate-settings.ts` — `consoleLogging` → `developerMode`
