@@ -33,6 +33,7 @@ export interface LLMClientConfig extends Partial<AISettings> {
 	anthropicKey?: string;
 	customModelEndpoint?: string;
 	customModelApiKey?: string;
+	customModelId?: string;
 	model?: string;
 }
 
@@ -279,10 +280,13 @@ const PROVIDERS: Record<string, (config: LLMClientConfig) => LLMClient | null> =
 				apiKey: config.customModelApiKey
 			},
 			modelOptions: {
-				modelId: config.model
+				modelId: config.customModelId || config.model
 			}
 		};
-		assume(options.modelOptions.modelId && config.customModelEndpoint, "missing custom config", config);
+		// Missing settings are a user setup problem: report it without echoing keys into the error.
+		assume(options.modelOptions.modelId && config.customModelEndpoint,
+			"missing custom config: set the endpoint and model id in Settings", {
+				hasEndpoint: !!config.customModelEndpoint, hasModelId: !!options.modelOptions.modelId });
 		return new CustomEndpointLLMClient(options);
 	}
 };
