@@ -629,6 +629,9 @@ class AnalysisManager {
         anthropicKey: getAnthropicKey(),
         googleFactCheckKey: getGoogleFactCheckKey(),
         localModelId,
+        customModelEndpoint: settings.customModelEndpoint,
+        customModelApiKey: settings.customModelAuthToken,
+        customModelId: settings.customModelId,
       },
     };
   }
