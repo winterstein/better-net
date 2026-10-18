@@ -8,6 +8,7 @@ import { createLLMClient, type LLMClient } from './llm-client.js';
 import { getPrompt } from './prompt-manager.js';
 import type { LocalModelBackend } from './local-model-backend.js';
 import type { AnalysisOptions } from '../types/AnalysisOptions.js';
+import { logit } from '../utils/logger.js';
 
 export interface FeatureAnalysisParams {
 	chunk: { text?: string; links?: { url: string }[] };
@@ -35,10 +36,11 @@ export async function runFeatureAnalysis(params: FeatureAnalysisParams) {
 		heuristicFallback,
 		mockResults,
 	} = params;
-
+	// ??How is config getting its
 	const { mode = 'local', config = {}, llmClient, localBackend, trace } = options;
+	// logit('log', "runFeatureAnalysis", mode, config, llmClient, localBackend, "options", options);
 	const context = buildContext(chunk, pageMetadata);
-
+console.log(`runFeatureAnalysis: mode=${mode}, promptId=${promptId}, context=`, context, 'params=', params, config, llmClient, localBackend);
 	// Which path a feature took is otherwise invisible in a trace: a chunk that quietly
 	// fell back to heuristics looks the same as one an LLM actually judged.
 	setAttributes(trace, { 'betternet.analysis.mode': mode });

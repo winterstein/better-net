@@ -19,6 +19,8 @@ import {
 import { aiqaTraceUrl } from '../tracing/aiqa-trace-url.js';
 import { logit } from '../utils/logger.js';
 import { escapeHtml } from '../utils/escape-html.js';
+import { LOCAL_MODELS } from '../ai/model-catalog.js';
+import { uniq } from '../utils/utils.js';
 
 export interface TrafficLight {
   color: string;
@@ -936,6 +938,32 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
   const modalTitle = title
     ? `Content Analysis: ${escapeHtml(truncateText(title, 60))}`
     : 'Content Analysis';
+
+  
+  const modelsUsed = uniq(analysisResults?.analyses?.map(a => a.model).filter(Boolean) ?? []);
+
+  const modelOptions = LOCAL_MODELS.map((model) =>
+    `<option value="${escapeHtml(model.id)}">${escapeHtml(model.name)}</option>`
+  ).join('');
+
+  let analysisControlsHTML = `
+      <div style="margin-bottom: 20px; padding: 10px; border: 1px solid #eee; border-radius: 8px; background: #fafafa;">
+          <div style="font-size: 11px; color: #666; margin-bottom: 4px;">
+              Model: ${escapeHtml(modelsUsed.join(', '))}
+          </div>
+          <div style="display: flex; gap: 10px; align-items: center;">
+              <label style="font-size: 12px; color: #555;">Model:</label>
+              <select id="analysis-model-select" style="padding: 5px; border-radius: 4px; font-size: 12px;">
+                  ${modelOptions}
+              </select>
+              
+              <button id="trigger-reanalysis" style="padding: 5px 10px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                  Re-analyze
+              </button>
+          </div>
+      </div>
+  `;
+  // --- END: NEW MODEL/PIPELINE AND RERUN UI ---
 
   const modal = document.createElement('div');
   modal.id = 'betternet-detail-modal';

@@ -7,7 +7,7 @@ Accessed via links:
 
 Pages:
 
-- AI Model: bring-your-own API key, or use a local model
+- AI Model: bring-your-own API key, use a local model, or configure a custom HTTP endpoint (e.g., for Ollama)
     - Auto-analyze pages, and whether to show Nutrient Labels at all
     - Label content rated: lowest risk band that earns a Nutrient Label
       (Everything incl. Safe / Caution and High Risk / High Risk only).

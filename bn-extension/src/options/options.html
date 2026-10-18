@@ -25,14 +25,16 @@
           <p class="page-lead">Bring your own API key, or use a local model for analysis.</p>
 
           <div class="setting-item">
-            <label for="analysis-mode"><strong>Analysis mode</strong></label>
-            <span class="setting-description">How page content is analyzed</span>
+            <label for="analysis-mode"><strong>Active Model</strong></label>
+            <span class="setting-description">This model will be used for analysis</span>
             <select id="analysis-mode">
               <option value="local">Local model (fast, private)</option>
               <option value="openai">OpenAI API</option>
               <option value="anthropic">Anthropic API</option>
+              <option value="custom">Custom Endpoint</option>
             </select>
           </div>
+          <!-- TODO replace analysis-mode with activeProvider activeModel -->
 
           <div id="local-models-section" class="setting-item local-models-section">
             <h3 class="subsection-title">Local models</h3>
@@ -103,6 +105,34 @@
             <label for="google-factcheck-key"><strong>Google Fact Check API key</strong></label>
             <span class="setting-description">Used by Fact Checker. <a href="https://console.cloud.google.com/apis/api/factchecktools.googleapis.com" target="_blank" rel="noopener">Get API key</a></span>
             <input type="password" id="google-factcheck-key" placeholder="AIza..." autocomplete="off">
+          </div>
+
+          <div>
+          <h3 class="subsection-title">Custom Model Endpoint</h3>
+          <p>Use this to connect to Ollama or a router or other custom endpoint.</p>
+          <div class="setting-item">
+            <label for="custom-model-endpoint"><strong>Endpoint URL</strong></label>
+            <span class="setting-description">The URL of your custom model endpoint. For example, Ollama: <code>http://localhost:11434</code></span>
+            <input type="url" id="custom-model-endpoint" placeholder="http://localhost:11434" autocomplete="off">
+          </div>
+          <div class="setting-item">
+            <label for="custom-model-api-schema"><strong>API Schema Type</strong></label>
+            <span class="setting-description">The schema "flavor" of API to use for the custom model endpoint.</span>
+            <select id="custom-model-api-schema" autocomplete="off"><!-- TODO what is a good small list to support? -->
+              <option value="ollama">Ollama</option>
+              <option value="openai">OpenAI</option>
+              <option value="json-rpc">JSON RPC</option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <label for="custom-model-id"><strong>Model ID</strong></label>
+            <span class="setting-description">The ID of the model to use at the endpoint. For example: <code>gemma4</code></span>
+            <input type="text" id="custom-model-id" placeholder="gemma4" autocomplete="off">
+          </div>
+          <div class="setting-item">
+            <label for="custom-model-auth-token"><strong>Authentication Token</strong></label>
+            <span class="setting-description">Sent as a Bearer token in the Authorization header.</span>
+            <input type="password" id="custom-model-auth-token" autocomplete="off">
           </div>
         </section>
 

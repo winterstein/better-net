@@ -8,6 +8,8 @@
 
 import { traceStep, setAttributes } from '../tracing/tracer-hook.js';
 import type { TraceHandle } from '../tracing/tracer-hook.js';
+import { AISettings } from '../types/AISettings.js';
+import { assume } from '../utils/logger.js';
 
 export type LLMMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 
@@ -24,10 +26,13 @@ export interface LLMClient {
 	complete(messages: LLMMessage[], options?: LLMCompleteOptions): Promise<string>;
 }
 
-export interface LLMClientConfig {
+// TODO refactor to replace with AISettings 
+export interface LLMClientConfig extends Partial<AISettings> {
 	apiKey?: string;
 	openaiKey?: string;
 	anthropicKey?: string;
+	customModelEndpoint?: string;
+	customModelApiKey?: string;
 	model?: string;
 }
 
@@ -195,6 +200,59 @@ export class AnthropicLLMClient implements LLMClient {
 	}
 }
 
+export class CustomEndpointLLMClient implements LLMClient {
+	constructor(private settings : AISettings) {
+		assume(settings.modelOptions && settings.provider.endpoint, "Missing required settings", settings);
+	}
+
+	async complete(messages: LLMMessage[], options: LLMCompleteOptions = {}): Promise<string> {
+		console.log('complete', messages, options, this);
+		const endpointBase = this.settings.provider.endpoint;
+		const headers : Record<string,string> = {
+			'Content-Type': 'application/json'
+		}
+		if (this.settings.provider.apiKey) {
+			headers.Authorization = `Bearer ${this.settings.provider.apiKey}`
+		}
+		const model = this.settings.modelOptions.modelId;
+		return traceStep(
+			options.traceName || 'custom.complete',
+			{ parent: options.trace, attributes: genAiAttributes('custom', this.settings.modelOptions.modelId, options) },
+			async (span) => {
+				setAttributes(span, { 'betternet.input.chars': promptChars(messages) });
+				const response = await fetchWithTimeout(
+					endpointBase+'/chat/completions',
+					{
+						method: 'POST',
+						headers,
+						body: JSON.stringify({
+							model,
+							messages,
+							max_tokens: options.maxTokens ?? this.settings.modelOptions.maxOutputTokens ?? 1024,
+						}),
+					},
+					LLM_TIMEOUT_MS
+				);
+
+				if (!response.ok) {
+					throw failedResponse(span, 'OpenAI', response);
+				}
+
+				const data = (await response.json()) as OpenAIChatResponse;
+				recordUsage(
+					span,
+					data.model,
+					{ input: data.usage?.prompt_tokens, output: data.usage?.completion_tokens },
+					data.choices?.[0]?.finish_reason
+				);
+				const text = data.choices?.[0]?.message?.content?.trim() || '';
+				setAttributes(span, { 'betternet.output.chars': text.length });
+				return text;
+			}
+		);
+	}
+}
+
 /**
  * The one place that knows provider names. Everything else asks `isRemoteProvider` or just
  * calls `createLLMClient` and checks for null — so adding a provider is one entry here plus
@@ -211,6 +269,22 @@ const PROVIDERS: Record<string, (config: LLMClientConfig) => LLMClient | null> =
 		const key = config.apiKey || config.anthropicKey;
 		return key ? new AnthropicLLMClient(key, config.model) : null;
 	},
+	custom: (config) => {
+		// TODO this may be the wrong place for this conversion
+		console.log('convert config to AISettings', config);
+		const options : AISettings = {
+			provider: {
+				name: 'Custom Endpoint',
+				endpoint: config.customModelEndpoint,
+				apiKey: config.customModelApiKey
+			},
+			modelOptions: {
+				modelId: config.model
+			}
+		};
+		assume(options.modelOptions.modelId && config.customModelEndpoint, "missing custom config", config);
+		return new CustomEndpointLLMClient(options);
+	}
 };
 
 /** Is this mode served by a remote provider (as opposed to `local` / `heuristic`)? */
@@ -218,6 +292,7 @@ export function isRemoteProvider(mode: string): boolean {
 	return Object.prototype.hasOwnProperty.call(PROVIDERS, mode);
 }
 
+// TODO refactor to use 
 /** Remote client for this mode, or null when the mode is not remote or has no API key. */
 export function createLLMClient(
 	mode: string,

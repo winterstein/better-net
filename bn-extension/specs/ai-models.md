@@ -13,3 +13,7 @@ LLM calls use external APIs (OpenAI, Anthropic) or **local models** per user set
 ## External APIs
 
 API keys stored in `chrome.storage.sync` (options page). Fact-check uses Google Fact Check API separately.
+
+Built-in support for the major providers: OpenAI ChatGPT, Anthropic Claude, Google Gemini.
+
+Support for custom providers can be added via a specific HTTP endpoint (e.g., for Ollama), requiring an endpoint URL and (optionally) an API key.
