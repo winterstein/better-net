@@ -110,6 +110,7 @@ export async function handleSubmitFeedback(message: {
 	try {
 		await submitFeedback(built, settings.serverEndpoint as string);
 		void flushFeedbackQueue(settings);
+		logit('log', '[BetterNet] [FEEDBACK] submitted feedback:', built);
 		return { ok: true };
 	} catch (err: any) {
 		// A rejected payload will be rejected again, so do not queue it and do not tell the

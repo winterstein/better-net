@@ -2,9 +2,9 @@
  * AIQA tracing implementation, for the background service worker only.
  *
  * `aiqa-client`'s entry point is Node-only (dotenv, plus async_hooks via
- * NodeTracerProvider), so we import its browser-safe `AIQASpanExporter` and drive it
- * with `@opentelemetry/sdk-trace-base`. Wire format and server contract are the
- * package's, so traces land in AIQA as they would from a Node service.
+ * NodeTracerProvider), and its exporter POSTs to `/span`, which the AIQA server no longer
+ * serves (it takes OTLP at `/v1/traces`; those posts 404 silently). So we drive
+ * `@opentelemetry/sdk-trace-base` with a small fetch-based OTLP/JSON exporter.
  *
  * Lifecycle: configureAiqaTracing() at the start of each page analysis (settings may
  * have changed), spans via tracing/tracer-hook.ts, then flushAiqaSpans() before the
@@ -15,7 +15,10 @@
  * service worker, so context.active() is never trusted to hold the current span.
  */
 
-import { AIQASpanExporter } from 'aiqa-client/dist/aiqa-exporter.js';
+import { JsonTraceSerializer } from '@opentelemetry/otlp-transformer';
+import { ExportResultCode } from '@opentelemetry/core';
+import type { ExportResult } from '@opentelemetry/core';
+import type { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-base';
 import {
 	BasicTracerProvider,
 	BatchSpanProcessor,
@@ -57,10 +60,41 @@ export interface AiqaSettings {
 export type RelayedStep = TraceStep;
 
 let provider: BasicTracerProvider | null = null;
-let exporter: AIQASpanExporter | null = null;
 /** Config the live provider was built from, so we only rebuild when it changes. */
 let activeKey = '';
 
+
+/**
+ * OTLP/JSON over fetch. The stock OTLP http exporter needs XMLHttpRequest, which a
+ * service worker does not have.
+ */
+class AiqaOtlpExporter implements SpanExporter {
+	private readonly url: string;
+	constructor(serverUrl: string, private readonly apiKey: string) {
+		this.url = `${serverUrl.replace(/\/$/, '')}/v1/traces`;
+	}
+
+	export(spans: ReadableSpan[], done: (result: ExportResult) => void): void {
+		if (!spans.length) return done({ code: ExportResultCode.SUCCESS });
+		const body = new TextDecoder().decode(JsonTraceSerializer.serializeRequest(spans));
+		fetch(this.url, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
+			body,
+		})
+			.then(async (res) => {
+				if (res.ok) return done({ code: ExportResultCode.SUCCESS });
+				const text = await res.text().catch(() => '');
+				throw new Error(`${res.status} ${res.statusText} ${text}`.trim());
+			})
+			.catch((error) => {
+				logit('warn', '[BetterNet] [AIQA] Export failed:', (error as Error)?.message);
+				done({ code: ExportResultCode.FAILED, error: error as Error });
+			});
+	}
+
+	async shutdown(): Promise<void> {}
+}
 
 const asSpan = (handle: TraceHandle): Span => handle.span as Span;
 
@@ -121,7 +155,6 @@ async function teardown(): Promise<void> {
 	const old = provider;
 	setTracerImpl(null);
 	provider = null;
-	exporter = null;
 	activeKey = '';
 	if (old) await old.shutdown().catch(() => {});
 }
@@ -159,12 +192,11 @@ async function applyTracingConfig(settings: AiqaSettings): Promise<boolean> {
 	const serverUrl = settings.aiqaServerUrl?.trim() || DEFAULT_AIQA_SERVER_URL;
 	const rate = settings.aiqaSamplingRate;
 	const samplingRate = typeof rate === 'number' && rate >= 0 && rate <= 1 ? rate : 1;
-	exporter = new AIQASpanExporter(serverUrl, apiKey);
 	provider = new BasicTracerProvider({
 		resource: new Resource({ 'service.name': 'bn-extension' }),
 		sampler: new TraceIdRatioBasedSampler(samplingRate),
 	});
-	provider.addSpanProcessor(new BatchSpanProcessor(exporter));
+	provider.addSpanProcessor(new BatchSpanProcessor(new AiqaOtlpExporter(serverUrl, apiKey)));
 	activeKey = key;
 	setTracerImpl(aiqaTracerImpl);
 	logit('log', '[BetterNet] [AIQA] Tracing enabled, server:', serverUrl);
@@ -237,7 +269,6 @@ export async function mirrorFeedbackToAiqa(
 export async function flushAiqaSpans(): Promise<void> {
 	try {
 		await provider?.forceFlush();
-		await exporter?.flush();
 	} catch (error) {
 		logit('warn', '[BetterNet] [AIQA] Flush failed:', (error as Error)?.message);
 	}
