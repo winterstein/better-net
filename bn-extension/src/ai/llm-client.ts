@@ -236,7 +236,13 @@ export class CustomEndpointLLMClient implements LLMClient {
 				);
 
 				if (!response.ok) {
-					throw failedResponse(span, 'OpenAI', response);
+					const error = failedResponse(span, 'Custom endpoint', response);
+					// Ollama answers 403 (in ~ms) to any Origin it does not allow, and a
+					// chrome-extension:// origin is not allowed by default.
+					if (response.status === 403) {
+						error.message += ' — if this is Ollama, restart it with OLLAMA_ORIGINS="chrome-extension://*"';
+					}
+					throw error;
 				}
 
 				const data = (await response.json()) as OpenAIChatResponse;

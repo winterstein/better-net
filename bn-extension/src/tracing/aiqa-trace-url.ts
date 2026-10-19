@@ -9,7 +9,7 @@ const DEFAULT_AIQA_UI_URL = 'https://aiqa.winterwell.com';
 
 /**
  * @param serverUrl the configured AIQA API url, if any. The UI host is the same host
- *   without the `server-` prefix, so a self-hosted AIQA still links to its own UI.
+ *   with the `server-` prefix changed to app-, so a self-hosted AIQA still links to its own UI.
  * @param organisationId the AIQA organisation the traces belong to (Settings → Advanced).
  * @returns null when there is nothing to link to — no trace, or no organisation.
  */
@@ -33,7 +33,7 @@ export function aiqaTraceUrl(
 	if (configured) {
 		try {
 			const url = new URL(configured);
-			url.hostname = url.hostname.replace(/^server-/, '');
+			url.hostname = url.hostname.replace(/^server-/, 'app-');
 			base = url.origin;
 		} catch {
 			// Malformed setting: fall back to the default host rather than a broken link.
