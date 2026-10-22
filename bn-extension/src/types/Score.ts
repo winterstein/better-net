@@ -90,7 +90,7 @@ const TAG_SEVERITY: Record<string, number> = {
 	threat: 94,
 	phishing: 90,
 	'personal-attack': 88,
-	ragebait: 85,
+	rage: 85,
 	'fringe-view': 80,
 	'suspect-claim': 75,
 	biased: 70,

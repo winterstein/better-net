@@ -5,7 +5,7 @@
 import { analyzeChunk as analyzeFactChecker } from './fact-checker/analyze-chunk.js';
 import { analyzeChunk as analyzeBiasDetector } from './bias-detector/analyze-chunk.js';
 import { analyzeChunk as analyzeAntiManipulation } from './anti-manipulation/analyze-chunk.js';
-import { analyzeChunk as analyzeDefuseRagebait } from './defuse-ragebait/analyze-chunk.js';
+import { analyzeChunk as analyzeDefuseRage } from './defuse-rage/analyze-chunk.js';
 import { analyzeChunk as analyzeClickUnbait } from './click-unbait/analyze-chunk.js';
 import { MODULE_TAGS, tagsForModule } from './module-tags.js';
 import { MODULE_ROUTING } from './module-routing.js';
@@ -45,12 +45,12 @@ export const ANALYSIS_MODULES = [
     appliesTo: MODULE_ROUTING.antiManipulation,
   },
   {
-    id: 'defuseRagebait',
-    name: 'Defuse Ragebait',
+    id: 'defuseRage',
+    name: 'Defuse Rage',
     description: 'Label outrage-bait and harmful or abusive language.',
-    analyze: analyzeDefuseRagebait,
-    tags: MODULE_TAGS.defuseRagebait,
-    appliesTo: MODULE_ROUTING.defuseRagebait,
+    analyze: analyzeDefuseRage,
+    tags: MODULE_TAGS.defuseRage,
+    appliesTo: MODULE_ROUTING.defuseRage,
   },
   {
     id: 'clickUnbait',

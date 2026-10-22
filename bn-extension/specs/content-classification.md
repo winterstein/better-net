@@ -51,7 +51,7 @@ Not built:
   routed out, because those pages only produce `article`, `post`, and `other` chunks. What
   routing removes today is adverts (3 modules) on real feeds, which the saved pages lack.
 - No detector for the `product` modifier. It is in the vocabulary, routed (fact-check and
-  anti-manipulation yes, bias and ragebait no), and offerable in the Content Analysis modal
+  anti-manipulation yes, bias and rage no), and offerable in the Content Analysis modal
   so a user can apply it — but nothing assigns it automatically yet. Price patterns plus
   buy/add-to-cart button semantics are the cheap heuristic, and the `product` page type is
   the prior. Same state as `ugc`, `paywalled`, and `countdown`.
@@ -218,7 +218,7 @@ antiManipulation (scams, dark patterns)
 - Priority pages: checkout, product, form, login — the inversion of the fact-check list
 - The `countdown` modifier is a strong prior, not a verdict: real deadlines exist
 
-defuseRagebait (toxicity)
+defuseRage (toxicity)
 - Chunk roles: post, comment, article, headline_link
 - Skip roles: form, cta, product_card, nav, cookie_banner, paywall, media
 - Skip modifiers: product

@@ -40,7 +40,7 @@ const ANALYSIS_LABELS: Record<string, string> = {
   factChecker: 'Fact Checker',
   biasDetector: 'Bias Detector',
   antiManipulation: 'Anti-manipulation',
-  defuseRagebait: 'Defuse Ragebait',
+  defuseRage: 'Defuse Rage',
   clickUnbait: 'Click Unbait',
 };
 

@@ -53,8 +53,8 @@
       description: 'Transparent, fair-exchange treatment when ads are allowed.',
     },
     {
-      id: 'defuseRagebait',
-      name: 'Defuse Ragebait',
+      id: 'defuseRage',
+      name: 'Defuse Rage',
       description: 'Label outrage-bait and offer gentler presentation.',
     },
   ];

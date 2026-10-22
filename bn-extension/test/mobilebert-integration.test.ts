@@ -28,7 +28,7 @@ assert(spec.pipeline === 'zero-shot-classification', 'mobilebert should be zero-
 const LABELS = [
   'neutral factual content',
   'biased or misleading content',
-  'rage bait or outrage content',
+  'rage or outrage content',
 ];
 
 const timer = setTimeout(() => {

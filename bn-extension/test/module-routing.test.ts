@@ -32,7 +32,7 @@ assert.deepEqual(runsOn(['chunk-type:nonsense']), ALL);
 
 // --- adverts: no fact-check, no bias, no unbaiting; anti-manipulation still looks ---
 
-assert.deepEqual(runsOn([TAG.POST, TAG.ADVERT]), ['antiManipulation', 'defuseRagebait']);
+assert.deepEqual(runsOn([TAG.POST, TAG.ADVERT]), ['antiManipulation', 'defuseRage']);
 assert.equal(moduleSkipReason('factChecker', { tags: [TAG.POST, TAG.ADVERT] }), 'modifier:advert');
 // `sponsored` is disclosed editorial content, not an ad slot — it stays analyzable.
 assert.deepEqual(runsOn([TAG.ARTICLE, TAG.SPONSORED]).includes('factChecker'), true);
@@ -51,7 +51,7 @@ assert.equal(
 	'modifier:product'
 );
 assert.equal(
-	moduleSkipReason('defuseRagebait', { tags: [TAG.POST, TAG.PRODUCT] }),
+	moduleSkipReason('defuseRage', { tags: [TAG.POST, TAG.PRODUCT] }),
 	'modifier:product'
 );
 // The main chunk of a commercial landing page: the modifier must not cost it a fact-check.
@@ -65,7 +65,7 @@ assert.deepEqual(runsOn([TAG.ARTICLE, TAG.PRODUCT, TAG.ADVERT]), ['antiManipulat
 
 assert.deepEqual(runsOn([TAG.ARTICLE]), ALL);
 assert.deepEqual(runsOn([TAG.POST]), ALL);
-assert.deepEqual(runsOn([TAG.COMMENT]), ['factChecker', 'biasDetector', 'defuseRagebait']);
+assert.deepEqual(runsOn([TAG.COMMENT]), ['factChecker', 'biasDetector', 'defuseRage']);
 assert.deepEqual(runsOn([TAG.SEARCH_RESULT]), ['factChecker', 'biasDetector', 'clickUnbait']);
 assert.deepEqual(runsOn(['chunk-type:form']), ['antiManipulation']);
 assert.deepEqual(runsOn(['chunk-type:cta']), ['antiManipulation']);
@@ -73,7 +73,7 @@ assert.deepEqual(runsOn(['chunk-type:chrome']), []);
 assert.deepEqual(runsOn(['chunk-type:headline_link']), [
 	'factChecker',
 	'biasDetector',
-	'defuseRagebait',
+	'defuseRage',
 	'clickUnbait',
 ]);
 
@@ -101,7 +101,7 @@ assert.equal(hardSkipPageReason({ pageType: { value: 'article', confidence: 1, s
 
 const profile = { pageType: { value: 'profile' as const, confidence: 0.8, source: 'jsonld' } };
 assert.equal(moduleSkipReason('factChecker', { tags: [TAG.POST] }, profile), 'page:profile');
-assert.equal(moduleSkipReason('defuseRagebait', { tags: [TAG.POST] }, profile), null);
+assert.equal(moduleSkipReason('defuseRage', { tags: [TAG.POST] }, profile), null);
 assert.equal(
 	moduleSkipReason(
 		'factChecker',

@@ -47,7 +47,7 @@ const DEMO_URLS_OFFLINE_MIRROR = [
 
 /** One feature's verdict, keyed by settings module id. */
 interface DemoModuleSpec {
-  moduleId: 'factChecker' | 'biasDetector' | 'antiManipulation' | 'defuseRagebait' | 'clickUnbait';
+  moduleId: 'factChecker' | 'biasDetector' | 'antiManipulation' | 'defuseRage' | 'clickUnbait';
   problemScore: number;
   confidence: number;
   tags: string[];
@@ -349,7 +349,7 @@ const DENZEL_TEASER: DemoChunkSpec = {
       url: PUBLISHER_PROFILE,
     },
     {
-      moduleId: 'defuseRagebait',
+      moduleId: 'defuseRage',
       problemScore: 0.6,
       confidence: 0.7,
       tags: ['fear', 'fringe-view'],
@@ -407,7 +407,7 @@ const SILVERSTONE_TEASER: DemoChunkSpec = {
       url: PUBLISHER_PROFILE,
     },
     {
-      moduleId: 'defuseRagebait',
+      moduleId: 'defuseRage',
       problemScore: 0.55,
       confidence: 0.7,
       tags: ['fear', 'fringe-view'],
@@ -490,16 +490,16 @@ const WELFARE_STAT_POST: DemoChunkSpec = {
       moduleId: 'biasDetector',
       problemScore: 0.8,
       confidence: 0.75,
-      tags: ['ragebait'],
+      tags: ['rage'],
       explanation:
         'Assigns a single behaviour to 50 million people identified only by religion, using a statistic that does not exist.',
       url: DPA_WELFARE_DEBUNK,
     },
     {
-      moduleId: 'defuseRagebait',
+      moduleId: 'defuseRage',
       problemScore: 0.66,
       confidence: 0.7,
-      tags: ['ragebait'],
+      tags: ['rage'],
       explanation:
         '"Shocking data revealed" with no data attached, on a topic chosen to provoke: 259,000 views in a day.',
       url: DPA_WELFARE_DEBUNK,

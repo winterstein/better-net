@@ -21,7 +21,7 @@ Pages:
     - Bias Detector
     - Anti-manipulation
     - Ad Revenue
-    - Defuse Ragebait
+    - Defuse Rage
 - Off-List: see and manage the domains where features are switched off
 - Account: 
     - Your account with better:net (if you have one).

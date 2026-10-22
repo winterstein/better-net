@@ -14,7 +14,7 @@ const FEATURE_DISPLAY = {
   factChecker: { name: 'Fact Checker', description: 'Claims checked against fact-check sources' },
   biasDetector: { name: 'Bias Detector', description: 'Political or ideological bias' },
   antiManipulation: { name: 'Anti-manipulation', description: 'Dark patterns and manipulative UX' },
-  defuseRagebait: { name: 'Defuse Ragebait', description: 'Outrage-bait and harmful language' },
+  defuseRage: { name: 'Defuse Rage', description: 'Outrage-bait and harmful language' },
   clickUnbait: { name: 'Click Unbait', description: 'Honest summaries on clickbait links' },
 };
 

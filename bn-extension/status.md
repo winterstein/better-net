@@ -42,7 +42,7 @@
   text, furniture and in-article links excluded), so it works beyond one theme. Items inside a
   rotating ticker are skipped: the strip clips the label and cycles, so a badge there is either
   invisible or sitting over a different headline; chunks carry `tags[]` (`advert`, `article`, `post`, `search_result`, …) and heuristic `title` (first h1/h2/h3 in chunk HTML, else first sentence); advert tag drives ad-blocker partition; tags shown in chunk detail modal
-- Analysis orchestration: per-feature folders (`factChecker`, `biasDetector`, `antiManipulation`, `defuseRagebait`, `clickUnbait`) + Google fact-check when keyed; shared `ai/llm-client.ts` + `ai/run-feature-analysis.ts`; chunk **Content Analysis** modal title includes truncated chunk title when available
+- Analysis orchestration: per-feature folders (`factChecker`, `biasDetector`, `antiManipulation`, `defuseRage`, `clickUnbait`) + Google fact-check when keyed; shared `ai/llm-client.ts` + `ai/run-feature-analysis.ts`; chunk **Content Analysis** modal title includes truncated chunk title when available
 - **Click Unbait (unravel)**: clickbait-scored chunks → fetch destination → `[honest summary] original title` rewrite + nutrient label; module toggle / Off-List via analysis pipeline. The original headline is kept **whole**: the cap (`DEFAULT_MAX_TITLE_LEN`, 140) applies to the original alone, so a wordier summary never eats into it, and only a runaway headline is truncated — cut back to a word break, full original on hover.
   Working end-to-end in the **default** configuration (local mode, no model downloaded, no
   API key): live upworthy.com rewrites 12 of 26 chunks, bbc.co.uk/ 2 of 50 — and both BBC
