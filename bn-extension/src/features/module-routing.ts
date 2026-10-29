@@ -64,7 +64,7 @@ export const MODULE_ROUTING: Record<string, AppliesTo> = {
 		// prior here rather than a gate — the roles it lands on are already allowed.
 		roles: [...TRANSACTIONAL, 'cookie_banner', 'paywall', 'modal', 'post', 'article'],
 	},
-	defuseRagebait: {
+	defuseRage: {
 		roles: ['post', 'comment', 'article', 'headline_link'],
 		skipModifiers: ['product'],
 		skipPages: ['checkout', 'login', 'app', 'product', 'error'],

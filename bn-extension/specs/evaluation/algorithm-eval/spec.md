@@ -155,7 +155,7 @@ Caveats:
 - `click-unbait.extract-summary` — checklist first; `similar`/`llm` optional on hard rows.
 - `click-unbait.rewrite-or-leave` — boolean equals (+ optional contains on display text if rewritten).
 - `click-unbait.end-to-end` — rewrite/leave + checklist on the visible line.
-- Later scorers (bias, ragebait, fact-check): band/threshold + expected flags; explanations out of CI unless we add them on purpose.
+- Later scorers (bias, rage, fact-check): band/threshold + expected flags; explanations out of CI unless we add them on purpose.
 
 ## First datasets (Click Unbait as the template)
 

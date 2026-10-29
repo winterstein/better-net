@@ -40,7 +40,7 @@ export const PROMPT_TEXT: Record<string, string> = {
 
 	'bias-detector.latest.default': BIAS_DETECTOR_PROMPT,
 
-	'defuse-ragebait.latest.default': `You are a content moderation expert. Analyze the following content for toxicity, hate speech, or harmful language.
+	'defuse-rage.latest.default': `You are a content moderation expert. Analyze the following content for toxicity, hate speech, or harmful language.
 
 Consider:
 - Profanity or offensive language

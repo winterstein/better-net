@@ -18,7 +18,7 @@ export const MODULES = [
   { id: 'biasDetector', name: 'Bias Detector' },
   { id: 'antiManipulation', name: 'Anti-manipulation' },
   { id: 'adRevenue', name: 'Ad Revenue' },
-  { id: 'defuseRagebait', name: 'Defuse Ragebait' },
+  { id: 'defuseRage', name: 'Defuse Rage' },
 ];
 
 export function defaultModuleState() {

@@ -40,8 +40,8 @@ Canonical module ids live in `src/settings/modules-esm.ts`. Analysis features: `
    - Tags: urgency (pressure to act now), scarcity (e.g. "only 2 left"), sneaky (hidden costs, pre-ticked extras), fear (scaring the user), too-good-to-be-true, phishing
 - Ad Revenue: fair ad exchange
     - No tags.
-- Defuse Ragebait: outrage-bait / harmful language
-    - Tags: ragebait (written to outrage the reader), hate-speech, threat, personal-attack (for over-the-top / nasty vitriolic attacks; legitimate criticism should not be tagged), trigger:X (trigger:racism, trigger:sexism, trigger:lgbt, trigger:country, with sub-tags trigger:country:usa etc, trigger:family-values). Trigger:X tags are for content that will trigger someone who cares about that cause e.g. trigger:sexism would trigger an anti-sexist person (hopefully most of us), trigger:country would trigger a nationalist. Probably other trigger:X tags to be added.
+- Defuse Rage: outrage-bait / harmful language
+    - Tags: rage (written to outrage the reader), hate-speech, threat, personal-attack (for over-the-top / nasty vitriolic attacks; legitimate criticism should not be tagged), trigger:X (trigger:racism, trigger:sexism, trigger:lgbt, trigger:country, with sub-tags trigger:country:usa etc, trigger:family-values). Trigger:X tags are for content that will trigger someone who cares about that cause e.g. trigger:sexism would trigger an anti-sexist person (hopefully most of us), trigger:country would trigger a nationalist. Probably other trigger:X tags to be added.
 
 Each module should have a file {module}-tags.ts for defining it's tags.
 

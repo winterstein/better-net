@@ -87,7 +87,7 @@ const article = classify(
 );
 assert.equal(classified(article), 'article');
 assert.equal(hardSkipPageReason({ pageType: article }), null);
-for (const id of ['factChecker', 'biasDetector', 'defuseRagebait', 'clickUnbait']) {
+for (const id of ['factChecker', 'biasDetector', 'defuseRage', 'clickUnbait']) {
 	assert.equal(
 		moduleSkipReason(id, { tags: ['chunk-type:article'] }, { pageType: article }),
 		null,

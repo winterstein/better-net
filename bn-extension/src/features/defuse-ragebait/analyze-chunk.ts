@@ -1,7 +1,7 @@
 /**
- * Defuse Ragebait
+ * Defuse Rage
  * Detects outrage-bait and harmful language.
- * Product tags: ragebait, hate-speech, threat, personal-attack, trigger:X (trigger TODO).
+ * Product tags: rage, hate-speech, threat, personal-attack, trigger:X (trigger TODO).
  */
 
 import { runFeatureAnalysis } from '../../ai/run-feature-analysis.js';
@@ -11,7 +11,7 @@ import {
 } from '../zero-shot-score.js';
 import { problemScoreFromFraction } from '../../types/Score.js';
 
-const PROMPT_ID = 'defuse-ragebait';
+const PROMPT_ID = 'defuse-rage';
 
 // Phrasing calibrated for MNLI zero-shot (avoids false-positives on normal news).
 const ZERO_SHOT_LABELS = [
@@ -74,13 +74,13 @@ function analyzeWithHeuristics(context) {
     tags.push('personal-attack');
   }
 
-  const ragebaitPatterns = [
+  const ragePatterns = [
     /\b(outraged|infuriating|you won't believe what they|destroyed by|owned by)\b/i,
     /\b(this is why (we|you) can't have)\b/i,
   ];
-  if (ragebaitPatterns.some(pattern => pattern.test(text))) {
+  if (ragePatterns.some(pattern => pattern.test(text))) {
     score += 0.2;
-    tags.push('ragebait');
+    tags.push('rage');
   }
 
   return {
@@ -153,6 +153,6 @@ function getMockResults(context) {
     problemScore: problemScoreFromFraction(0.25 + Math.random() * 0.15),
     confidence: 0.80 + Math.random() * 0.15,
     tags: [],
-    explanation: 'Mock analysis for ragebait detection'
+    explanation: 'Mock analysis for rage detection'
   };
 }

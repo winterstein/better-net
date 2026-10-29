@@ -149,7 +149,7 @@ assert.equal(chunkTag.thumbsUp, undefined);
 // --- a tag edit is checked against the vocabulary that was on offer ---
 
 assert.match(
-	await errorOf({ ...MODULE, tag: 'ragebait', tagOn: false }),
+	await errorOf({ ...MODULE, tag: 'rage', tagOn: false }),
 	/Tag not offered here/,
 	"a module cannot be told about another module's tag"
 );

@@ -278,7 +278,7 @@ is no tag to translate `aspectType` into.
 
 - Should Developer Mode also absorb "Show chunk overlay", or does that stay a
   separate toggle? (Overlay is genuinely useful to curious non-developers.)
-- The `+` select offers a module's whole vocabulary, which for Defuse Ragebait
+- The `+` select offers a module's whole vocabulary, which for Defuse Rage
   is nine tags and growing. At some point that wants grouping or a filter.
 - Nothing yet reads these corrections back: no aggregates, and no export to an
   AIQA dataset.

@@ -45,7 +45,7 @@ const LEGACY_ASPECT_TO_MODULE: Record<string, string> = {
 	accuracy: 'factChecker',
 	bias: 'biasDetector',
 	scams: 'antiManipulation',
-	toxicity: 'defuseRagebait',
+	toxicity: 'defuseRage',
 	clickbait: 'clickUnbait',
 };
 

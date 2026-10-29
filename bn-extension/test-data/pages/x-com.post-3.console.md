@@ -140,7 +140,7 @@ content.js:3318 [BG] [BetterNet] [BetterNet] [BROADCAST_UPDATE] Tab: 360058691 {
     "factChecker": "pending",
     "biasDetector": "pending",
     "antiManipulation": "pending",
-    "defuseRagebait": "pending",
+    "defuseRage": "pending",
     "clickUnbait": "pending"
   }
 } [BetterNet] [BROADCAST_UPDATE] Tab: 360058691 Object
@@ -238,8 +238,8 @@ content.js:3318 [BG] [BetterNet] [BetterNet] [BROADCAST_UPDATE] Tab: 360058691 {
       },
       {
         "type": "toxicity",
-        "id": "demo-defuseRagebait-0-3",
-        "methodName": "defuseRagebait",
+        "id": "demo-defuseRage-0-3",
+        "methodName": "defuseRage",
         "model": "demo",
         "problemScore": 0.66,
         "confidence": 0.7,
@@ -250,7 +250,7 @@ content.js:3318 [BG] [BetterNet] [BetterNet] [BROADCAST_UPDATE] Tab: 360058691 {
         "explanation": "\"Shocking data revealed\" with no data attached, on a topic chosen to provoke: 259,000 views in a day.",
         "url": "https://dpa-factchecking.com/netherlands/260717-99-85419/",
         "metadata": {
-          "moduleId": "defuseRagebait"
+          "moduleId": "defuseRage"
         }
       }
     ],
@@ -305,7 +305,7 @@ content.js:3318 [BG] [BetterNet] [BetterNet] [PERFORM_ANALYSIS] Aggregated biasD
 content.js:169 [BetterNet] [CONTENT] Received message: BG_LOG undefined Object
 content.js:3318 [BG] [BetterNet] [BetterNet] [PERFORM_ANALYSIS] Aggregated antiManipulation problemScore: 0.72 [BetterNet] [PERFORM_ANALYSIS] Aggregated antiManipulation problemScore: 0.72
 content.js:169 [BetterNet] [CONTENT] Received message: BG_LOG undefined Object
-content.js:3318 [BG] [BetterNet] [BetterNet] [PERFORM_ANALYSIS] Aggregated defuseRagebait problemScore: 0.66 [BetterNet] [PERFORM_ANALYSIS] Aggregated defuseRagebait problemScore: 0.66
+content.js:3318 [BG] [BetterNet] [BetterNet] [PERFORM_ANALYSIS] Aggregated defuseRage problemScore: 0.66 [BetterNet] [PERFORM_ANALYSIS] Aggregated defuseRage problemScore: 0.66
 content.js:169 [BetterNet] [CONTENT] Received message: BG_LOG undefined Object
 content.js:3318 [BG] [BetterNet] [BetterNet] [PERFORM_ANALYSIS] Final aggregated results: [
   {
@@ -357,8 +357,8 @@ content.js:3318 [BG] [BetterNet] [BetterNet] [PERFORM_ANALYSIS] Final aggregated
   },
   {
     "type": "toxicity",
-    "id": "defuseRagebait-1788340623406",
-    "methodName": "defuseRagebait",
+    "id": "defuseRage-1788340623406",
+    "methodName": "defuseRage",
     "model": "heuristic",
     "problemScore": 0.66,
     "confidence": 0.8,
@@ -368,7 +368,7 @@ content.js:3318 [BG] [BetterNet] [BetterNet] [PERFORM_ANALYSIS] Final aggregated
     ],
     "explanation": "\"Shocking data revealed\" with no data attached, on a topic chosen to provoke: 259,000 views in a day.",
     "metadata": {
-      "moduleId": "defuseRagebait"
+      "moduleId": "defuseRage"
     }
   }
 ] [BetterNet] [PERFORM_ANALYSIS] Final aggregated results: Array(4)
@@ -382,7 +382,7 @@ content.js:3318 [BG] [BetterNet] [BetterNet] [BROADCAST_UPDATE] Tab: 360058691 {
     "factChecker": "completed",
     "biasDetector": "completed",
     "antiManipulation": "completed",
-    "defuseRagebait": "completed",
+    "defuseRage": "completed",
     "clickUnbait": "pending"
   },
   "partialResults": [
@@ -435,8 +435,8 @@ content.js:3318 [BG] [BetterNet] [BetterNet] [BROADCAST_UPDATE] Tab: 360058691 {
     },
     {
       "type": "toxicity",
-      "id": "defuseRagebait-1788340623406",
-      "methodName": "defuseRagebait",
+      "id": "defuseRage-1788340623406",
+      "methodName": "defuseRage",
       "model": "heuristic",
       "problemScore": 0.66,
       "confidence": 0.8,
@@ -446,7 +446,7 @@ content.js:3318 [BG] [BetterNet] [BetterNet] [BROADCAST_UPDATE] Tab: 360058691 {
       ],
       "explanation": "\"Shocking data revealed\" with no data attached, on a topic chosen to provoke: 259,000 views in a day.",
       "metadata": {
-        "moduleId": "defuseRagebait"
+        "moduleId": "defuseRage"
       }
     }
   ]

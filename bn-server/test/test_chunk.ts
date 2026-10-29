@@ -179,7 +179,7 @@ tap.test('Chunk_analyze_POST_and_GET', async (t) => {
 		payload: {
 			options: {
 				mode: 'heuristic',
-				enabledFeatures: ['factChecker', 'biasDetector', 'antiManipulation', 'defuseRagebait']
+				enabledFeatures: ['factChecker', 'biasDetector', 'antiManipulation', 'defuseRage']
 			}
 		},
 		headers,
