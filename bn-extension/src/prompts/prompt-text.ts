@@ -44,7 +44,7 @@ export const PROMPT_TEXT: Record<string, string> = {
 
 Consider:
 - Profanity or offensive language
-- Hate speech targeting protected groups
+- Hate speech
 - Harassment or bullying
 - Threats of violence
 - Personal attacks

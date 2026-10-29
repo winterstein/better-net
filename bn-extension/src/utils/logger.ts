@@ -51,6 +51,30 @@ export function initDeveloperMode() {
   });
 }
 
+/** anything to string */
+export function str(...args) {
+  if (!args || args.length===0) return "";
+  if (args.length===1) {
+    const v = args[0];
+    if (typeof(v)==="string") return v;
+    if (typeof(v)==="number" || typeof(v)==="boolean" || !v) return ""+v;
+    // try json
+    try {
+      return JSON.stringify(v);
+    } catch(error) {
+      // fallback to something
+      return typeof(v)+" "+v;
+    }
+  }
+  return args.map(str).join(" ");
+}
+
+/**
+ * log to "local" console and send a logging message to the active chrome tab.
+ * @param level 
+ * @param args 
+ * @returns 
+ */
 export function logit(level : 'log' | 'error' | 'warn', ...args) {
   if (!_enabled) return;
 

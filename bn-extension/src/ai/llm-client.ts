@@ -9,7 +9,7 @@
 import { traceStep, setAttributes } from '../tracing/tracer-hook.js';
 import type { TraceHandle } from '../tracing/tracer-hook.js';
 import { AISettings } from '../types/AISettings.js';
-import { assume } from '../utils/logger.js';
+import { assume, logit } from '../utils/logger.js';
 
 export type LLMMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 
@@ -96,11 +96,12 @@ function promptChars(messages: LLMMessage[]): number {
 }
 
 /** Remote LLM calls that never return should not hang analysis forever. */
-const LLM_TIMEOUT_MS = 30_000;
+const LLM_TIMEOUT_MS = 45_000;
 
 function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), timeoutMs);
+	logit("log", "fetchWithTimeout curl "+url);
 	return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
 }
 
@@ -207,7 +208,7 @@ export class CustomEndpointLLMClient implements LLMClient {
 	}
 
 	async complete(messages: LLMMessage[], options: LLMCompleteOptions = {}): Promise<string> {
-		console.log('complete', messages, options, this);
+		logit("log", 'custom LLM do complete', messages, options, this);
 		const endpointBase = this.settings.provider.endpoint;
 		const headers : Record<string,string> = {
 			'Content-Type': 'application/json'
@@ -220,41 +221,50 @@ export class CustomEndpointLLMClient implements LLMClient {
 			options.traceName || 'custom.complete',
 			{ parent: options.trace, attributes: genAiAttributes('custom', this.settings.modelOptions.modelId, options) },
 			async (span) => {
-				setAttributes(span, { 'betternet.input.chars': promptChars(messages) });
-				const response = await fetchWithTimeout(
-					endpointBase+'/chat/completions',
-					{
-						method: 'POST',
-						headers,
-						body: JSON.stringify({
-							model,
-							messages,
-							max_tokens: options.maxTokens ?? this.settings.modelOptions.maxOutputTokens ?? 1024,
-						}),
-					},
-					LLM_TIMEOUT_MS
-				);
+				try {
+					setAttributes(span, { 'betternet.input.chars': promptChars(messages) });
+					const body = JSON.stringify({
+								model,
+								messages,
+								max_tokens: options.maxTokens ?? this.settings.modelOptions.maxOutputTokens ?? 1024,
+							});
+					logit("log","custom LLM curl -XPOST "+headers+"-d '"+body);
+					const response = await fetchWithTimeout(
+						endpointBase+'/chat/completions',
+						{
+							method: 'POST',
+							headers,
+							body,
+						},
+						LLM_TIMEOUT_MS
+					);
 
-				if (!response.ok) {
-					const error = failedResponse(span, 'Custom endpoint', response);
-					// Ollama answers 403 (in ~ms) to any Origin it does not allow, and a
-					// chrome-extension:// origin is not allowed by default.
-					if (response.status === 403) {
-						error.message += ' — if this is Ollama, restart it with OLLAMA_ORIGINS="chrome-extension://*"';
+					if (!response.ok) {
+						const error = failedResponse(span, 'Custom endpoint', response);
+						// Ollama answers 403 (in ~ms) to any Origin it does not allow, and a
+						// chrome-extension:// origin is not allowed by default.
+						if (response.status === 403) {
+							error.message += ' — if this is Ollama, restart it with OLLAMA_ORIGINS="chrome-extension://*"';
+						}
+						throw error;
 					}
-					throw error;
-				}
 
-				const data = (await response.json()) as OpenAIChatResponse;
-				recordUsage(
-					span,
-					data.model,
-					{ input: data.usage?.prompt_tokens, output: data.usage?.completion_tokens },
-					data.choices?.[0]?.finish_reason
-				);
-				const text = data.choices?.[0]?.message?.content?.trim() || '';
-				setAttributes(span, { 'betternet.output.chars': text.length });
-				return text;
+					const data = (await response.json()) as OpenAIChatResponse;
+					logit("log","custom LLM result data:",data);
+					recordUsage(
+						span,
+						data.model,
+						{ input: data.usage?.prompt_tokens, output: data.usage?.completion_tokens },
+						data.choices?.[0]?.finish_reason
+					);
+					const text = data.choices?.[0]?.message?.content?.trim() || '';
+					setAttributes(span, { 'betternet.output.chars': text.length });
+					// Done :)
+					return text;
+				} catch(err) {
+					logit("error","custom LLM error: "+err);
+					throw err;
+				}
 			}
 		);
 	}

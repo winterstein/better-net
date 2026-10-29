@@ -10,6 +10,8 @@
  * - OpenTelemetry stays out of the content-script and offscreen bundles.
  */
 
+import { logit } from "../utils/logger";
+
 export type TraceAttributes = Record<string, string | number | boolean>;
 
 /**
@@ -109,8 +111,10 @@ export async function traceStep<T>(
 	const handle = startSpan(name, opts);
 	if (!handle) return fn(null);
 	try {
+		logit("log", "traceStep "+name, opts);
 		const result = await fn(handle);
 		endSpan(handle);
+		logit("log", "...traceStep "+name, opts, "result", result);
 		return result;
 	} catch (error) {
 		endSpan(handle, {}, error);

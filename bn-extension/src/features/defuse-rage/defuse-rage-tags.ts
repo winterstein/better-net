@@ -5,7 +5,7 @@
  */
 import type { TagSpec } from '../../types/Tag.js';
 
-export const DEFUSE_RAGEBAIT_TAGS: TagSpec[] = [
+export const DEFUSE_RAGE_TAGS: TagSpec[] = [
 	{ id: 'rage', label: 'Rage' },
 	{ id: 'hate-speech', label: 'Hate speech' },
 	{ id: 'threat', label: 'Threat' },
