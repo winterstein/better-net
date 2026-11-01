@@ -3,7 +3,7 @@
 import type { ModuleAnalysis } from '../types/ModuleAnalysis.js';
 import type { ChunkAnalysis } from '../types/ChunkAnalysis.js';
 import { chunkProblemBand, chunkProblemScore } from '../types/ChunkAnalysis.js';
-import { PROBLEM_SCORES, fractionFromProblemScore, issueTagIds } from '../types/Score.js';
+import { PROBLEM_SCORES, fractionFromProblemScore, issueTagIds, problemScoreFromFraction } from '../types/Score.js';
 import type { ProblemScore } from '../types/Score.js';
 import type { FeedbackTarget } from '../types/Feedback.js';
 import { riskLevelForScore } from '../types/RiskLevel.js';
@@ -213,10 +213,12 @@ const ISSUE_STYLE = `
 
 /**
  * Editable tag row: every tag we applied gets an ✕, and "+" opens a select of the rest of
- * that target's vocabulary. This is the whole of module feedback — a removal says the tag
- * does not belong, an addition says we missed it, and neither needs interpreting against
- * what we claimed. Vocabularies come from `{module}-tags.ts` via the registry, so a module
+ * that target's vocabulary. A removal says the tag
+ * does not belong, an addition says we missed it. 
+ * Vocabularies come from `{module}-tags.ts` via the registry, so a module
  * that grows a tag needs no change here. See specs/feedback.md.
+ * 
+ * TODO doc: how is the UX wired up - e.g. where is the code that processes button clicks and how is it linked??
  */
 function renderTagEditor(opts: {
   target: FeedbackTarget;
@@ -859,7 +861,7 @@ function renderFactCheckClaims(factChecks: unknown[]): string {
 
   html += `</div>`;
   return html;
-}
+} // end renderFactCheckClaims
 
 /** Why the feedback controls are absent, so the modal can say so instead of just
  *  rendering nothing. Set in content.ts, where the settings are known. */
@@ -1066,18 +1068,16 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
         <div style="margin-bottom: 20px;">
           <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: #333;">Analysis Breakdown</h3>
           <div style="display: flex; flex-direction: column; gap: 12px;">
-      `;
+      `; // end analysis modal contents
 
+      // show each output TODO refactor into a separate function
   analyses.forEach((result) => {
     if (!result || (result.error && !(typeof result.explanation === 'string' && result.explanation.trim()))) return;
 
     const moduleId = String(result.metadata?.moduleId ?? result.methodName);
     const typeLabel = ANALYSIS_LABELS[moduleId] || moduleId;
-    const score = result.error
-      ? 0
-      : fractionFromProblemScore(result.problemScore || 'low');
-    const scorePercent = (score * 100).toFixed(0);
-    const barColor = score >= 0.7 ? '#f44336' : score >= 0.4 ? '#ff9800' : '#4CAF50';
+    let scoreLabel = result.problemScore && 
+      (typeof(result.problemScore)==='number'? problemScoreFromFraction(result.problemScore) : result.problemScore);
 
     const factChecks = result.metadata?.factChecks;
     const hasFactChecks =
@@ -1085,10 +1085,19 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
       Array.isArray(factChecks) &&
       factChecks.length > 0;
     const factCheckHTML = hasFactChecks ? renderFactCheckClaims(factChecks as unknown[]) : '';
+    // Hack not checked != safe
+    if (moduleId==='factChecker' && scoreLabel==='low'&& hasFactChecks && result.metadata.factChecksFound===0) {
+      scoreLabel = "";
+    }
     const explanationHtml = formatAnalysisExplanation(result);
     const tags = issueTagIds(result.tags || []);
+    const barColor = {
+      'high': '#f44336',
+      'medium': '#ff9800',
+      'low':'#4CAF50'
+    }[scoreLabel];
 
-    detailsHTML += `
+    const analysisResultDetailsHtml = `
             <div data-analysis-card style="
               border: 1px solid #e0e0e0;
               border-radius: 8px;
@@ -1096,7 +1105,7 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
             ">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                 <span style="font-weight: 600; color: #333;">${typeLabel}</span>
-                <span style="font-size: 14px; color: #666;">${scorePercent}%</span>
+                <span style="font-size: 14px; color: #666;">${scoreLabel} risk</span>
               </div>
               <div style="
                 width: 100%;
@@ -1106,7 +1115,7 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
                 overflow: hidden;
               ">
                 <div style="
-                  width: ${scorePercent}%;
+                  width: ${scoreLabel}%;
                   height: 100%;
                   background: ${barColor};
                   transition: width 0.3s ease;
@@ -1144,9 +1153,12 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
                     })
                   : ''
               }
+              ${result.error? `<div style="font-size:11px; color:#a66">${result.error}</div>` : ""}
+              ${result.id? `<div style="font-size:10px; color:#666">${result.id}</div>` : ""}
             </div>
           `;
-  });
+      detailsHTML += analysisResultDetailsHtml;
+  }); // end for-each analysis
 
   detailsHTML += `
           </div>

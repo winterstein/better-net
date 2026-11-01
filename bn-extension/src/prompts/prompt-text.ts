@@ -34,8 +34,22 @@ Respond with a JSON object containing:
 ${ANALYSIS_OUTPUT_SCHEMA}
 - biasDirection: "left", "right", or "no-political-leaning"`;
 
+/** for when we cant get factcheck results */
+const FACT_CHECKER_LLM_FALLBACK_PROMPT = `You are a neutral and objective media analyst. Factcheck the following content using your general knowledge.
+
+Consider:
+- Are claims plausible or unlikely?
+- Are claims similar to known truths or known falsehoods?
+
+Ignore opinions and jokes. Focus on statements that present a factual claim.
+
+Respond with a JSON object containing:
+${ANALYSIS_OUTPUT_SCHEMA}`;
+
 // TODO document the keys
 export const PROMPT_TEXT: Record<string, string> = {
+	'fact-checker.latest.default': FACT_CHECKER_LLM_FALLBACK_PROMPT,
+
 	'anti-manipulation.latest.default': ANTI_MANIPULATION_PROMPT,
 
 	'bias-detector.latest.default': BIAS_DETECTOR_PROMPT,

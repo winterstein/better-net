@@ -44,7 +44,12 @@ export function fractionFromProblemScore(score: ProblemScore | number | undefine
 		case 'low':
 			return 0.15;
 	}
-	return typeof score === 'number' && Number.isFinite(score) ? Math.max(0, Math.min(1, score)) : 0;
+	if (typeof score === 'number' && Number.isFinite(score)) {
+		if (score <0 || score >1) console.log("score out of [0,1] range");
+		return Math.max(0, Math.min(1, score));
+	}
+	console.log("invalid score", score);
+	return 0;
 }
 
 export function tagStrengthFromFraction(n: number): TagStrength {

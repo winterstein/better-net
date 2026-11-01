@@ -8,6 +8,7 @@ import type { LocalModelBackend, ZeroShotResult } from './local-model-backend.js
 import { traceStep, setAttributes, recordSteps } from '../tracing/tracer-hook.js';
 import type { TraceHandle } from '../tracing/tracer-hook.js';
 import { logit } from '../utils/logger.js';
+import { ModuleAnalysis } from '../types/ModuleAnalysis.js';
 
 const MAX_TEXT_CHARS = 1200;
 const MAX_NEW_TOKENS = 256;
@@ -46,8 +47,8 @@ export interface AnalyzeWithLocalLLMParams {
 	candidateLabels?: string[];
 	multiLabel?: boolean;
 	/** Analyzer: turn model text (or zero-shot JSON) into problemScore + explanation */
-	parseResponse: (text: string) => Record<string, unknown>;
-	fallback: () => Record<string, unknown>;
+	parseResponse: (text: string) => ModuleAnalysis;
+	fallback: () => ModuleAnalysis;
 	localBackend?: LocalModelBackend | null;
 	/** Parent AIQA span; the model call becomes a child of it. */
 	trace?: TraceHandle | null;
@@ -56,7 +57,7 @@ export interface AnalyzeWithLocalLLMParams {
 /**
  * Run local zero-shot or generative analysis. Falls back to heuristics when no backend.
  */
-export async function analyzeWithLocalLLM(params: AnalyzeWithLocalLLMParams) {
+export async function analyzeWithLocalLLM(params: AnalyzeWithLocalLLMParams) : Promise<ModuleAnalysis> {
 	const {
 		modelId,
 		systemPrompt,
@@ -78,7 +79,7 @@ export async function analyzeWithLocalLLM(params: AnalyzeWithLocalLLMParams) {
 		setAttributes(trace, { 'betternet.analysis.path': 'no_backend' });
 		const fb = fallback();
 		fb.metadata = { ...(fb.metadata as object || {}), localModelSkipped: 'no_backend' };
-		return fb;
+		return fb as unknown as ModuleAnalysis;
 	}
 
 	try {
@@ -143,7 +144,7 @@ export async function analyzeWithLocalLLM(params: AnalyzeWithLocalLLMParams) {
 		const parsed = parseResponse(text);
 		const explanationText = typeof parsed.explanation === 'string' ? parsed.explanation.trim() : '';
 		if (!explanationText) {
-			parsed.explanation = summarizeGeneratedResponse(text, parsed.problemScore ?? parsed.score);
+			parsed.explanation = summarizeGeneratedResponse(text, parsed.problemScore);
 		}
 		parsed.metadata = { ...(parsed.metadata as object || {}), localModel: model.id, method: 'generate' };
 		return parsed;

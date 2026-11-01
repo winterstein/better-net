@@ -9,6 +9,7 @@ import { getPrompt } from './prompt-manager.js';
 import type { LocalModelBackend } from './local-model-backend.js';
 import type { AnalysisOptions } from '../types/AnalysisOptions.js';
 import { logit, str } from '../utils/logger.js';
+import type { ModuleAnalysis } from '../types/ModuleAnalysis.js';
 
 export interface FeatureAnalysisParams {
 	chunk: { text?: string; links?: { url: string }[] };
@@ -18,9 +19,9 @@ export interface FeatureAnalysisParams {
 	zeroShotLabels: string[];
 	buildContext: (chunk: FeatureAnalysisParams['chunk'], pageMetadata: Record<string, unknown>) => Record<string, unknown>;
 	formatContextForPrompt: (context: Record<string, unknown>) => string;
-	parseAIResponse: (text: string) => Record<string, unknown>;
-	heuristicFallback: (context: Record<string, unknown>) => Record<string, unknown>;
-	mockResults: (context: Record<string, unknown>) => Record<string, unknown>;
+	parseAIResponse: (text: string) => ModuleAnalysis;
+	heuristicFallback: (context: Record<string, unknown>) => ModuleAnalysis;
+	mockResults: (context: Record<string, unknown>) => ModuleAnalysis;
 }
 
 /**
@@ -28,7 +29,7 @@ export interface FeatureAnalysisParams {
  * @param params 
  * @returns 
  */
-export async function runFeatureAnalysis(params: FeatureAnalysisParams) {
+export async function runFeatureAnalysis(params: FeatureAnalysisParams) : Promise<ModuleAnalysis> {
 	const {
 		chunk,
 		pageMetadata,
@@ -89,12 +90,14 @@ export async function runFeatureAnalysis(params: FeatureAnalysisParams) {
 		setAttributes(trace, { 'betternet.analysis.path': 'remote' });
 		return parseAIResponse(text);
 	} catch (error) {
-		logit("error", `${promptId} ${mode} analysis error:`, str(error));
+		logit("error", `${promptId} ${mode} analysis error:`, error);
 		// The call's own span carries the error; this says the feature result is a fallback.
 		setAttributes(trace, {
 			'betternet.analysis.path': 'heuristic_fallback',
 			'betternet.analysis.fallback_reason': error instanceof Error ? error.message : String(error),
 		});
-		return heuristicFallback(context);
+		const hf = heuristicFallback(context);
+		hf.error = "LLM error: "+error;
+		return hf;
 	}
 }

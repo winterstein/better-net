@@ -88,12 +88,7 @@ async function analyzeChunk(
           feature
             .analyze(chunk, pageMetadata, { ...analysisOptions, trace: span, modelId })
             .then((result: Partial<ModuleAnalysis>) => {
-              const scoreFraction =
-                typeof result.problemScore === 'number'
-                  ? result.problemScore
-                  : result.problemScore
-                    ? fractionFromProblemScore(result.problemScore)
-                    : 0;
+              const scoreFraction = fractionFromProblemScore(result.problemScore) || 0;
               setAttributes(span, {
                 'betternet.problem_score': scoreFraction,
                 'betternet.confidence': result.confidence ?? 0,
@@ -137,7 +132,7 @@ async function analyzeChunk(
     title: chunk.title,
     tags: chunk.tags ?? [],
   };
-}
+} // end analyzeChunk
 
 /** One chunk, traced, with the feedback trace ids the modal needs attached. */
 async function analyzeTracedChunk(

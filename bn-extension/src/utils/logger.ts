@@ -53,7 +53,7 @@ export function initDeveloperMode() {
 
 /** anything to string */
 export function str(...args) {
-  if (!args || args.length===0) return "";
+  if (!args || args.length===0) return ""+args;
   if (args.length===1) {
     const v = args[0];
     if (typeof(v)==="string") return v;
@@ -78,6 +78,7 @@ export function str(...args) {
 export function logit(level : 'log' | 'error' | 'warn', ...args) {
   if (!_enabled) return;
 
+  // log local
   const logMethod = console[level] || console.log;
   logMethod(...args);
 
@@ -86,22 +87,11 @@ export function logit(level : 'log' | 'error' | 'warn', ...args) {
   }
 
   try {
-    const message = args.map(arg => {
-      if (typeof arg === 'object') {
-        try {
-          return JSON.stringify(arg, null, 2);
-        } catch {
-          return String(arg);
-        }
-      }
-      return String(arg);
-    }).join(' ');
-
+    const message = str(args);
     chrome.tabs.sendMessage(_tabId, {
       type: 'BG_LOG',
       level,
       message: `[BetterNet] ${message}`,
-      args
     }).catch(() => {});
   } catch (error) {
     if (_enabled) console.error('[BetterNet] Error in logit:', error);

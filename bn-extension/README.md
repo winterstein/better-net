@@ -25,11 +25,35 @@ npm run test:e2e:smoke # Playwright smoke
 
 `npm run type-check` is noisy; build + test are the gates.
 
-## Layout
+## Using with Ollama
 
-- `src/features/` — user modules (fact-checker, click-unbait, …); ad blocker in `src/ad-blocker/`
-- `src/chunking/`, `src/analysis/`, `src/ai/` — shared pipeline
-- `src/background/`, `src/content/`, `src/popup/`, `src/options/` — MV3 entry points
-- `specs/`, `terminology.md`, `code-guidelines.md`
+Mac?
+See https://cognetic.app/docs/ollama/mac
 
-See also [`QUICKSTART.md`](./QUICKSTART.md) and monorepo [`AGENTS.md`](../AGENTS.md).
+launchctl setenv OLLAMA_ORIGINS "chrome-extension://*"
+mkdir -p ~/Library/LaunchAgents
+
+ps -ef | grep ollama
+kill 
+
+
+cat > ~/Library/LaunchAgents/com.ollama.origins.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.ollama.origins</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/launchctl</string>
+    <string>setenv</string>
+    <string>OLLAMA_ORIGINS</string>
+    <string>chrome-extension://*</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+</dict>
+</plist>
+EOF

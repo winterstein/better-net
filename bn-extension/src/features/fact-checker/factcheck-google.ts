@@ -163,7 +163,7 @@ function calculateRatingScore(reviews) {
  * @param {Object} options - Options with optional apiKey (will be fetched from env-utils if not provided)
  * @returns {Promise<Object>} Fact-check results
  */
-export async function factCheckContent(chunk, pageMetadata: any = {}, options: any = {}) {
+export async function factCheckContent(chunk, claims, pageMetadata: any = {}, options: any = {}) {
   const {
     languageCode = 'en',
     maxClaims = MAX_CLAIMS_TO_CHECK
@@ -183,20 +183,6 @@ export async function factCheckContent(chunk, pageMetadata: any = {}, options: a
     } satisfies Partial<ModuleAnalysis>;
   }
 
-  const text = chunk.text || '';
-  if (text.length < MIN_CLAIM_LENGTH) {
-    return {
-      problemScore: problemScoreFromFraction(0),
-      confidence: 0.0,
-      tags: [],
-      explanation: 'Content too short to fact-check',
-      metadata: { factChecks: [], diagnostic: 'insufficient_content' },
-    } satisfies Partial<ModuleAnalysis>;
-  }
-
-  // Extract claims from content
-  const claims = extractClaims(text);
-  
   if (claims.length === 0) {
     return {
       problemScore: problemScoreFromFraction(0.2),

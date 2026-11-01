@@ -96,17 +96,36 @@ function promptChars(messages: LLMMessage[]): number {
 }
 
 /** Remote LLM calls that never return should not hang analysis forever. */
-const LLM_TIMEOUT_MS = 45_000;
+const LLM_TIMEOUT_MS = 90_000;
+
+function shellEscape(s: string): string {
+	if (!s) return s;
+	return s.replace(/'/g, `'\\''`);
+}
+/** return an equivalent curl command.
+ * Warning: be careful with this - it can include security tokens. */
+export function asCurl(url: string, init: RequestInit) {
+	let hs = ""
+	if (init?.headers) {
+		for (const [key, value] of new Headers(init.headers)) {
+			hs += `-H '${key}: ${shellEscape(value)}'`;
+		}
+	}
+	return `curl -X${init?.method} '${shellEscape(url)}' ${hs} -d '${shellEscape(init?.body)}'`;
+}
 
 function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
 	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-	logit("log", "fetchWithTimeout curl "+url);
+	const timer = setTimeout(() => {
+		console.log("timeout on "+url);
+		controller.abort();
+	}, timeoutMs);
+	logit("log", asCurl(url, init) + " with timeout:" + timeoutMs);
 	return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
 }
 
 export class OpenAILLMClient implements LLMClient {
-	constructor(private apiKey: string, private defaultModel = 'gpt-4') {}
+	constructor(private apiKey: string, private defaultModel = 'gpt-4') { }
 
 	async complete(messages: LLMMessage[], options: LLMCompleteOptions = {}): Promise<string> {
 		return traceStep(
@@ -152,7 +171,7 @@ export class OpenAILLMClient implements LLMClient {
 }
 
 export class AnthropicLLMClient implements LLMClient {
-	constructor(private apiKey: string, private defaultModel = 'claude-sonnet-4-5') {}
+	constructor(private apiKey: string, private defaultModel = 'claude-sonnet-4-5') { }
 
 	async complete(messages: LLMMessage[], options: LLMCompleteOptions = {}): Promise<string> {
 		return traceStep(
@@ -203,14 +222,14 @@ export class AnthropicLLMClient implements LLMClient {
 }
 
 export class CustomEndpointLLMClient implements LLMClient {
-	constructor(private settings : AISettings) {
+	constructor(private settings: AISettings) {
 		assume(settings.modelOptions && settings.provider.endpoint, "Missing required settings", settings);
 	}
 
 	async complete(messages: LLMMessage[], options: LLMCompleteOptions = {}): Promise<string> {
 		logit("log", 'custom LLM do complete', messages, options, this);
 		const endpointBase = this.settings.provider.endpoint;
-		const headers : Record<string,string> = {
+		const headers: Record<string, string> = {
 			'Content-Type': 'application/json'
 		}
 		if (this.settings.provider.apiKey) {
@@ -224,13 +243,12 @@ export class CustomEndpointLLMClient implements LLMClient {
 				try {
 					setAttributes(span, { 'betternet.input.chars': promptChars(messages) });
 					const body = JSON.stringify({
-								model,
-								messages,
-								max_tokens: options.maxTokens ?? this.settings.modelOptions.maxOutputTokens ?? 1024,
-							});
-					logit("log","custom LLM curl -XPOST "+headers+"-d '"+body);
+						model,
+						messages,
+						max_tokens: options.maxTokens ?? this.settings.modelOptions.maxOutputTokens ?? 1024,
+					});
 					const response = await fetchWithTimeout(
-						endpointBase+'/chat/completions',
+						endpointBase + '/v1/chat/completions',
 						{
 							method: 'POST',
 							headers,
@@ -250,7 +268,7 @@ export class CustomEndpointLLMClient implements LLMClient {
 					}
 
 					const data = (await response.json()) as OpenAIChatResponse;
-					logit("log","custom LLM result data:",data);
+					logit("log", "custom LLM result data:", data);
 					recordUsage(
 						span,
 						data.model,
@@ -261,8 +279,8 @@ export class CustomEndpointLLMClient implements LLMClient {
 					setAttributes(span, { 'betternet.output.chars': text.length });
 					// Done :)
 					return text;
-				} catch(err) {
-					logit("error","custom LLM error: "+err);
+				} catch (err) {
+					logit("error", "custom LLM error: " + err);
 					throw err;
 				}
 			}
@@ -289,7 +307,7 @@ const PROVIDERS: Record<string, (config: LLMClientConfig) => LLMClient | null> =
 	custom: (config) => {
 		// TODO this may be the wrong place for this conversion
 		console.log('convert config to AISettings', config);
-		const options : AISettings = {
+		const options: AISettings = {
 			provider: {
 				name: 'Custom Endpoint',
 				endpoint: config.customModelEndpoint,
@@ -302,7 +320,8 @@ const PROVIDERS: Record<string, (config: LLMClientConfig) => LLMClient | null> =
 		// Missing settings are a user setup problem: report it without echoing keys into the error.
 		assume(options.modelOptions.modelId && config.customModelEndpoint,
 			"missing custom config: set the endpoint and model id in Settings", {
-				hasEndpoint: !!config.customModelEndpoint, hasModelId: !!options.modelOptions.modelId });
+			hasEndpoint: !!config.customModelEndpoint, hasModelId: !!options.modelOptions.modelId
+		});
 		return new CustomEndpointLLMClient(options);
 	}
 };
