@@ -293,6 +293,19 @@
           </div>
 
           <div class="setting-item">
+            <label class="checkbox-label">
+              <input type="checkbox" id="use-local-cache">
+              <span><strong>Use local cache</strong></span>
+            </label>
+            <span class="setting-description">Reuse analysis results already computed in this browser, so a reload does not run them again. On by default.</span>
+          </div>
+
+          <div class="setting-item">
+            <button type="button" id="clear-local-cache" class="btn btn-small btn-secondary">Clear local cache</button>
+            <span class="setting-description">Forget stored analysis results. The next page view analyses from scratch.</span>
+          </div>
+
+          <div class="setting-item">
             <label for="server-endpoint"><strong>Server endpoint</strong></label>
             <span class="setting-description">bn-server base URL for feedback, cached analysis, and updates. Leave blank for the default (https://server.better-net.com); use http://localhost:3001 against a local server.</span>
             <input type="url" id="server-endpoint" placeholder="https://server.better-net.com" autocomplete="off">

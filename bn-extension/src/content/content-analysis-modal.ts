@@ -1085,8 +1085,9 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
       Array.isArray(factChecks) &&
       factChecks.length > 0;
     const factCheckHTML = hasFactChecks ? renderFactCheckClaims(factChecks as unknown[]) : '';
-    // Hack not checked != safe
-    if (moduleId==='factChecker' && scoreLabel==='low'&& hasFactChecks && result.metadata.factChecksFound===0) {
+    // A published-source miss is not a safe verdict. An LLM general-knowledge verdict is.
+    const llmVerdict = result.metadata?.diagnostic === 'llm_general_knowledge';
+    if (moduleId==='factChecker' && scoreLabel==='low'&& hasFactChecks && result.metadata.factChecksFound===0 && !llmVerdict) {
       scoreLabel = "";
     }
     const explanationHtml = formatAnalysisExplanation(result);

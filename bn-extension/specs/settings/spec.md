@@ -40,4 +40,6 @@ Pages:
       The trace link needs the AIQA organisation below — the AIQA trace page lives under
       one, so without it the feedback confirmation shows the trace id and no link.
     - Show chunk overlay: outline every chunk the page was split into.
+    - Use local cache: reuse analysis results already computed in this browser. On by default.
+      Clear local cache forgets them. See specs/cache/spec.md.
     - Server endpoint, and the AIQA API key / server / organisation / sampling.

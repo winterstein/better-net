@@ -25,4 +25,8 @@ The Content Analysis modal lists every claim that was looked up, matched or not:
 "checked three claims, none of them rated" is shown as such rather than as an empty
 card. `factChecksFound` counts only the claims that matched.
 
-Coverage overall: partial. Live path needs a Google Fact Check API key; otherwise falls back / empty. No LLM claim extraction yet beyond sentence heuristics.
+Fallback to LLM general knowledge:
+Published 3rd party factchecks (e.g. Google Fact Check Tools API) are preferred.
+When Google has no published rating (no key, or none of the claims matched), `analyze-chunk.ts` calls `runFeatureAnalysis` with the `fact-checker` prompt. The claim list from the lookup is kept. `metadata.diagnostic` is `llm_general_knowledge`, and the explanation is prefixed "General knowledge:".
+
+Coverage overall: partial. No LLM claim extraction yet beyond sentence heuristics.

@@ -30,6 +30,8 @@ export interface AnalysisOptions {
 	localBackend?: LocalModelBackend | null;
 	/** Parent AIQA span for this analysis; child spans hang off it (tracing/tracer-hook.ts). */
 	trace?: TraceHandle | null;
+	/** Reuse a stored feature result. Absent means on. Settings -> Advanced. */
+	useLocalCache?: boolean;
 	// TODO refactor to use this
 	aiSettings?: AISettings;
 }

@@ -3,6 +3,7 @@ Coordinates page analysis and manages state
 */ 
 
 import { createChunkQueue, enabledFeaturesFromSettings } from '../analysis/engine.js';
+import { clearAnalysisCache, flushAnalysisCache } from '../analysis/analysis-cache.js';
 import { beginDestinationBudget } from '../features/click-unbait/fetch-destination.js';
 import {
   demoChunks,
@@ -170,6 +171,7 @@ class AnalysisManager {
           'BN_FEEDBACK_COUNT',
           'BN_FEEDBACK_DELETE',
           'BN_ACCOUNT_STATUS',
+          'CLEAR_LOCAL_CACHE',
           'POPUP_OPENED',
           'POPUP_ERROR',
         ]);
@@ -323,6 +325,13 @@ class AnalysisManager {
       // Popup and options page: show a Link button, or who this browser is linked to.
       case 'BN_ACCOUNT_STATUS': {
         sendResponse(await handleAccountStatus());
+        break;
+      }
+
+      // Options -> Advanced. Drops the worker's in-memory copy and the stored one.
+      case 'CLEAR_LOCAL_CACHE': {
+        await clearAnalysisCache();
+        sendResponse({ ok: true });
         break;
       }
 
@@ -717,6 +726,7 @@ class AnalysisManager {
 
       const analysisOptions : AnalysisOptions = {
           mode: ctx.settings.analysisMode,
+          useLocalCache: ctx.settings.useLocalCache !== false,
           config: ctx.config,
           maxConcurrency: 5,
           enabledFeatures: ctx.enabledFeatures,
@@ -763,6 +773,9 @@ class AnalysisManager {
         'betternet.duration_ms': Date.now() - state.passStart,
       });
       state.trace = null;
+      // A pass can be the last thing the worker does. Flush before it is suspended,
+      // or a reload would miss results that were only in memory (specs/cache/spec.md).
+      await flushAnalysisCache();
       await flushAiqaSpans();
     }
   } // ./runPass

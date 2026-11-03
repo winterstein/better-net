@@ -17,6 +17,7 @@ import {
 import { startSpan, endSpan, isTracing } from '../src/tracing/tracer-hook.js';
 import { createStepRecorder, StepRecorder } from '../src/tracing/trace-steps.js';
 import { analyzeChunksParallel } from '../src/analysis/engine.js';
+import { clearAnalysisCache } from '../src/analysis/analysis-cache.js';
 import { OpenAILLMClient } from '../src/ai/llm-client.js';
 import {
 	beginDestinationBudget,
@@ -155,6 +156,8 @@ const CHUNKS = [
 ];
 
 async function runAnalysis(recorderSteps: any[]) {
+	// These cases reuse one chunk of text and each expects a live model call.
+	await clearAnalysisCache();
 	const trace = startSpan('betternet.analyze_page', {
 		startTime: Date.now() - 500,
 		attributes: { 'betternet.url': 'https://example.com', 'betternet.chunk_count': CHUNKS.length },
@@ -373,6 +376,7 @@ async function recordChunkingSteps(enabled: boolean) {
 	await configureAiqaTracing({ aiqaTracing: true, aiqaApiKey: API_KEY, aiqaServerUrl: SERVER });
 
 	const trace = startSpan('betternet.analyze_page', {});
+	await clearAnalysisCache();
 	await analyzeChunksParallel(
 		[CHUNKS[0]] as any,
 		{ url: 'https://example.com', domain: 'example.com' },
@@ -402,6 +406,7 @@ async function recordChunkingSteps(enabled: boolean) {
 	await configureAiqaTracing({ aiqaTracing: true, aiqaApiKey: API_KEY, aiqaServerUrl: SERVER });
 
 	const trace = startSpan('betternet.analyze_page', {});
+	await clearAnalysisCache();
 	await analyzeChunksParallel(
 		[CHUNKS[0]] as any,
 		{ url: 'https://example.com', domain: 'example.com' },
@@ -585,6 +590,7 @@ async function recordChunkingSteps(enabled: boolean) {
 	await configureAiqaTracing({ aiqaTracing: true, aiqaApiKey: API_KEY, aiqaServerUrl: SERVER });
 
 	const trace = startSpan('betternet.analyze_page', {});
+	await clearAnalysisCache();
 	const results = await analyzeChunksParallel(
 		CHUNKS as any,
 		{ url: 'https://example.com', domain: 'example.com' },

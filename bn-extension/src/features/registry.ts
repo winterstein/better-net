@@ -3,6 +3,7 @@
  */
 
 import { analyzeChunk as analyzeFactChecker } from './fact-checker/analyze-chunk.js';
+import { factcheckCacheKey } from './fact-checker/factcheck-cache-key.js';
 import { analyzeChunk as analyzeBiasDetector } from './bias-detector/analyze-chunk.js';
 import { analyzeChunk as analyzeAntiManipulation } from './anti-manipulation/analyze-chunk.js';
 import { analyzeChunk as analyzeDefuseRage } from './defuse-rage/analyze-chunk.js';
@@ -17,7 +18,8 @@ import { MODULE_ROUTING } from './module-routing.js';
  *
  * `appliesTo` is which chunks the module may run on (module-routing.ts). The engine
  * enforces it, so an analyzer never has to decide whether it was the right one to call.
- * @type {Array<{ id: string, name: string, description: string, analyze: Function, tags: import('../types/Tag.js').TagSpec[], appliesTo: import('./module-routing.js').AppliesTo }>}
+ * `cacheKey` overrides the default chunk key (analysis/cache-key.ts). Omitted features use that default.
+ * @type {Array<{ id: string, name: string, description: string, analyze: Function, cacheKey?: (chunk: import('../types/Chunk.js').Chunk) => string, tags: import('../types/Tag.js').TagSpec[], appliesTo: import('./module-routing.js').AppliesTo }>}
  */
 export const ANALYSIS_MODULES = [
   {
@@ -25,6 +27,7 @@ export const ANALYSIS_MODULES = [
     name: 'Fact Checker',
     description: 'Extract claims and check them against fact-check sources.',
     analyze: analyzeFactChecker,
+    cacheKey: factcheckCacheKey,
     tags: MODULE_TAGS.factChecker,
     appliesTo: MODULE_ROUTING.factChecker,
   },

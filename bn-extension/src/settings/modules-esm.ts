@@ -75,6 +75,8 @@ export function mergeSettings(stored: any = {}) {
     // (content/chunk-scheduler.ts). Keep in step with settings/defaults.ts.
     analyzeOnScreenFirst: true,
     demoMode: false,
+    // Reuse feature results already computed in this browser. Keep in step with defaults.ts.
+    useLocalCache: true,
     excludedSites: [],
     domainOverrides: {},
     serverEndpoint: DEFAULT_SERVER_ENDPOINT,

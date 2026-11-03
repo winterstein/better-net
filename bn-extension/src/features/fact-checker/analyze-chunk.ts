@@ -1,13 +1,14 @@
 /**
- * Fact Checker — chunk analysis via Google Fact Check Tools API.
+ * Fact Checker — Google Fact Check Tools API, then LLM general knowledge if that
+ * finds no published rating (factcheck-llm.ts).
  */
 
 import { factCheckContent } from './factcheck-google.js';
+import { checkWithGeneralKnowledge, mergeGeneralKnowledge } from './factcheck-llm.js';
 import { logit } from '../../utils/logger.js';
 import type { ModuleAnalysis } from '../../types/ModuleAnalysis.js';
 import { extractClaims } from './extract-claims.js';
-import { getGoogleFactCheckKey } from '../../utils/env-utils.js';
-import { normalizeIssueTags, problemScoreFromFraction } from '../../types/Score.js';
+import { problemScoreFromFraction } from '../../types/Score.js';
 
 const MIN_CLAIM_LENGTH = 10; // Minimum length for a claim to be worth checking
 
@@ -36,13 +37,19 @@ export async function analyzeChunk(
          } satisfies Partial<ModuleAnalysis>;
        }
     const claims = extractClaims(text);
+	// TODO server to hold digest of Google Factcheck, Snopes, FullFact, etc
     const result = await factCheckContent(chunk, claims, pageMetadata, {
       apiKey: config.googleFactCheckKey,
       languageCode: 'en',
     });
-    if (claims.length && result.metadata?.factChecks?.length===0) {
-      logit("log", "TODO try LLM general knowledge");
-      // TODO use runFeatureAnalysis();
+    // No published rating (no key, or nothing matched). A heuristic/mock is not a verdict.
+    const found = result.metadata?.factChecksFound;
+    if (claims.length > 0 && !(typeof found === 'number' && found > 0)) {
+      logit('log', '[factChecker] no published fact-check; trying LLM general knowledge');
+      const llm = await checkWithGeneralKnowledge(chunk, claims, pageMetadata, options);
+      if (llm.metadata?.diagnostic === 'llm_general_knowledge') {
+        return mergeGeneralKnowledge(result, llm);
+      }
     }
     return result;
   } catch (error) {

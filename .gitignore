@@ -3,3 +3,4 @@ bn-server/.env
 .DS_Store
 .mcp.json
 bn-extension/.tmp-spa.mjs
+.cursorignore

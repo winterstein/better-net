@@ -83,8 +83,6 @@ Held out from tuning: dailymail.co.uk flagged 5 of 34 — three affiliate teaser
   a destination page, so there is nothing honest to put in the brackets. `isQuizHeadline`
   scores them 0.
 - Rewriting images, thumbnails, or video titles
-- Infinite-scroll re-fetch / re-unbait as the page grows (v1: initial pass only)
-- Server-side cache of rewrites
 - Changing where the link goes (URL stays the same)
 
 ## Build plan

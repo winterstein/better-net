@@ -3,6 +3,8 @@
  */
 
 import { ANALYSIS_MODULES, ANALYSIS_MODULE_IDS } from '../features/registry.js';
+import { defaultCacheKey } from './cache-key.js';
+import { localAnalysisCache } from './analysis-cache.js';
 import { hostListed, normalizeHost } from '../utils/host.js';
 import { hardSkipPageReason, routeChunk } from '../features/module-routing.js';
 import { traceStep, setAttributes, traceIds } from '../tracing/tracer-hook.js';
@@ -16,6 +18,7 @@ import type { Chunk } from '../types/Chunk.js';
 import type { PageMetadata } from '../types/Page.js';
 import type { AnalysisOptions } from '../types/AnalysisOptions.js';
 import { AISettings } from '../types/AISettings.js';
+import type { TraceHandle } from '../tracing/tracer-hook.js';
 
 /**
  * @param {Object} settings - merged BetterNet settings
@@ -84,20 +87,7 @@ async function analyzeChunk(
           parent: analysisOptions.trace,
           attributes: { 'betternet.feature': feature.id, input: chunkInput(chunk) },
         },
-        (span) =>
-          feature
-            .analyze(chunk, pageMetadata, { ...analysisOptions, trace: span, modelId })
-            .then((result: Partial<ModuleAnalysis>) => {
-              const scoreFraction = fractionFromProblemScore(result.problemScore) || 0;
-              setAttributes(span, {
-                'betternet.problem_score': scoreFraction,
-                'betternet.confidence': result.confidence ?? 0,
-                'betternet.tag_count': result.tags?.length ?? 0,
-                output: featureOutput(result),
-              });
-              // Carried to the modal so a thumbs down links to this feature call.
-              return { ...result, spanId: traceIds(span)?.spanId };
-            })
+        (span) => analyzeFeature(feature, chunk, pageMetadata, analysisOptions, span, modelId)
       )
         .then((result: Partial<ModuleAnalysis>) => {
           analyses.push(completeModuleAnalysis(feature.id, result));
@@ -133,6 +123,75 @@ async function analyzeChunk(
     tags: chunk.tags ?? [],
   };
 } // end analyzeChunk
+
+/** The model id that would actually run, so a settings change does not reuse the other result. */
+function modelForCache(options: Partial<AnalysisOptions>, modelId?: string): string {
+  if (modelId) return modelId;
+  const config = options.config ?? {};
+  if (options.mode === 'local') return String(config.localModelId ?? '');
+  return String(config.model || config.customModelId || '');
+}
+
+/**
+ * Keep a verdict. Skip a failure or a heuristic stand-in (specs/cache/spec.md).
+ * `no_fact_checks_found` is the Google miss fact-checker returns when the LLM did not
+ * produce a verdict. Storing it would skip that LLM call on the next view.
+ */
+function cacheableResult(result: Partial<ModuleAnalysis>): boolean {
+  if (result.error) return false;
+  const meta = result.metadata;
+  if (!meta) return true;
+  if (meta.localModelSkipped || meta.localModelError) return false;
+  const diagnostic = meta.diagnostic;
+  return (
+    diagnostic !== 'no_api_key' &&
+    diagnostic !== 'no_fact_checks_found' &&
+    diagnostic !== 'heuristic' &&
+    diagnostic !== 'mock'
+  );
+}
+
+/**
+ * One feature, served from the client cache when this chunk was analysed before
+ * (specs/cache/spec.md). A thrown analyze() is not stored, so the next view retries.
+ * An explicit modelId is a redo: skip the cached result and replace it.
+ */
+async function analyzeFeature(
+  feature: { id: string; cacheKey?: (chunk: Chunk) => string; analyze: Function },
+  chunk: Chunk,
+  pageMetadata: Partial<PageMetadata>,
+  analysisOptions: Partial<AnalysisOptions>,
+  span: TraceHandle | null,
+  modelId?: string
+): Promise<Partial<ModuleAnalysis>> {
+  const key = (feature.cacheKey ?? defaultCacheKey)(chunk);
+  // Mode and model sit beside the chunk key so a heuristic verdict is not reused
+  // after the user switches model. The chunk key itself stays about the content.
+  const model = modelForCache(analysisOptions, modelId);
+  const storedKey = `${analysisOptions.mode ?? ''}\n${model}\n${key}`;
+  // Absent means on, so a caller that does not pass settings still caches.
+  const cacheOn = analysisOptions.useLocalCache !== false;
+  const cached =
+    cacheOn && !modelId ? await localAnalysisCache.get(feature.id, storedKey) : undefined;
+  const fresh = cached
+    ? null
+    : await feature.analyze(chunk, pageMetadata, { ...analysisOptions, trace: span, modelId });
+  const result: Partial<ModuleAnalysis> = cached ?? fresh ?? {};
+  if (cacheOn && fresh && cacheableResult(fresh)) {
+    const { spanId: _spanId, ...storable } = fresh;
+    await localAnalysisCache.set(feature.id, storedKey, storable);
+  }
+  const scoreFraction = fractionFromProblemScore(result.problemScore) || 0;
+  setAttributes(span, {
+    'betternet.cache': !cacheOn ? 'off' : cached ? 'hit' : 'miss',
+    'betternet.problem_score': scoreFraction,
+    'betternet.confidence': result.confidence ?? 0,
+    'betternet.tag_count': result.tags?.length ?? 0,
+    output: featureOutput(result),
+  });
+  // Carried to the modal so a thumbs down links to this feature call.
+  return { ...result, spanId: traceIds(span)?.spanId };
+}
 
 /** One chunk, traced, with the feedback trace ids the modal needs attached. */
 async function analyzeTracedChunk(

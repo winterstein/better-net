@@ -119,6 +119,8 @@
     // Product-demo recordings: serve the canned results in analysis/demo-analysis.ts
     // for the demo URLs instead of running the pipeline. Other pages are unaffected.
     demoMode: false,
+    // Reuse feature results already computed in this browser (specs/cache/spec.md).
+    useLocalCache: true,
     excludedSites: [],
     domainOverrides: {},
     modules: defaultModuleState(),

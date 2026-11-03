@@ -95,6 +95,9 @@ class SettingsController {
     });
     document.getElementById('save-btn')?.addEventListener('click', () => this.saveSettings());
     document.getElementById('reset-btn')?.addEventListener('click', () => this.resetSettings());
+    document.getElementById('clear-local-cache')?.addEventListener('click', () => {
+      void this.clearLocalCache();
+    });
     document.getElementById('add-excluded-site-btn')?.addEventListener('click', () =>
       this.addExcludedSite()
     );
@@ -256,6 +259,19 @@ class SettingsController {
       el.textContent = this.formatMemoryStats(res);
     } catch (err) {
       el.textContent = 'Memory stats unavailable' + (err?.message ? `: ${err.message}` : '');
+    }
+  }
+
+  async clearLocalCache() {
+    if (!confirm('Clear the local analysis cache? The next page view will analyse from scratch.')) {
+      return;
+    }
+    try {
+      const res = await sendExtensionMessage({ type: 'CLEAR_LOCAL_CACHE' });
+      if (res?.error) throw new Error(res.error);
+      this.showStatus('Local cache cleared', 'success');
+    } catch (err) {
+      this.showStatus('Clear cache failed: ' + (err?.message || err), 'error');
     }
   }
 
@@ -689,6 +705,7 @@ class SettingsController {
     setChecked('developer-mode', developerModeFromSettings(s));
     setChecked('analyze-on-screen-first', s.analyzeOnScreenFirst !== false);
     setChecked('show-chunk-overlay', !!s.showChunkOverlay);
+    setChecked('use-local-cache', s.useLocalCache !== false);
     setDeveloperMode(developerModeFromSettings(s));
   }
 
@@ -732,6 +749,7 @@ class SettingsController {
       aiqaSamplingRate: clampSamplingRate(document.getElementById('aiqa-sampling-rate').value),
       developerMode: document.getElementById('developer-mode').checked,
       showChunkOverlay: document.getElementById('show-chunk-overlay').checked,
+      useLocalCache: document.getElementById('use-local-cache').checked,
       modules,
       excludedSites: this.settings.excludedSites,
       domainOverrides: this.settings.domainOverrides,

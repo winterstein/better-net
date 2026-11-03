@@ -29,10 +29,11 @@ ANALYSIS_MODULES.push({
 
 const { createChunkQueue, analyzeChunksParallel } = await import('../src/analysis/engine.js');
 
-const chunk = (n: number) => ({
+/** `label` keeps each case off the analysis cache, which keys on text rather than xpath. */
+const chunk = (n: number, label = 'cap') => ({
   id: `c${n}`,
   xpath: `/html/body/div[${n}]`,
-  text: `chunk ${n}`,
+  text: `chunk ${label} ${n}`,
   url: 'https://example.com/',
   fingerprint: `f${n}`,
 });
@@ -71,11 +72,11 @@ async function releaseAll() {
 {
   maxActive = 0;
   const queue = createChunkQueue({ url: 'https://example.com/' }, { maxConcurrency: 1 });
-  queue.add([chunk(1)]);
+  queue.add([chunk(1, 'scroll')]);
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   // The reader scrolls: a chunk arrives with one already in flight.
-  queue.add([chunk(2)]);
+  queue.add([chunk(2, 'scroll')]);
   assert.deepEqual(queue.counts(), { queued: 1, active: 1, done: 0 });
 
   const idle = queue.idle();
@@ -92,8 +93,10 @@ async function releaseAll() {
 
   // Re-awaiting an idle queue resolves at once, and it can be used again afterwards.
   await queue.idle();
-  queue.add([chunk(3)]);
+  queue.add([chunk(3, 'scroll')]);
   const again = queue.idle();
+  // The cache lookup yields before the feature waits, so let it reach the gate.
+  await new Promise((resolve) => setTimeout(resolve, 0));
   await releaseAll();
   await again;
   assert.equal(queue.counts().done, 3);
@@ -102,7 +105,7 @@ async function releaseAll() {
 // --- analyzeChunksParallel still analyses a fixed set of chunks ---
 
 {
-  const chunks = [chunk(1), chunk(2)];
+  const chunks = [chunk(1, 'batch'), chunk(2, 'batch')];
   const pending = analyzeChunksParallel(chunks as any, { url: 'https://example.com/' }, {
     maxConcurrency: 5,
   });

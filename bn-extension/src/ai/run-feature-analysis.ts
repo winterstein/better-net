@@ -16,6 +16,7 @@ export interface FeatureAnalysisParams {
 	pageMetadata: Record<string, unknown>;
 	options?: Partial<AnalysisOptions> & { llmClient?: LLMClient; localBackend?: LocalModelBackend | null };
 	promptId: string;
+	// TODO doc: what are these labels used for?? example of format? Do they tie in elsewhere?
 	zeroShotLabels: string[];
 	buildContext: (chunk: FeatureAnalysisParams['chunk'], pageMetadata: Record<string, unknown>) => Record<string, unknown>;
 	formatContextForPrompt: (context: Record<string, unknown>) => string;

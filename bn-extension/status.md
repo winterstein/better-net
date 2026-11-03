@@ -43,6 +43,7 @@
   rotating ticker are skipped: the strip clips the label and cycles, so a badge there is either
   invisible or sitting over a different headline; chunks carry `tags[]` (`advert`, `article`, `post`, `search_result`, …) and heuristic `title` (first h1/h2/h3 in chunk HTML, else first sentence); advert tag drives ad-blocker partition; tags shown in chunk detail modal
 - Analysis orchestration: per-feature folders (`factChecker`, `biasDetector`, `antiManipulation`, `defuseRage`, `clickUnbait`) + Google fact-check when keyed; shared `ai/llm-client.ts` + `ai/run-feature-analysis.ts`; chunk **Content Analysis** modal title includes truncated chunk title when available
+- **Fact Checker LLM fallback**: claims with no published rating (no Google key, or nothing matched) go through `runFeatureAnalysis` (`fact-checker` prompt, `factcheck-llm.ts`). The Google claim list is kept; `metadata.diagnostic` is `llm_general_knowledge`. No model means the Google result stands. A low score from that verdict still shows in the modal — only an unchecked Google miss is left blank
 - **Click Unbait (unravel)**: clickbait-scored chunks → fetch destination → `[honest summary] original title` rewrite + nutrient label; module toggle / Off-List via analysis pipeline. The original headline is kept **whole**: the cap (`DEFAULT_MAX_TITLE_LEN`, 140) applies to the original alone, so a wordier summary never eats into it, and only a runaway headline is truncated — cut back to a word break, full original on hover.
   Working end-to-end in the **default** configuration (local mode, no model downloaded, no
   API key): live upworthy.com rewrites 12 of 26 chunks, bbc.co.uk/ 2 of 50 — and both BBC
@@ -64,6 +65,13 @@
   waiting until you scroll — and results that fill in as the page is read. A superseded page
   view (SPA navigation) no longer publishes its results over the current page. Demo pages
   are exempt from gating, so recordings analyse the whole page at once
+- **Client analysis cache** (`specs/cache/spec.md`): each feature result is reused on the next
+  view, up to 5000 entries in `chrome.storage.local`. Keys ignore where the chunk sits on
+  the page, so a reload hits. Fact Checker folds minor wording (case, stop-words, a short
+  stem); other features key the title, text, and primary link. Lookup also includes the
+  analysis mode and model. A fact-check LLM verdict is stored; a Google miss left after
+  the LLM fell back to a heuristic is not. Settings -> Advanced: Use local cache (on by
+  default) and Clear local cache. `AnalysisCache` is the seam for a later server cache.
 - **Nutrient Label headline**: the badge (and the modal's "Overall") reads the worst module
   score, not the mean of all of them, from the same bands as the traffic light
   (`riskLevelForScore`). The page verdict in the toolbar/popup uses the same rule: worst
@@ -439,7 +447,7 @@ exactly what they lack. Keep them, but add new coverage as pages.
   and a local structural model as the preferred mode) earns its keep when a level has two
   classifiers to choose between; with one each, the chain is the function body.
 - **Algorithm eval** (spec only): `specs/evaluation/algorithm-eval/spec.md` — gold examples in git, AIQA for experiment reporting, step-shaped datasets. No harness yet.
-- Wire update-manager bundles into chunking and `isModuleEnabled` (apply `domain-off-defaults` on analysis). Host update manifests on bn-server. Extend ad-blocker (generic pages, YouTube). Wire cookie-cutter, privacy-shield, etc. Chrome Web Store CSP review for `wasm-unsafe-eval`. Polish Facebook/Twitter chunking; server cache. Click Unbait: the heuristic summary tier is
+- Wire update-manager bundles into chunking and `isModuleEnabled` (apply `domain-off-defaults` on analysis). Host update manifests on bn-server. Extend ad-blocker (generic pages, YouTube). Wire cookie-cutter, privacy-shield, etc. Chrome Web Store CSP review for `wasm-unsafe-eval`. Polish Facebook/Twitter chunking; server-side analysis cache. Click Unbait: the heuristic summary tier is
 the publisher's own `og:description` — honest, but the publisher's framing rather than an
 independent reading; a local model that can actually answer "what is the withheld payoff"
 would close that.
