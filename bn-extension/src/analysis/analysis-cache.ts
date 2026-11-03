@@ -14,7 +14,7 @@ import { logit } from '../utils/logger.js';
 import type { ModuleAnalysis } from '../types/ModuleAnalysis.js';
 
 /** Cap on stored results, across every feature. Oldest entry is dropped past this. */
-export const MAX_CACHE_SIZE = 5000;
+export const MAX_CACHE_SIZE = 100000;
 
 const STORAGE_KEY = 'bn.analysisCache';
 
@@ -169,7 +169,7 @@ export class LocalAnalysisCache implements AnalysisCache {
       v: 1,
       entries: [...this.map.entries()].map(([k, r]) => ({ k, r })),
     };
-	console.log('saving cache', payload);
+	console.log('saving cache', payload.entries.length, 'entries');
     this.writing = this.writing
       .then(() => this.storage!.set({ [STORAGE_KEY]: payload }))
       .catch((err) => {
