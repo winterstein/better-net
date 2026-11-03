@@ -152,7 +152,7 @@ function cacheableResult(result: Partial<ModuleAnalysis>): boolean {
 }
 
 /**
- * One feature, served from the client cache when this chunk was analysed before
+ * Analyse one feature, served from the client cache if this chunk was analysed before
  * (specs/cache/spec.md). A thrown analyze() is not stored, so the next view retries.
  * An explicit modelId is a redo: skip the cached result and replace it.
  */
@@ -170,15 +170,20 @@ async function analyzeFeature(
   const model = modelForCache(analysisOptions, modelId);
   const storedKey = `${analysisOptions.mode ?? ''}\n${model}\n${key}`;
   // Absent means on, so a caller that does not pass settings still caches.
-  const cacheOn = analysisOptions.useLocalCache !== false;
-  const cached =
-    cacheOn && !modelId ? await localAnalysisCache.get(feature.id, storedKey) : undefined;
+  // A redo (modelId set) skips the read and replaces the stored result.
+  const cacheSettingOn = analysisOptions.useLocalCache !== false;
+  const cacheOn = cacheSettingOn && !modelId;
+  // `??` would keep the boolean `true` and never read the cache.
+  const cached = cacheOn ? await localAnalysisCache.get(feature.id, storedKey) : undefined;
   const fresh = cached
     ? null
     : await feature.analyze(chunk, pageMetadata, { ...analysisOptions, trace: span, modelId });
+  console.log('analyzeFeature',feature.id, storedKey, 'fresh', fresh, 'cached', cached, 'cacheOn', cacheOn);
+  if (fresh) fresh.date = new Date().toISOString(); // timestamp the result
   const result: Partial<ModuleAnalysis> = cached ?? fresh ?? {};
-  if (cacheOn && fresh && cacheableResult(fresh)) {
+  if (cacheSettingOn && fresh && cacheableResult(fresh)) {
     const { spanId: _spanId, ...storable } = fresh;
+	console.log('saving to cache', feature.id, storedKey, storable);
     await localAnalysisCache.set(feature.id, storedKey, storable);
   }
   const scoreFraction = fractionFromProblemScore(result.problemScore) || 0;

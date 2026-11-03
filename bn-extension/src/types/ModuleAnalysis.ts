@@ -13,6 +13,8 @@ import {
 	type ProblemScore,
 } from './Score.js';
 
+import type { Iso8601String } from './type-utils.js';
+
 export type { IssueTag, ProblemScore, TagStrength } from './Score.js';
 export {
 	fractionFromProblemScore,
@@ -29,6 +31,8 @@ export {
 export interface ModuleAnalysis {
 	/** unique id for this analysis result if it is sent to server */
 	id: string;
+	/** The date and time the analysis was performed - because we cache results, which could be stale. */
+	date?: Iso8601String;
 	methodName: string;
 	/** If an AI model was used, the name of the model e.g. gpt-4o */
 	model: string;
