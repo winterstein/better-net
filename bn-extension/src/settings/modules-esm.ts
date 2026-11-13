@@ -77,6 +77,9 @@ export function mergeSettings(stored: any = {}) {
     demoMode: false,
     // Reuse feature results already computed in this browser. Keep in step with defaults.ts.
     useLocalCache: true,
+    // Private pages and chunks (sharing/share-rules.ts) are analysed by local models only.
+    // Off lets them use the active model, which may be a remote API. Keep defaults.ts and modules-esm.ts in step.
+    privateLocalOnly: true,
     excludedSites: [],
     domainOverrides: {},
     serverEndpoint: DEFAULT_SERVER_ENDPOINT,

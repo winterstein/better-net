@@ -17,6 +17,11 @@ export interface PageMetadata {
 	 */
 	pageType?: Classification<PageType>;
 	siteType?: Classification<SiteType>;
+	/**
+	 * Must not leave the browser: no shared analysis, no AIQA trace, no feedback
+	 * (sharing/share-rules.ts isPrivatePage). Set in the content script.
+	 */
+	private?: boolean;
   }
 
 export interface Page extends TopLevelItem, PageMetadata {

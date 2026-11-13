@@ -199,6 +199,24 @@
   storage for product demos. No UI toggle.
 - **Update manager** (v1): bundled snapshots for `domain-off-defaults` and `chunking-xpath-patterns`; seeds `chrome.storage.local`, daily alarm + `BN_UPDATE_DATA` messages (`get` / `list` / `check` / `seed`); remote fetch from `updates.betternet.org` when available
 
+- **Shared analysis** (`src/sharing/`, bn-server/specs/shared-analysis): opt-in, off by
+  default (Settings → Data Sharing → "Use shared analysis", the old `useServerCache`). On a
+  suitable page the background makes one lookup by url; the engine reads local cache, then
+  shared results, then analyses, and uploads fresh model results at the end of the pass.
+  Only the normalised url, content hashes and results are sent — never chunk text. A shared
+  result is used only from a model ranked at least as high as the user's own
+  (`ai/model-info.ts`). Tested in `test/shared-analysis.test.ts` and
+  `test/share-rules.test.ts`, and once by hand against a local server; not yet in a real
+  browser.
+- **Private content** (`sharing/share-rules.ts`): a page flag or a `private` chunk tag
+  means no sharing, no AIQA span (`NO_TRACE` in `tracing/tracer-hook.ts`), no feedback, and
+  local models only — the last has a toggle on the AI Model page (`privateLocalOnly`).
+  Private comes from the site list (webmail, X direct messages, …), the X chunker
+  (protected accounts — selector not yet checked on the live site), or "Mark this page as
+  private" in the Content Analysis modal, which is stored locally and never sent.
+- **Adult site check** (`classify/site-type.ts`): rating meta tag, RTA label, adult
+  top-level domains. The first thing to populate `siteType`; everything else stays unknown.
+
 ## Recent fixes
 
 - Security and user-facing bugs from a 2026-09 review (auth, sort allowlist, fact-check
@@ -421,6 +439,11 @@ exactly what they lack. Keep them, but add new coverage as pages.
 - Local models require Chromium with `offscreen` API; first download is large (~25–300 MB per model)
 - Firefox build (`manifest.firefox.json`) not wired for local models yet
 - Most analysis features still fall back to heuristics when local model not downloaded
+- `npm test` stops at `mock.factcheck-google.test.ts`: `claims.slice is not a function` in
+  `features/fact-checker/factcheck-google.ts`, which also fails `factcheck-claims.test.ts`.
+  Every test after it in the chain is skipped, so run those files directly until it is fixed.
+- The "Contribute to shared fact-check cache" checkbox (`shareFactCheckCache`) does nothing;
+  shared analysis is governed by "Use shared analysis" alone. Remove or merge it.
 - `npm run type-check` is noisy (pre-existing implicit-any errors). `npm test` and `npm run build` are the gates.
 
 ## Next

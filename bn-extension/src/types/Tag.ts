@@ -35,7 +35,7 @@ export interface TagSpec {
 	label: string;
 }
 
-/** The chunk's own tags, offered on the "This chunk" section. */
+/** The chunk's own tags, offered on the "This chunk" section. TODO make from Classification to avoid two overla[[ing lists]] */
 export const CHUNK_TAG_SPECS: TagSpec[] = [
 	{ id: 'chunk-type:article', label: 'Article' },
 	{ id: 'chunk-type:post', label: 'Post' },

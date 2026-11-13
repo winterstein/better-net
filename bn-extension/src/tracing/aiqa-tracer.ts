@@ -27,7 +27,7 @@ import {
 import { Resource } from '@opentelemetry/resources';
 import { SpanStatusCode, trace, context as otelContext, TraceFlags } from '@opentelemetry/api';
 import type { Span } from '@opentelemetry/api';
-import { setTracerImpl } from './tracer-hook.js';
+import { NO_TRACE, setTracerImpl } from './tracer-hook.js';
 import type {
 	SpanOptions,
 	TraceAttributes,
@@ -208,7 +208,7 @@ async function applyTracingConfig(settings: AiqaSettings): Promise<boolean> {
  * as spans under `parent`, preserving their original start and end times.
  */
 export function recordRelayedSteps(steps: RelayedStep[] | undefined, parent: TraceHandle | null): void {
-	if (!provider || !parent || !steps?.length) return;
+	if (!provider || !parent || parent === NO_TRACE || !steps?.length) return;
 	for (const step of steps) {
 		if (!Number.isFinite(step.start) || !Number.isFinite(step.end)) continue;
 		const span = tracer().startSpan(

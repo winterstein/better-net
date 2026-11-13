@@ -55,6 +55,14 @@
   failed install leaves the live service up.
 - DEVOPS.md refreshed (host setup, main-only deploy, Neon, no Elasticsearch).
 
+- **Shared analysis** (`src/routes/shared-analysis.ts`, specs/shared-analysis): upload and
+  lookup of chunk-level results keyed on content hashes, best model served, no chunk text
+  stored, anonymous monthly share id kept as an HMAC, server-managed site list, staff
+  removal of a contributor. `test/test_shared_analysis.ts`. Not deployed yet.
+- `src/bn-extension-src` symlink restored (it was deleted in commit 878fc88, which broke
+  the build and five test files), and `tracing/tracer-hook.ts` imports `logger.js` with its
+  extension, which is what the chunk and ai_shared tests were failing on.
+
 ## AI layer
 
 - `src/ai/server-analysis.ts` — merge env keys into `AnalysisOptions`
@@ -62,6 +70,13 @@
 - Prompts in `prompts/prompt-text.ts` (Node + esbuild compatible)
 
 ## Blocked
+
+- **`npm run build` fails**: 18 type errors in shared extension code (`features/*/analyze-chunk.ts`,
+  `factcheck-llm.ts`, `types/ChunkAnalysis.ts`, `ai/llm-client.ts`) — results missing
+  `id` / `methodName` / `model`. Not from shared analysis, but the deploy runs this build,
+  so nothing ships until they are fixed.
+- Locally, Postgres needs a password and `.env.test` blanks it. Run tests with
+  `PGPASSWORD=<the .env password> npm test`.
 
 - `npm test` needs Postgres on `localhost:5432` (`.env.test`); it is not started by the suite.
 

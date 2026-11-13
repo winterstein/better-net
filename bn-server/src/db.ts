@@ -230,6 +230,51 @@ async function db_init(): Promise<boolean> {
 			created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)`);
 		console.log('Account tables initialized successfully');
+
+		/*
+		 * Shared analysis (specs/shared-analysis). Keyed on content hashes from the
+		 * extension's cache-key code; no chunk text is stored anywhere here.
+		 * - sharedResult: one row per feature + chunk + model. The primary key is the dedupe.
+		 * - sharedContributor: who sent it, as an HMAC pseudonym. A side table so two
+		 *   contributors of one result are both recorded, and removing one leaves the other.
+		 * - pageSplit: page url -> the chunk keys seen on it, for lookup by url.
+		 * - siteList: server-managed allow / block / private entries, on top of the seed
+		 *   list in bn-extension-src/sharing/share-rules.ts.
+		 */
+		await client.query(`CREATE TABLE IF NOT EXISTS sharedResult (
+			featureId TEXT NOT NULL,
+			chunkKey TEXT NOT NULL,
+			model TEXT NOT NULL,
+			result JSONB NOT NULL,
+			created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (featureId, chunkKey, model)
+		)`);
+		await client.query(`CREATE INDEX IF NOT EXISTS idx_sharedResult_chunkKey ON sharedResult (chunkKey);`);
+		await client.query(`CREATE TABLE IF NOT EXISTS sharedContributor (
+			featureId TEXT NOT NULL,
+			chunkKey TEXT NOT NULL,
+			model TEXT NOT NULL,
+			contributor TEXT NOT NULL,
+			PRIMARY KEY (featureId, chunkKey, model, contributor)
+		)`);
+		await client.query(`CREATE INDEX IF NOT EXISTS idx_sharedContributor_contributor ON sharedContributor (contributor);`);
+		await client.query(`CREATE TABLE IF NOT EXISTS blockedContributor (
+			contributor TEXT PRIMARY KEY,
+			created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`);
+		await client.query(`CREATE TABLE IF NOT EXISTS pageSplit (
+			url TEXT PRIMARY KEY,
+			chunkKeys JSONB NOT NULL,
+			updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`);
+		await client.query(`CREATE TABLE IF NOT EXISTS siteList (
+			pattern TEXT PRIMARY KEY,
+			kind TEXT NOT NULL,
+			note TEXT,
+			updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`);
+		console.log('Shared analysis tables initialized successfully');
 	} catch (error) {
 		console.error('Error initializing tables:', error);
 		throw error;

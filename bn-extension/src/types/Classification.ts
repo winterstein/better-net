@@ -120,6 +120,11 @@ export const CHUNK_MODIFIERS = [
 	'ugc',
 	'paywalled',
 	'countdown',
+	/**
+	 * Must not leave the browser: no shared analysis, no AIQA span, no feedback
+	 * (sharing/share-rules.ts). Set by a chunker that can tell, e.g. a protected X post.
+	 */
+	'private',
 ] as const;
 
 export type ChunkModifier = (typeof CHUNK_MODIFIERS)[number];

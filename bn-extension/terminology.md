@@ -18,6 +18,8 @@ Canonical module ids live in `src/settings/modules-esm.ts`. Analysis features: `
 - Module problemScore — (`high` | `medium` | `low`), based on the tags
 - Trace / Span — AIQA record of one page analysis and the steps inside it (`src/tracing/`)
 - Feedback target — what one correction is about: summary, module, chunker, chunk, or page (`specs/feedback.md`)
+- Private — content that must not leave the browser: no shared analysis, no AIQA trace, no feedback, and local models only unless the user chooses otherwise. A flag on the page (`PageMetadata.private`) or the `private` modifier tag on a chunk (`src/sharing/share-rules.ts`)
+- Shared analysis — opt-in reuse of other users' chunk results via bn-server (`bn-server/specs/shared-analysis`)
 - Preset issue — the canned "how was it wrong?" buttons shown after a thumbs down
 
 ## Modules and Tags

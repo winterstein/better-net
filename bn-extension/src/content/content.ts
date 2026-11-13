@@ -33,6 +33,10 @@ import {
 } from '../types/RiskLevel.js';
 import { chunkProblemScore } from '../types/ChunkAnalysis.js';
 import { classifyPageType } from '../classify/page-type.js';
+import { classifySiteType } from '../classify/site-type.js';
+import { isPrivatePage } from '../sharing/share-rules.js';
+import { isMarkedPrivate } from '../sharing/private-pages.js';
+import { loadSiteList } from '../sharing/shared-analysis-client.js';
 
 /**
  * Waiting for `load` is not enough on a single-page app: x.com renders its post tree after
@@ -397,6 +401,10 @@ class PageAnalyzer {
         // Classify before analyzing (specs/content-classification.md): the engine routes
         // features by page type, and refuses content analysis on login / checkout pages.
         pageType: classifyPageType(document, url),
+        siteType: classifySiteType(document, url),
+        // Decided here, before anything is sent: a private page gets no AIQA trace, no
+        // shared analysis and no feedback (sharing/share-rules.ts).
+        private: isPrivatePage({ url, private: await isMarkedPrivate(url) }, await loadSiteList()),
       };
       logit('log',
         '[BetterNet] [CONTENT] Sending', plan.analyseNow, 'of', plan.ordered.length,
@@ -468,6 +476,20 @@ class PageAnalyzer {
     if (!value || !this.pageMetadata) return;
     this.pageMetadata.pageType = { value, confidence: 1, source: 'user' };
     logit('log', '[BetterNet] [CONTENT] Page type corrected to', value);
+  }
+
+  /**
+   * "Mark this page as private" in the Content Analysis modal. Applies from here on: the
+   * background stores the mark and drops queued feedback, and later passes are untraced.
+   * What was already sent cannot be recalled.
+   */
+  markPagePrivate() {
+    if (this.pageMetadata) this.pageMetadata.private = true;
+    chrome.runtime.sendMessage({ type: 'BN_MARK_PRIVATE', url: window.location.href }, () => {
+      if (chrome.runtime.lastError) {
+        logit('warn', '[BetterNet] [CONTENT] Could not store the private mark:', chrome.runtime.lastError.message);
+      }
+    });
   }
 
   stopChunkSchedule() {
@@ -874,6 +896,8 @@ class PageAnalyzer {
         // The page-type tag, shown and correctable under "This page".
         pageType: this.pageMetadata?.pageType,
         onPageTypeEdit: (value) => this.setPageType(value),
+        pagePrivate: !!this.pageMetadata?.private,
+        onMarkPrivate: () => this.markPagePrivate(),
       });
     });
 

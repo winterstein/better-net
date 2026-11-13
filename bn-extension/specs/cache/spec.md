@@ -29,8 +29,10 @@ User settings (under advanced settings) are:
  - Use local cache: true/false
  - Clear local cache: button
 
-## Server-side cache: TODO
+## Server-side cache
 
-A future feature: saving and loading shared analysis results from a server-side cache.
+Shared analysis: see [bn-server shared-analysis spec](../../../bn-server/specs/shared-analysis/spec.md).
 
-The client-side cache code should be modular and support a future strategy of mixing client-side and server-side caching.
+The engine reads the local cache first, then shared results for the page, then analyses. A shared hit is copied into the local cache. The same chunk keys are used for both.
+
+Off by default: Settings -> Data Sharing -> "Use shared analysis".

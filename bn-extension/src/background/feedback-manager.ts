@@ -6,6 +6,9 @@
  * for the trace view, best-effort, never allowed to fail the submission.
  */
 
+import { isPrivatePage } from '../sharing/share-rules.js';
+import { isMarkedPrivate } from '../sharing/private-pages.js';
+import { loadSiteList } from '../sharing/shared-analysis-client.js';
 import { mergeSettings } from '../settings/modules-esm.js';
 import {
 	buildFeedbackSubmission,
@@ -97,6 +100,13 @@ export async function handleSubmitFeedback(message: {
 	const settings = mergeSettings(stored);
 	if (!isFeedbackEnabled(settings)) {
 		return { ok: false, error: 'Feedback sharing is disabled in Settings → Data Sharing' };
+	}
+
+	// Private pages take no feedback. The modal already hides the controls; this is the
+	// backstop, so nothing about a private page can reach the server or AIQA from here.
+	const pageUrl = String(message.payload?.pageUrl || message.payload?.chunkUrl || '');
+	if (isPrivatePage({ url: pageUrl, private: await isMarkedPrivate(pageUrl) }, await loadSiteList())) {
+		return { ok: false, error: 'Feedback is off for private pages' };
 	}
 
 	// The local id owns the feedback; the email is an unverified label and may be absent.

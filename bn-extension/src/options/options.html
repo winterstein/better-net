@@ -36,6 +36,14 @@
           </div>
           <!-- TODO replace analysis-mode with activeProvider activeModel -->
 
+          <div class="setting-item">
+            <label class="checkbox-label">
+              <input type="checkbox" id="private-local-only">
+              <span><strong>Private content: local models only</strong></span>
+            </label>
+            <span class="setting-description">Pages and chunks marked private (direct messages, webmail, protected posts) are analysed in your browser and never sent to OpenAI, Anthropic or a custom endpoint. Turn off to use the active model for everything. On by default.</span>
+          </div>
+
           <div id="local-models-section" class="setting-item local-models-section">
             <h3 class="subsection-title">Local models</h3>
             <p class="setting-description">Download a small model to run analysis on your device. Models are cached in the browser.</p>
@@ -257,9 +265,9 @@
           <div class="setting-item">
             <label class="checkbox-label">
               <input type="checkbox" id="use-server-cache">
-              <span><strong>Use server cache</strong></span>
+              <span><strong>Use shared analysis</strong></span>
             </label>
-            <span class="setting-description">Fetch cached analysis from the server endpoint to speed up analysis. Not yet available. Endpoint is under Advanced.</span>
+            <span class="setting-description">Reuse analysis other users have already run, and contribute yours. Sends the page address and analysis results for articles and public posts to the server endpoint — never the page text, and never private pages. Off by default. Endpoint is under Advanced.</span>
           </div>
 
           <div class="setting-item">

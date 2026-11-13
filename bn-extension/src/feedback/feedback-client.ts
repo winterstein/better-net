@@ -9,6 +9,7 @@
  * (background/feedback-manager.ts).
  */
 
+import { privatePageKey } from '../sharing/private-pages.js';
 import { tagsForModule } from '../features/module-tags.js';
 import { problemScoreFromFraction, type ProblemScore } from '../types/Score.js';
 import {
@@ -228,6 +229,22 @@ export async function deleteMyFeedback(
 	await clearFeedbackQueue();
 	const { deleted } = await postJson(serverEndpoint, '/api/feedback/delete-mine', { localId: ownerKey }, fetchImpl);
 	return Number(deleted) || 0;
+}
+
+/**
+ * Drop unsent feedback about one page, when the user marks it private
+ * (sharing/private-pages.ts). Without this the flush alarm would send it minutes later.
+ */
+export async function dropQueuedFeedbackForPage(pageUrl: string): Promise<void> {
+	const key = privatePageKey(pageUrl);
+	if (!key) return;
+	return withQueueWrite(async () => {
+		const queue = await readQueue();
+		const kept = queue.filter(
+			(item) => privatePageKey(item.pageUrl ?? '') !== key && privatePageKey(item.chunkUrl ?? '') !== key
+		);
+		if (kept.length !== queue.length) await chrome.storage.local.set({ [FEEDBACK_QUEUE_KEY]: kept });
+	});
 }
 
 export async function clearFeedbackQueue(): Promise<void> {

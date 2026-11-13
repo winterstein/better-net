@@ -1,5 +1,6 @@
 // Content Analysis detail modal (opened from chunk nutrition badge)
 
+import { isPrivateChunk } from '../sharing/share-rules.js';
 import type { ModuleAnalysis } from '../types/ModuleAnalysis.js';
 import type { ChunkAnalysis } from '../types/ChunkAnalysis.js';
 import { chunkProblemBand, chunkProblemScore } from '../types/ChunkAnalysis.js';
@@ -148,7 +149,9 @@ const TAG_EDIT_PROMPT = 'Tags — remove what does not fit, add what we missed:'
  * broken modal. See specs/feedback.md.
  */
 function renderFeedbackOffNote(reason: string | undefined, hasChunkId: boolean): string {
-  const text = !hasChunkId
+  const text = reason === 'private'
+    ? 'Feedback is off: this is private content, so nothing about it leaves your browser.'
+    : !hasChunkId
     ? 'No feedback here: this chunk has no id, so a correction could not be attached to it.'
     : reason === 'no-endpoint'
       ? 'Feedback is off: no server to send it to. Set Settings → Advanced → Server endpoint.'
@@ -865,7 +868,7 @@ function renderFactCheckClaims(factChecks: unknown[]): string {
 
 /** Why the feedback controls are absent, so the modal can say so instead of just
  *  rendering nothing. Set in content.ts, where the settings are known. */
-export type FeedbackOffReason = 'sharing-off' | 'no-endpoint';
+export type FeedbackOffReason = 'sharing-off' | 'no-endpoint' | 'private';
 
 /** A chunk's analysis, plus the page-level context the modal needs from content.ts. */
 export interface ContentAnalysisModalData extends Partial<ChunkAnalysis> {
@@ -882,6 +885,10 @@ export interface ContentAnalysisModalData extends Partial<ChunkAnalysis> {
   onPageTypeEdit?: (value: PageType) => void;
   aiqaServerUrl?: string;
   aiqaOrganisationId?: string;
+  /** The page is private (sharing/share-rules.ts): no feedback, no trace, no sharing. */
+  pagePrivate?: boolean;
+  /** The user marked the page private. Stored locally by the caller; never sent. */
+  onMarkPrivate?: () => void;
 }
 
 /** Show or replace the Content Analysis detail modal for a chunk. */
@@ -898,11 +905,11 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
     title,
     fingerprint,
     url,
-    feedbackEnabled,
+    pagePrivate,
+    onMarkPrivate,
     traceId,
     spanId,
     developerMode,
-    feedbackOffReason,
     chunkCount,
     pageUrl,
     pageType,
@@ -910,6 +917,10 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
     aiqaServerUrl,
     aiqaOrganisationId,
   } = analysisResults;
+  // Private content takes no feedback: the page as a whole, or this one chunk.
+  const isPrivate = !!pagePrivate || isPrivateChunk({ tags });
+  const feedbackEnabled = analysisResults.feedbackEnabled && !isPrivate;
+  const feedbackOffReason = isPrivate ? 'private' : analysisResults.feedbackOffReason;
   const problemScore = chunkProblemScore(analysisResults);
   // The band is what feedback stores; the fraction above is only for the % and colour.
   const problemBand = chunkProblemBand(analysisResults);
@@ -1185,6 +1196,14 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
           </h3>
           ${renderPageTypeRow({ pageType, canFeedback: canPageFeedback, developerMode })}
           ${canFeedback ? renderFeedbackWidget({ target: 'chunker' }) : ''}
+          <div style="margin-top: 10px; font-size: 12px; color: #666;">
+            ${
+              pagePrivate
+                ? 'Private page: not traced, not shared, and analysed without feedback.'
+                : `<button type="button" id="betternet-mark-private" style="${TAG_ADD_STYLE}">Mark this page as private</button>
+                   <span style="margin-left: 6px;">Nothing about it will be shared or traced.</span>`
+            }
+          </div>
         </div>
       `;
 
@@ -1194,6 +1213,12 @@ export function showContentAnalysisModal(analysisResults: ContentAnalysisModalDa
 
   document.getElementById('betternet-close-modal')!.addEventListener('click', () => {
     modal.remove();
+  });
+
+  // Re-render so the feedback controls go at once, not on the next open.
+  document.getElementById('betternet-mark-private')?.addEventListener('click', () => {
+    onMarkPrivate?.();
+    showContentAnalysisModal({ ...analysisResults, pagePrivate: true });
   });
 
   modal.addEventListener('click', (e) => {

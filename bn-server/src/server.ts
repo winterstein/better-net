@@ -15,6 +15,7 @@ import accountRoutes from './routes/account.js';
 import chunkRoutes from './routes/chunk.js';
 import feedbackRoutes from './routes/feedback.js';
 import pageRoutes from './routes/page.js';
+import sharedAnalysisRoutes from './routes/shared-analysis.js';
 import siteRoutes from './routes/site.js';
 import userRoutes from './routes/user.js';
 import { db_init } from './db.js';
@@ -28,6 +29,7 @@ fastify.register(accountRoutes, { prefix: '/api/account' });
 fastify.register(chunkRoutes, { prefix: '/api/chunk' });
 fastify.register(feedbackRoutes, { prefix: '/api/feedback' });
 fastify.register(pageRoutes, { prefix: '/api/page' });
+fastify.register(sharedAnalysisRoutes, { prefix: '/api/shared-analysis' });
 fastify.register(siteRoutes, { prefix: '/api/site' });
 fastify.register(userRoutes, { prefix: '/api/user' });
 

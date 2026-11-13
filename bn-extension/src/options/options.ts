@@ -706,6 +706,7 @@ class SettingsController {
     setChecked('analyze-on-screen-first', s.analyzeOnScreenFirst !== false);
     setChecked('show-chunk-overlay', !!s.showChunkOverlay);
     setChecked('use-local-cache', s.useLocalCache !== false);
+    setChecked('private-local-only', s.privateLocalOnly !== false);
     setDeveloperMode(developerModeFromSettings(s));
   }
 
@@ -750,6 +751,7 @@ class SettingsController {
       developerMode: document.getElementById('developer-mode').checked,
       showChunkOverlay: document.getElementById('show-chunk-overlay').checked,
       useLocalCache: document.getElementById('use-local-cache').checked,
+      privateLocalOnly: document.getElementById('private-local-only').checked,
       modules,
       excludedSites: this.settings.excludedSites,
       domainOverrides: this.settings.domainOverrides,

@@ -61,6 +61,20 @@ const withAds = await extractChunks(w.document as any, URL_, { includeAds: true 
 assert.equal(withAds.length, 2);
 assert.ok(withAds.some((c) => c.tags.includes('advert')), 'placementTracking tags an advert');
 
+// A protected account shows a padlock beside its name. Its posts are followers-only, so
+// the chunk is tagged private: not shared, not traced (sharing/share-rules.ts).
+const LOCKED = HTML.replace(
+  '<span>@drhossamsamy65</span>',
+  '<span>@drhossamsamy65</span><svg data-testid="icon-lock"></svg>'
+);
+const w3 = new Window({ url: URL_ });
+(globalThis as any).window = w3 as any;
+(globalThis as any).document = w3.document as any;
+w3.document.write(LOCKED);
+const locked = await extractChunks(w3.document as any, URL_);
+assert.ok(locked[0].tags.includes('private'), 'a protected post is tagged private');
+assert.ok(!post.tags.includes('private'), 'an ordinary post is not');
+
 // Re-analysis after an SPA navigation sees the previous run's nutrient labels still in the
 // DOM. They are our own UI, not page content, and must not be read back as post text.
 const LABELLED = HTML.replace(

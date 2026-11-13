@@ -10,7 +10,7 @@
  * - OpenTelemetry stays out of the content-script and offscreen bundles.
  */
 
-import { logit } from "../utils/logger";
+import { logit } from "../utils/logger.js";
 
 export type TraceAttributes = Record<string, string | number | boolean>;
 
@@ -59,6 +59,17 @@ export interface TracerImpl {
 
 let impl: TracerImpl | null = null;
 
+/**
+ * "Do not trace this, or anything under it." A null parent starts a new trace, so private
+ * content (sharing/share-rules.ts) needs a parent that says no instead: a span started
+ * under NO_TRACE is NO_TRACE, and every call below ignores it.
+ */
+export const NO_TRACE: TraceHandle = Object.freeze({ span: Object.freeze({}) });
+
+function live(handle: TraceHandle | null | undefined): handle is TraceHandle {
+	return !!impl && !!handle && handle !== NO_TRACE;
+}
+
 /** Pass null to disable tracing. See tracing/aiqa-tracer.ts. */
 export function setTracerImpl(next: TracerImpl | null): void {
 	impl = next;
@@ -69,6 +80,7 @@ export function isTracing(): boolean {
 }
 
 export function startSpan(name: string, opts: SpanOptions = {}): TraceHandle | null {
+	if (opts.parent === NO_TRACE) return NO_TRACE;
 	return impl ? impl.startSpan(name, opts) : null;
 }
 
@@ -77,18 +89,18 @@ export function endSpan(
 	attributes: TraceAttributes = {},
 	error?: unknown
 ): void {
-	if (!impl || !handle) return;
+	if (!live(handle)) return;
 	impl.setAttributes(handle, attributes);
 	impl.endSpan(handle, error);
 }
 
 export function setAttributes(handle: TraceHandle | null, attributes: TraceAttributes): void {
-	if (impl && handle) impl.setAttributes(handle, attributes);
+	if (live(handle)) impl.setAttributes(handle, attributes);
 }
 
 /** Null when tracing is off, or the span was not sampled. */
 export function traceIds(handle: TraceHandle | null): TraceIds | null {
-	return impl && handle ? impl.ids(handle) : null;
+	return live(handle) ? impl.ids(handle) : null;
 }
 
 /**
@@ -96,7 +108,7 @@ export function traceIds(handle: TraceHandle | null): TraceIds | null {
  * times — e.g. model load and inference measured inside the offscreen worker.
  */
 export function recordSteps(steps: TraceStep[] | undefined, parent: TraceHandle | null): void {
-	if (impl && parent && steps?.length) impl.recordSteps(steps, parent);
+	if (live(parent) && steps?.length) impl.recordSteps(steps, parent);
 }
 
 /**

@@ -8,6 +8,7 @@
 
 import {isElementHidden, generateXPath, NON_CONTENT_SELECTOR, parseHTML} from './chunking-utils.js';
 import { TAG } from './chunk-tags.js';
+import { PRIVATE_TAG } from '../sharing/share-rules.js';
 
 /** Post container, most specific first. */
 const POST_SELECTORS = [
@@ -15,6 +16,9 @@ const POST_SELECTORS = [
   '[data-testid="cellInnerDiv"] article',
   'article[role="article"]',
 ];
+
+/** The padlock X shows beside the name of a protected account. */
+const PROTECTED_SELECTOR = '[data-testid="icon-lock"]';
 
 /** Promoted posts carry X's ad placement wrapper. */
 const AD_SELECTOR = '[data-testid="placementTracking"]';
@@ -73,6 +77,10 @@ function extractXChunk(element: Element, pageUrl) {
     .slice(0, 5);
 
   const isAd = !!element.querySelector(AD_SELECTOR) || !!element.closest?.(AD_SELECTOR);
+  const tags = [TAG.POST];
+  if (isAd) tags.push(TAG.ADVERT);
+  // A protected account's posts are for its followers only, though the url looks public.
+  if (element.querySelector(PROTECTED_SELECTOR)) tags.push(PRIVATE_TAG);
 
   return {
     url: pageUrl,
@@ -86,7 +94,7 @@ function extractXChunk(element: Element, pageUrl) {
       classes: Array.from(element.classList),
       author,
     },
-    tags: isAd ? [TAG.POST, TAG.ADVERT] : [TAG.POST],
+    tags,
     xpath: generateXPath(element),
     isPrimary: false,
   };

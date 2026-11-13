@@ -43,7 +43,11 @@ import {
 	flushAiqaSpans,
 	recordRelayedSteps,
 } from '../tracing/aiqa-tracer.js';
-import { startSpan, endSpan, setAttributes, recordSteps } from '../tracing/tracer-hook.js';
+import { NO_TRACE, startSpan, endSpan, setAttributes, recordSteps } from '../tracing/tracer-hook.js';
+import { isPrivatePage } from '../sharing/share-rules.js';
+import { markPrivate } from '../sharing/private-pages.js';
+import { dropQueuedFeedbackForPage } from '../feedback/feedback-client.js';
+import { loadSiteList, openSharedAnalysis } from '../sharing/shared-analysis-client.js';
 import { warmLocalModel } from '../ai/local-inference-client.js';
 import { isInstalled } from '../ai/model-status.js';
 import { AnalysisOptions } from '../types/AnalysisOptions.js';
@@ -167,6 +171,7 @@ class AnalysisManager {
           'GET_AD_BLOCK_STATUS',
           'SITE_EXCLUSION_CHANGED',
           'BN_SUBMIT_FEEDBACK',
+          'BN_MARK_PRIVATE',
           'BN_FEEDBACK_LINK',
           'BN_FEEDBACK_COUNT',
           'BN_FEEDBACK_DELETE',
@@ -303,6 +308,14 @@ class AnalysisManager {
       case 'BN_SUBMIT_FEEDBACK': {
         const result = await handleSubmitFeedback(message);
         sendResponse(result);
+        break;
+      }
+
+      // Content Analysis modal -> "Mark this page as private". Stored locally, never sent.
+      case 'BN_MARK_PRIVATE': {
+        await markPrivate(message.url);
+        await dropQueuedFeedbackForPage(message.url);
+        sendResponse({ ok: true });
         break;
       }
 
@@ -598,6 +611,10 @@ class AnalysisManager {
       // Classified in the content script, where the DOM is (classify/page-type.ts).
       // The engine routes on it; absent means unknown, which routes nothing out.
       pageType: state.pageMetadata?.pageType,
+      siteType: state.pageMetadata?.siteType,
+      // Private pages are not traced, shared, or sent to a remote model. Checked again
+      // here against the site list, so it does not rest on the content script alone.
+      private: isPrivatePage({ url: state.url, private: state.pageMetadata?.private }, await loadSiteList()),
     };
 
     // Ensure chrome storage is initialized
@@ -647,6 +664,10 @@ class AnalysisManager {
 
   /** One AIQA span per pass: an MV3 worker can be recycled between passes. */
   openPassTrace(state, ctx, chunks) {
+    if (ctx.pageMetadata.private) {
+      state.trace = NO_TRACE;
+      return;
+    }
     state.trace = startSpan('betternet.analyze_page', {
       // The first pass covers chunking too: the content script chunks before it messages us.
       startTime: state.passes > 1 ? state.passStart : earliestStart(state),
@@ -720,6 +741,9 @@ class AnalysisManager {
       const ctx = await this.analysisContext(state);
       if (hardSkipPageReason(ctx.pageMetadata)) noteDiagnostic(state, CONTENT_ANALYSIS_OFF_MESSAGE);
       this.openPassTrace(state, ctx, chunks);
+      // Shared analysis: one lookup per page, on its first pass. Null when the user has
+      // not opted in or the page is unsuitable (sharing/shared-analysis-client.ts).
+      if (state.shared === undefined) state.shared = await openSharedAnalysis(ctx.pageMetadata, ctx.settings);
       await this.warmLocalModelForPass(state, ctx);
 
       this.broadcastProgress(state, { currentStage: 'Analyzing content chunks in parallel...' });
@@ -727,6 +751,8 @@ class AnalysisManager {
       const analysisOptions : AnalysisOptions = {
           mode: ctx.settings.analysisMode,
           useLocalCache: ctx.settings.useLocalCache !== false,
+          shared: state.shared,
+          privateLocalOnly: ctx.settings.privateLocalOnly !== false,
           config: ctx.config,
           maxConcurrency: 5,
           enabledFeatures: ctx.enabledFeatures,
@@ -776,6 +802,7 @@ class AnalysisManager {
       // A pass can be the last thing the worker does. Flush before it is suspended,
       // or a reload would miss results that were only in memory (specs/cache/spec.md).
       await flushAnalysisCache();
+      await state.shared?.upload();
       await flushAiqaSpans();
     }
   } // ./runPass

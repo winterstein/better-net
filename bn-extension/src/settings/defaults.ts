@@ -121,6 +121,9 @@
     demoMode: false,
     // Reuse feature results already computed in this browser (specs/cache/spec.md).
     useLocalCache: true,
+    // Private pages and chunks (sharing/share-rules.ts) are analysed by local models only.
+    // Off lets them use the active model, which may be a remote API. Keep defaults.ts and modules-esm.ts in step.
+    privateLocalOnly: true,
     excludedSites: [],
     domainOverrides: {},
     modules: defaultModuleState(),

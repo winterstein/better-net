@@ -7,7 +7,10 @@ import { defaultCacheKey } from './cache-key.js';
 import { localAnalysisCache } from './analysis-cache.js';
 import { hostListed, normalizeHost } from '../utils/host.js';
 import { hardSkipPageReason, routeChunk } from '../features/module-routing.js';
-import { traceStep, setAttributes, traceIds } from '../tracing/tracer-hook.js';
+import { NO_TRACE, traceStep, setAttributes, traceIds } from '../tracing/tracer-hook.js';
+import { isPrivateChunk, shareChunkBlockReason } from '../sharing/share-rules.js';
+import { isRemoteProvider } from '../ai/llm-client.js';
+import { modelRank } from '../ai/model-info.js';
 import { logit } from '../utils/logger.js';
 import { completeModuleAnalysis } from '../types/ModuleAnalysis.js';
 import type { ModuleAnalysis } from '../types/ModuleAnalysis.js';
@@ -174,7 +177,19 @@ async function analyzeFeature(
   const cacheSettingOn = analysisOptions.useLocalCache !== false;
   const cacheOn = cacheSettingOn && !modelId;
   // `??` would keep the boolean `true` and never read the cache.
-  const cached = cacheOn ? await localAnalysisCache.get(feature.id, storedKey) : undefined;
+  let cached = cacheOn ? await localAnalysisCache.get(feature.id, storedKey) : undefined;
+  // Shared analysis (bn-server/specs/shared-analysis): asked after a local miss, never on
+  // a redo. A hit is kept in the local cache below, so it is fetched once.
+  const shared = !modelId && !shareChunkBlockReason(chunk) ? analysisOptions.shared : null;
+  let fromShared = false;
+  if (!cached && shared) {
+    const hit = shared.get(feature.id, key, model);
+    if (hit) {
+      cached = { ...hit, metadata: { ...hit.metadata, shared: true } };
+      fromShared = true;
+      if (cacheOn) await localAnalysisCache.set(feature.id, storedKey, cached);
+    }
+  }
   const fresh = cached
     ? null
     : await feature.analyze(chunk, pageMetadata, { ...analysisOptions, trace: span, modelId });
@@ -186,9 +201,18 @@ async function analyzeFeature(
 	console.log('saving to cache', feature.id, storedKey, storable);
     await localAnalysisCache.set(feature.id, storedKey, storable);
   }
+  // Only a result a model produced here and now: not a heuristic, and not one that came
+  // from the shared cache in the first place.
+  if (shared && fresh && cacheableResult(fresh)) {
+    const usedModel = fresh.model || model;
+    if (analysisOptions.mode !== 'heuristic' && modelRank(usedModel) > 0) {
+      const { spanId: _spanId, id: _id, user: _user, ...shareable } = fresh;
+      shared.add(feature.id, key, usedModel, shareable);
+    }
+  }
   const scoreFraction = fractionFromProblemScore(result.problemScore) || 0;
   setAttributes(span, {
-    'betternet.cache': !cacheOn ? 'off' : cached ? 'hit' : 'miss',
+    'betternet.cache': fromShared ? 'shared' : !cacheOn ? 'off' : cached ? 'hit' : 'miss',
     'betternet.problem_score': scoreFraction,
     'betternet.confidence': result.confidence ?? 0,
     'betternet.tag_count': result.tags?.length ?? 0,
@@ -202,8 +226,10 @@ async function analyzeFeature(
 async function analyzeTracedChunk(
   chunk: Chunk,
   pageMetadata: Partial<PageMetadata>,
-  analysisOptions: Partial<AnalysisOptions> & { enabledFeatures?: string[] }
+  options: Partial<AnalysisOptions> & { enabledFeatures?: string[] }
 ): Promise<ChunkAnalysis> {
+  const analysisOptions =
+    pageMetadata.private || isPrivateChunk(chunk) ? privateOptions(options) : options;
   return traceStep(
     'betternet.analyze_chunk',
     { parent: analysisOptions.trace, attributes: chunkAttributes(chunk) },
@@ -220,6 +246,26 @@ async function analyzeTracedChunk(
       return analysis;
     }
   );
+}
+
+/**
+ * Options for private content (sharing/share-rules.ts): nothing about it leaves the
+ * browser. No AIQA span, no shared lookup or upload, and — unless the user chose
+ * otherwise in Settings -> AI Model — no remote model and no Google fact-check call, so
+ * the local model (or its heuristic fallback) does the work.
+ */
+function privateOptions<T extends Partial<AnalysisOptions>>(options: T): T {
+  const localOnly = options.privateLocalOnly !== false;
+  return {
+    ...options,
+    trace: NO_TRACE,
+    shared: null,
+    ...(localOnly && {
+      mode: isRemoteProvider(options.mode ?? '') ? 'local' : options.mode,
+      llmClient: undefined,
+      config: { ...options.config, googleFactCheckKey: undefined },
+    }),
+  };
 }
 
 /** Live counts for the Popup's chunk progress line (popup/popup.ts). */
