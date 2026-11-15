@@ -69,14 +69,17 @@
 - Shared `bn-extension-src/ai/llm-client.ts` — OpenAI/Anthropic adapters + AIQA trace hook (`BN_AIQA_ENDPOINT`)
 - Prompts in `prompts/prompt-text.ts` (Node + esbuild compatible)
 
+- **CI fixed** (`.github/workflows/server-deploy.yml`): `.env.test` no longer blanks
+  `DB_PASSWORD` (it overrides, so the blank wiped the password CI sets and every DB test
+  failed to connect); the 18 build type errors are gone (analyzers return
+  `ModuleAnalysisPartial`, which is what the engine completes); the SSH actions are pinned
+  to commits and check the host key; the job token is read-only.
+
 ## Blocked
 
-- **`npm run build` fails**: 18 type errors in shared extension code (`features/*/analyze-chunk.ts`,
-  `factcheck-llm.ts`, `types/ChunkAnalysis.ts`, `ai/llm-client.ts`) — results missing
-  `id` / `methodName` / `model`. Not from shared analysis, but the deploy runs this build,
-  so nothing ships until they are fixed.
-- Locally, Postgres needs a password and `.env.test` blanks it. Run tests with
-  `PGPASSWORD=<the .env password> npm test`.
+- **The next deploy fails on purpose until `DEPLOY_HOST_FINGERPRINT` is set** as a variable
+  in the GitHub `prod` environment. On the host:
+  `ssh-keygen -l -f /etc/ssh/ssh_host_ed25519_key.pub | cut -d ' ' -f2`
 
 - `npm test` needs Postgres on `localhost:5432` (`.env.test`); it is not started by the suite.
 

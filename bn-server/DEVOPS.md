@@ -42,7 +42,9 @@ Manual: GitHub → Actions → Deploy Server → Run workflow.
 
 ### GitHub Environment `prod`
 
-Variables: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PORT`, `SERVER_PORT`, `SERVER_HOST`,
+Variables: `DEPLOY_HOST`, `DEPLOY_HOST_FINGERPRINT` (required — the host's SSH key fingerprint,
+from `ssh-keygen -l -f /etc/ssh/ssh_host_ed25519_key.pub | cut -d ' ' -f2` on the host),
+`DEPLOY_USER`, `DEPLOY_PORT`, `SERVER_PORT`, `SERVER_HOST`,
 `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `AUTH0_DOMAIN`, `AUTH0_AUDIENCE`,
 `BN_AIQA_ENDPOINT`, `RUN_AS_USER`.
 

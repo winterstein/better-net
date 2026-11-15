@@ -6,7 +6,7 @@
 import { factCheckContent } from './factcheck-google.js';
 import { checkWithGeneralKnowledge, mergeGeneralKnowledge } from './factcheck-llm.js';
 import { logit } from '../../utils/logger.js';
-import type { ModuleAnalysis } from '../../types/ModuleAnalysis.js';
+import type { ModuleAnalysis, ModuleAnalysisPartial } from '../../types/ModuleAnalysis.js';
 import { extractClaims } from './extract-claims.js';
 import { problemScoreFromFraction } from '../../types/Score.js';
 
@@ -22,7 +22,7 @@ export async function analyzeChunk(
   chunk,
   pageMetadata: any = {},
   options: any = {}
-): Promise<Partial<ModuleAnalysis>> {
+): Promise<ModuleAnalysisPartial> {
   const { config = {} } = options;
   try {
      // Extract claims from content

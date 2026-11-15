@@ -9,7 +9,7 @@ import {
 	problemScoreFromZeroShotPayload,
 } from '../zero-shot-score.js';
 import { problemScoreFromFraction } from '../../types/Score.js';
-import type { ModuleAnalysis } from '../../types/ModuleAnalysis.js';
+import type { ModuleAnalysis, ModuleAnalysisPartial } from '../../types/ModuleAnalysis.js';
 
 const PROMPT_ID = 'fact-checker';
 
@@ -47,9 +47,9 @@ export async function checkWithGeneralKnowledge(chunk, claims: string[], pageMet
 
 /** Keep the Google claim list; replace the verdict with the model's. */
 export function mergeGeneralKnowledge(
-	google: Partial<ModuleAnalysis>,
-	llm: Partial<ModuleAnalysis>
-): Partial<ModuleAnalysis> {
+	google: ModuleAnalysisPartial,
+	llm: ModuleAnalysisPartial
+): ModuleAnalysisPartial {
 	const googleMeta = google.metadata ?? {};
 	const explanation = prefixExplanation(llm.explanation) || google.explanation;
 	return {

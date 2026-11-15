@@ -111,7 +111,7 @@ export function asCurl(url: string, init: RequestInit) {
 			hs += `-H '${key}: ${shellEscape(value)}'`;
 		}
 	}
-	return `curl -X${init?.method} '${shellEscape(url)}' ${hs} -d '${shellEscape(init?.body)}'`;
+	return `curl -X${init?.method} '${shellEscape(url)}' ${hs} -d '${shellEscape(String(init?.body ?? ''))}'`;
 }
 
 function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {

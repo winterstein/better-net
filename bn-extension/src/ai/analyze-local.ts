@@ -8,7 +8,7 @@ import type { LocalModelBackend, ZeroShotResult } from './local-model-backend.js
 import { traceStep, setAttributes, recordSteps } from '../tracing/tracer-hook.js';
 import type { TraceHandle } from '../tracing/tracer-hook.js';
 import { logit } from '../utils/logger.js';
-import { ModuleAnalysis } from '../types/ModuleAnalysis.js';
+import type { ModuleAnalysis, ModuleAnalysisPartial } from '../types/ModuleAnalysis.js';
 
 const MAX_TEXT_CHARS = 1200;
 const MAX_NEW_TOKENS = 256;
@@ -47,8 +47,8 @@ export interface AnalyzeWithLocalLLMParams {
 	candidateLabels?: string[];
 	multiLabel?: boolean;
 	/** Analyzer: turn model text (or zero-shot JSON) into problemScore + explanation */
-	parseResponse: (text: string) => ModuleAnalysis;
-	fallback: () => ModuleAnalysis;
+	parseResponse: (text: string) => ModuleAnalysisPartial;
+	fallback: () => ModuleAnalysisPartial;
 	localBackend?: LocalModelBackend | null;
 	/** Parent AIQA span; the model call becomes a child of it. */
 	trace?: TraceHandle | null;
@@ -57,7 +57,7 @@ export interface AnalyzeWithLocalLLMParams {
 /**
  * Run local zero-shot or generative analysis. Falls back to heuristics when no backend.
  */
-export async function analyzeWithLocalLLM(params: AnalyzeWithLocalLLMParams) : Promise<ModuleAnalysis> {
+export async function analyzeWithLocalLLM(params: AnalyzeWithLocalLLMParams) : Promise<ModuleAnalysisPartial> {
 	const {
 		modelId,
 		systemPrompt,

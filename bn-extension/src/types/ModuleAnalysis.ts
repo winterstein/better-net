@@ -58,7 +58,8 @@ export interface ModuleAnalysis {
 	metadata?: Record<string, unknown>;
 }
 
-type ModuleAnalysisPartial = Omit<Partial<ModuleAnalysis>, 'tags' | 'problemScore'> & {
+/** What an analyzer returns: the verdict, before completeModuleAnalysis() fills in the rest. */
+export type ModuleAnalysisPartial = Omit<Partial<ModuleAnalysis>, 'tags' | 'problemScore'> & {
 	/** Accept enum, or legacy [0,1] fraction from heuristics / demos */
 	problemScore?: ProblemScore | number;
 	tags?: Array<string | IssueTag>;

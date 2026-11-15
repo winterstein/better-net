@@ -9,7 +9,7 @@ import { getPrompt } from './prompt-manager.js';
 import type { LocalModelBackend } from './local-model-backend.js';
 import type { AnalysisOptions } from '../types/AnalysisOptions.js';
 import { logit, str } from '../utils/logger.js';
-import type { ModuleAnalysis } from '../types/ModuleAnalysis.js';
+import type { ModuleAnalysisPartial } from '../types/ModuleAnalysis.js';
 
 export interface FeatureAnalysisParams {
 	chunk: { text?: string; links?: { url: string }[] };
@@ -20,9 +20,11 @@ export interface FeatureAnalysisParams {
 	zeroShotLabels: string[];
 	buildContext: (chunk: FeatureAnalysisParams['chunk'], pageMetadata: Record<string, unknown>) => Record<string, unknown>;
 	formatContextForPrompt: (context: Record<string, unknown>) => string;
-	parseAIResponse: (text: string) => ModuleAnalysis;
-	heuristicFallback: (context: Record<string, unknown>) => ModuleAnalysis;
-	mockResults: (context: Record<string, unknown>) => ModuleAnalysis;
+	// A partial: an analyzer gives the verdict; the engine fills in id, methodName and model
+	// (types/ModuleAnalysis.ts completeModuleAnalysis).
+	parseAIResponse: (text: string) => ModuleAnalysisPartial;
+	heuristicFallback: (context: Record<string, unknown>) => ModuleAnalysisPartial;
+	mockResults: (context: Record<string, unknown>) => ModuleAnalysisPartial;
 }
 
 /**
@@ -30,7 +32,7 @@ export interface FeatureAnalysisParams {
  * @param params 
  * @returns 
  */
-export async function runFeatureAnalysis(params: FeatureAnalysisParams) : Promise<ModuleAnalysis> {
+export async function runFeatureAnalysis(params: FeatureAnalysisParams) : Promise<ModuleAnalysisPartial> {
 	const {
 		chunk,
 		pageMetadata,

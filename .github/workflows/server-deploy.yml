@@ -21,6 +21,10 @@ concurrency:
   group: deploy-server-prod
   cancel-in-progress: false
 
+# The job only reads the repo. Everything it deploys with comes from the prod environment.
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -29,6 +33,9 @@ jobs:
       DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
       DEPLOY_USER: ${{ vars.DEPLOY_USER }}
       DEPLOY_PORT: ${{ vars.DEPLOY_PORT || 22 }}
+      # SHA256 fingerprint of the host's SSH key, so the job cannot be pointed at an impostor.
+      # On the host: ssh-keygen -l -f /etc/ssh/ssh_host_ed25519_key.pub | cut -d ' ' -f2
+      DEPLOY_HOST_FINGERPRINT: ${{ vars.DEPLOY_HOST_FINGERPRINT }}
       # Test DB (job-local Postgres service below; not used for production deploy)
       DB_HOST: localhost
       DB_PORT: 5432
@@ -51,6 +58,23 @@ jobs:
           --health-retries 5
 
     steps:
+      # Before anything is sent to the host. An empty fingerprint would make the SSH steps
+      # skip the host-key check silently, which is the thing it exists to prevent.
+      - name: Check deploy settings
+        env:
+          BN_PSEUDONYM_SECRET: ${{ secrets.BN_PSEUDONYM_SECRET }}
+        run: |
+          if [ -z "$DEPLOY_HOST_FINGERPRINT" ]; then
+            echo "::error::Set the DEPLOY_HOST_FINGERPRINT variable in the prod environment (see the comment at the top of this job)."
+            exit 1
+          fi
+          # Feedback pseudonyms and shared-analysis contributor ids are HMACs keyed on this.
+          # Without it the server would start and hash them with an empty key.
+          if [ -z "$BN_PSEUDONYM_SECRET" ]; then
+            echo "::error::Set the BN_PSEUDONYM_SECRET secret in the prod environment."
+            exit 1
+          fi
+
       - name: Checkout code
         uses: actions/checkout@v4
         # bn-server compiles shared code from bn-extension via src/bn-extension-src symlink
@@ -75,19 +99,22 @@ jobs:
         run: npm run build
 
       - name: Deploy to temporary location
-        uses: appleboy/scp-action@v0.1.7
+        # Pinned to a commit, not a tag: these actions are handed the SSH key and the prod
+        # secrets, and a tag can be moved to different code. Update the hash to upgrade.
+        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634 # v0.1.7
         with:
           host: ${{ env.DEPLOY_HOST }}
           username: ${{ env.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ env.DEPLOY_PORT }}
+          fingerprint: ${{ env.DEPLOY_HOST_FINGERPRINT }}
           # Only ship runtime artefacts; node_modules are installed on the host
           source: "bn-server/dist,bn-server/package.json,bn-server/package-lock.json"
           target: "/opt/betternet/server.new"
           strip_components: 1
 
       - name: Install dependencies in staging
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
         env:
           SERVER_PORT: ${{ vars.SERVER_PORT || '3001' }}
           SERVER_HOST: ${{ vars.SERVER_HOST || '0.0.0.0' }}
@@ -108,6 +135,7 @@ jobs:
           username: ${{ env.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ env.DEPLOY_PORT }}
+          fingerprint: ${{ env.DEPLOY_HOST_FINGERPRINT }}
           envs: SERVER_PORT,SERVER_HOST,DB_HOST,DB_PORT,DB_NAME,DB_USERNAME,DB_PASSWORD,AUTH0_DOMAIN,AUTH0_AUDIENCE,BN_PSEUDONYM_SECRET,BN_AIQA_ENDPOINT,BN_OPENAI_API_KEY,BN_ANTHROPIC_API_KEY,BN_GOOGLE_API_KEY
           script: |
             set -e
@@ -148,7 +176,7 @@ jobs:
             chmod 600 .env
 
       - name: Swap live directory and restart
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
         env:
           SERVER_PORT: ${{ vars.SERVER_PORT || '3001' }}
           RUN_AS_USER: ${{ vars.RUN_AS_USER || vars.DEPLOY_USER }}
@@ -157,6 +185,7 @@ jobs:
           username: ${{ env.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ env.DEPLOY_PORT }}
+          fingerprint: ${{ env.DEPLOY_HOST_FINGERPRINT }}
           envs: SERVER_PORT,RUN_AS_USER
           script: |
             set -e
